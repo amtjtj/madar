@@ -4,6 +4,8 @@ Madar is a unified work operating system for companies: one shared core (tasks, 
 
 The full product brief lives in `docs/brief.md`. Read it before any planning task. The approved architecture is in `docs/architecture.md` and decisions in `docs/decisions/`.
 
+Area-specific rules live next to the code: `apps/web/CLAUDE.md` (UI, fonts, digits, dates, `'use client'`) and `apps/api/CLAUDE.md` (data access, permissions, errors, audit). Read them before working in those areas.
+
 ## Golden rules
 
 1. **Plan before code.** For any feature larger than a small fix, write a short plan first and wait for approval.
@@ -73,29 +75,7 @@ docs/
 - Validate every input with Zod. Rate-limit auth and AI endpoints. No secrets in code; use env files that are git-ignored.
 - A tenant can be suspended (read-only or locked) for non-payment without deleting data.
 - A tenant can export all of its data at any time.
-- All tenant data access goes through `withTenant()` from `@madar/db` (API: `TenantDb.run(ctx, …)`); raw `pg` imports are lint errors in the API.
-- New data-plane tables: composite `(tenant_id, x)` foreign keys and `select app.enable_tenant_rls('<table>')` in the migration (the catalog meta-test enforces it).
-- Sensitive changes call `TenantDb.audit()` inside the same transaction (ADR 0009).
-- API errors carry codes only (`{ error: { code } }`); the web maps them to Persian in `apps/web/src/lib/errors.ts` and `errors.*` strings.
-- System-role grants are copied into each tenant at signup: adding a permission to `SYSTEM_ROLE_GRANTS` also needs a data migration for existing tenants (see `0004_grant_task_manage.sql`).
-- Work visibility (who sees which task/project) lives in `apps/api/src/work/access.ts` as SQL conditions; reuse them, never filter in memory (ADR 0010).
-
-## UI and UX rules
-
-- Mobile-first; every screen must work at 360px width and on desktop.
-- RTL with Tailwind logical utilities (`ms-*`, `me-*`, `ps-*`, `pe-*`, `start-*`, `end-*`). Never use `ml-*`, `mr-*`, `left-*`, `right-*` for layout.
-- Jalali (Shamsi) calendar for all dates shown to users; store UTC in the DB.
-- Persian digits in the UI; Latin digits in code and data.
-- Font: **Abar Low** (Fontiran, licensed; weights 100/300/400/700/900), self-hosted from `apps/web/public/fonts/abar/`. The font files are **never committed** (commercial license, public repo): install them per environment with `pnpm fonts:install <dir>`. Without them the UI falls back to Vazirmatn (open license, in git).
-- Optimistic UI for user actions; skeletons instead of spinners; a designed empty state for every list.
-- Animations must be short (under 400ms for UI feedback) and never block input.
-- Light and dark themes via design tokens; no hardcoded colors in components.
-- Home screen per role: an employee knows what to do today within 10 seconds; a CEO understands company status within 30 seconds.
-- Build screens from `@madar/ui` (see `/design-system` and `docs/decisions/0008-design-system.md`). Colors only through tokens (`bg-surface`, `text-ink`, `bg-primary`, …); add a token before adding a color.
-- Dates: `formatJalaliDate`, `formatTime`, `formatRelativeTime` from `@madar/shared` (tenant timezone, default `Asia/Tehran`). Calendar dates (due dates, plan days) are `YYYY-MM-DD` strings: `calendarDateIn`, `formatCalendarDate`, `addDays`, `dueStatus`.
-- Never put `·` right next to a number in UI text: in Persian fonts it looks like the digit zero (۰). Use «،» or parentheses. Numbers: `formatNumber`, `formatPercent`, `toPersianDigits`; normalize user input with `toLatinDigits`. The font does **not** convert digits.
-- A `'use client'` file exports only components, hooks and types. Constants, helpers and `cva` variants go in a plain module, because server components receive client-module values as references, not values (this caused a production-only hydration error once).
-- Next.js 16 docs ship inside `node_modules/next/dist/docs/` (see `apps/web/AGENTS.md`); check them before using an unfamiliar Next API.
+- Implementation rules for data access, permissions, errors and audit: `apps/api/CLAUDE.md`. UI rules: `apps/web/CLAUDE.md`.
 
 ## Gamification rules
 
@@ -150,4 +130,3 @@ Notes:
 - Without Docker, any local Postgres 16+ and Redis 7+ work; point `DATABASE_URL`/`REDIS_URL` at them.
 - If Playwright cannot download its browser, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to a local Chromium.
 - Markdown files are not formatted by Prettier (Persian tables); keep them tidy by hand.
-- ESLint forbids physical Tailwind classes (`ml-*`, `left-*`, `text-right`, …) in web code.
