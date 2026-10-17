@@ -42,6 +42,8 @@ CLAUDE.md fixes the stack; this records the exact versions chosen when the monor
 | Auth | better-auth | 1.7.10 | username + twoFactor plugins, Drizzle adapter (ADR 0003) |
 | IDs | uuid | 14.0.3 | UUIDv7 for every primary key |
 | Web | qrcode | 1.5.4 | 2FA QR code rendered in the browser (no external service) |
+| Web | @dnd-kit/core / sortable / utilities | 6.3.1 / 10.0.0 / 3.2.2 | Board drag and drop: pointer, touch and keyboard (ADR 0010) |
+| API | fractional-indexing | 4.0.0 | Sort keys for board order (ADR 0010) |
 | Claude Code MCP | @upstash/context7-mcp / @playwright/mcp | 4.4.2 / 0.0.83 | `.mcp.json` |
 
 BullMQ and Socket.IO are added in the step that first needs them and recorded here. "Framer Motion" is now published as `motion`. shadcn/ui is used as a pattern (Radix primitives + `cva` + tokens, components owned in `packages/ui`), not as a dependency.

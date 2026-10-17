@@ -523,6 +523,7 @@ export const fa = {
       department_updated: 'ویرایش دپارتمان',
       department_archived: 'بایگانی دپارتمان',
       department_oversight_changed: 'تغییر دسترسی ناظر',
+      task_deleted: 'حذف کار',
     },
   },
   work: {

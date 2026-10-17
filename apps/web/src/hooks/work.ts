@@ -159,6 +159,7 @@ export function useUpdateTask() {
       client.setQueryData(workKeys.task(task.id), task);
       void client.invalidateQueries({ queryKey: workKeys.activity(task.id) });
       void client.invalidateQueries({ queryKey: workKeys.allTasks });
+      void client.invalidateQueries({ queryKey: workKeys.projects });
     },
   });
 }
@@ -311,6 +312,8 @@ export function useMoveTask(listKey: readonly unknown[]) {
       );
       client.setQueryData(workKeys.task(task.id), task);
       void client.invalidateQueries({ queryKey: workKeys.today });
+      // Project progress counts done tasks.
+      void client.invalidateQueries({ queryKey: workKeys.projects });
     },
   });
 }

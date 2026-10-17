@@ -7,7 +7,7 @@ import 'reflect-metadata';
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { schema as s, withTenant, type DbHandle } from '@madar/db';
-import type { SystemRole } from '@madar/shared';
+import { addDays, calendarDateIn, type SystemRole } from '@madar/shared';
 import { eq } from 'drizzle-orm';
 
 import { AppModule } from '../app.module.js';
@@ -20,7 +20,11 @@ import { DB_HANDLE } from '../database/tokens.js';
 import { DepartmentsService } from '../departments/departments.service.js';
 import { MembersService } from '../members/members.service.js';
 import { TenantsService } from '../tenants/tenants.service.js';
+import { ProjectsService } from '../work/projects.service.js';
+import { TasksService } from '../work/tasks.service.js';
+import { TodayService } from '../work/today.service.js';
 import { SEED_COMPANY, SEED_DEPARTMENTS, SEED_PEOPLE } from './seed-data.js';
+import { SEED_PROJECTS, SEED_TASKS } from './seed-work.js';
 
 const logger = new Logger('Seed');
 /** Summary lines go straight to stdout (the Nest logger is limited to warnings while seeding). */
@@ -134,16 +138,98 @@ async function main(): Promise<void> {
         });
     }
 
+    // Work: projects and tasks, each created by the person who would create it in the app.
+    const contextFor = async (username: string): Promise<TenantContext> => {
+      const user = await accounts.findByUsername(username);
+      const member = user && (await app.get(TenantContextService).loadMember(tenantId, user.id));
+      if (!user || !member) throw new Error(`seed member ${username} missing`);
+      return {
+        ...ctx,
+        user: { ...ctx.user, id: user.id, username },
+        memberId: member.memberId,
+        actor: member.actor,
+      };
+    };
+    const contexts = new Map<string, TenantContext>();
+    const as = async (username: string) => {
+      const cached = contexts.get(username);
+      if (cached) return cached;
+      const loadedCtx = await contextFor(username);
+      contexts.set(username, loadedCtx);
+      return loadedCtx;
+    };
+    const idOf = (username: string) => {
+      const id = memberIds.get(username);
+      if (!id) throw new Error(`seed member ${username} missing`);
+      return id;
+    };
+
+    const today = calendarDateIn(new Date());
+    const projects = app.get(ProjectsService);
+    const projectIds = new Map<string, string>();
+    for (const p of SEED_PROJECTS) {
+      const project = await projects.create(await as(p.owner), {
+        name: p.name,
+        description: p.description,
+        departmentId: departmentIds.get(p.department) ?? null,
+        visibility: p.visibility,
+        dueOn: p.dueIn === undefined ? null : addDays(today, p.dueIn),
+        memberIds: (p.members ?? []).map(idOf),
+      });
+      projectIds.set(p.key, project.id);
+    }
+
+    const tasks = app.get(TasksService);
+    const todayPlans = app.get(TodayService);
+    let taskCount = 0;
+    for (const item of SEED_TASKS) {
+      const reporter = await as(item.by);
+      const task = await tasks.create(reporter, {
+        title: item.title,
+        description: item.description ?? null,
+        projectId: item.project ? projectIds.get(item.project) : null,
+        assigneeId: item.assignee ? idOf(item.assignee) : null,
+        dueOn: item.dueIn === undefined ? null : addDays(today, item.dueIn),
+        priority: item.priority,
+        weight: item.weight,
+        statusKey: item.status,
+      });
+      taskCount++;
+      for (const title of item.subtasks ?? []) {
+        await tasks.create(reporter, {
+          title,
+          parentId: task.id,
+          departmentId: task.department.id,
+          projectId: task.project?.id ?? null,
+          assigneeId: task.assignee?.id ?? null,
+        });
+        taskCount++;
+      }
+      for (const comment of item.comments ?? []) {
+        await tasks.addComment(await as(comment.by), task.id, { body: comment.body });
+      }
+      if (item.today && item.assignee) await todayPlans.add(await as(item.assignee), task.id);
+      if (item.yesterday && item.assignee) {
+        await withTenant(handle.db, { tenantId }, (tx) =>
+          tx.insert(s.dailyPlanItems).values({
+            memberId: idOf(item.assignee ?? ''),
+            planDate: addDays(today, -1),
+            taskId: task.id,
+          }),
+        );
+      }
+    }
+
     const count = await withTenant(
       handle.db,
       { tenantId },
       async (tx) => (await tx.select({ id: s.members.id }).from(s.members)).length,
     );
     say(
-      `Seeded "${SEED_COMPANY.name}" (${SEED_COMPANY.slug}): ${SEED_DEPARTMENTS.length} departments, ${count} members.`,
+      `Seeded "${SEED_COMPANY.name}" (${SEED_COMPANY.slug}): ${SEED_DEPARTMENTS.length} departments, ${count} members, ${SEED_PROJECTS.length} projects, ${taskCount} tasks.`,
     );
     say(
-      `Sign in as any seeded username (e.g. ${owner.username}, maryam.ahmadi) with SEED_PASSWORD.`,
+      `Sign in as any seeded username (e.g. ${owner.username}, maryam.ahmadi, ali.rezaei) with SEED_PASSWORD.`,
     );
     say('Owner and admin accounts are asked to set up two-factor authentication at first sign-in.');
   } finally {

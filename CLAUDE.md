@@ -77,6 +77,8 @@ docs/
 - New data-plane tables: composite `(tenant_id, x)` foreign keys and `select app.enable_tenant_rls('<table>')` in the migration (the catalog meta-test enforces it).
 - Sensitive changes call `TenantDb.audit()` inside the same transaction (ADR 0009).
 - API errors carry codes only (`{ error: { code } }`); the web maps them to Persian in `apps/web/src/lib/errors.ts` and `errors.*` strings.
+- System-role grants are copied into each tenant at signup: adding a permission to `SYSTEM_ROLE_GRANTS` also needs a data migration for existing tenants (see `0004_grant_task_manage.sql`).
+- Work visibility (who sees which task/project) lives in `apps/api/src/work/access.ts` as SQL conditions; reuse them, never filter in memory (ADR 0010).
 
 ## UI and UX rules
 
@@ -90,7 +92,8 @@ docs/
 - Light and dark themes via design tokens; no hardcoded colors in components.
 - Home screen per role: an employee knows what to do today within 10 seconds; a CEO understands company status within 30 seconds.
 - Build screens from `@madar/ui` (see `/design-system` and `docs/decisions/0008-design-system.md`). Colors only through tokens (`bg-surface`, `text-ink`, `bg-primary`, …); add a token before adding a color.
-- Dates: `formatJalaliDate`, `formatTime`, `formatRelativeTime` from `@madar/shared` (tenant timezone, default `Asia/Tehran`). Numbers: `formatNumber`, `formatPercent`, `toPersianDigits`; normalize user input with `toLatinDigits`. The font does **not** convert digits.
+- Dates: `formatJalaliDate`, `formatTime`, `formatRelativeTime` from `@madar/shared` (tenant timezone, default `Asia/Tehran`). Calendar dates (due dates, plan days) are `YYYY-MM-DD` strings: `calendarDateIn`, `formatCalendarDate`, `addDays`, `dueStatus`.
+- Never put `·` right next to a number in UI text: in Persian fonts it looks like the digit zero (۰). Use «،» or parentheses. Numbers: `formatNumber`, `formatPercent`, `toPersianDigits`; normalize user input with `toLatinDigits`. The font does **not** convert digits.
 - A `'use client'` file exports only components, hooks and types. Constants, helpers and `cva` variants go in a plain module, because server components receive client-module values as references, not values (this caused a production-only hydration error once).
 - Next.js 16 docs ship inside `node_modules/next/dist/docs/` (see `apps/web/AGENTS.md`); check them before using an unfamiliar Next API.
 
@@ -136,7 +139,7 @@ Requirements: Node 22.12+ (24 LTS recommended), pnpm 10 (`corepack enable`), Doc
 | Generate a migration from the Drizzle schema | `pnpm db:generate` |
 | Apply migrations (also creates the `madar_app` role) | `pnpm db:migrate` |
 | Drop everything and re-migrate (development only) | `pnpm db:reset` |
-| Seed the demo company «زرین‌مدار» (20 people; password `SEED_PASSWORD`) | `pnpm db:seed` |
+| Seed the demo company «زرین‌مدار» (20 people, 5 projects, ~60 tasks; password `SEED_PASSWORD`) | `pnpm db:seed` |
 | Install the licensed Abar Low fonts (git-ignored) | `pnpm fonts:install <dir-with-AbarLow-files>` |
 | One package only | `pnpm --filter @madar/<name> <script>` (e.g. `pnpm --filter @madar/api test`) |
 

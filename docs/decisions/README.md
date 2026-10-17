@@ -15,3 +15,4 @@ Template: Status · Date · Context · Decision · Alternatives considered · Co
 | 0007 | Gamification data and streak rules | Accepted |
 | 0008 | Design system foundations | Accepted |
 | 0009 | Append-only, hash-chained audit log | Accepted |
+| 0010 | Work core: tasks, projects and the daily plan | Accepted |

@@ -14,6 +14,7 @@ import {
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
+  type KeyboardCoordinateGetter,
   type UniqueIdentifier,
 } from '@dnd-kit/core';
 import {
@@ -51,6 +52,36 @@ function columnsOf(tasks: Task[]): Columns {
 
 const statusLabel = (column: StatusCategory) => t(`work.status.${column}`);
 
+/** Column a draggable or droppable belongs to (set as dnd-kit data on cards and columns). */
+const columnData = (data: { current?: Record<string, unknown> } | undefined) =>
+  data?.current?.column as Column | undefined;
+
+/**
+ * Keyboard: ←/→ jump straight to the neighbouring column (whatever the reading direction);
+ * ↑/↓ move within a column.
+ */
+const coordinateGetter: KeyboardCoordinateGetter = (event, args) => {
+  const { active, over, droppableRects } = args.context;
+  if ((event.code === 'ArrowLeft' || event.code === 'ArrowRight') && active) {
+    const current = columnData(over?.data) ?? columnData(active.data);
+    const from = current ? droppableRects.get(current) : undefined;
+    if (from) {
+      const center = from.left + from.width / 2;
+      const toward = event.code === 'ArrowLeft' ? -1 : 1;
+      const target = COLUMNS.map((c) => droppableRects.get(c))
+        .filter((rect): rect is NonNullable<typeof rect> => Boolean(rect))
+        .filter((rect) => (rect.left + rect.width / 2 - center) * toward > 0)
+        .sort(
+          (a, b) =>
+            Math.abs(a.left + a.width / 2 - center) - Math.abs(b.left + b.width / 2 - center),
+        )[0];
+      event.preventDefault();
+      return target ? { x: target.left + 16, y: target.top + 16 } : undefined;
+    }
+  }
+  return sortableKeyboardCoordinates(event, args);
+};
+
 export interface TaskBoardProps {
   tasks: Task[];
   /** Query key of the list being shown (updated optimistically on drop). */
@@ -70,14 +101,13 @@ export function TaskBoard({ tasks, listKey, today, hideProject }: TaskBoardProps
   const base = useMemo(() => columnsOf(tasks), [tasks]);
   const columns = draft ?? base;
 
+  const columnOf = (id: UniqueIdentifier, from: Columns = columns): Column | undefined =>
+    COLUMNS.find((c) => c === id) ?? COLUMNS.find((c) => from[c].includes(String(id)));
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    useSensor(KeyboardSensor, { coordinateGetter }),
   );
-
-  const columnOf = (id: UniqueIdentifier, from: Columns = columns): Column | undefined =>
-    COLUMNS.find((c) => c === id) ?? COLUMNS.find((c) => from[c].includes(String(id)));
 
   const titleOf = (id: UniqueIdentifier) => byId.get(String(id))?.title ?? '';
   const announcements: Announcements = {
@@ -122,25 +152,44 @@ export function TaskBoard({ tasks, listKey, today, hideProject }: TaskBoardProps
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     const id = String(active.id);
     const task = byId.get(id);
-    const column = columnOf(id);
-    if (!over || !task || !column) return reset();
+    // `over` comes from dnd-kit and is always current; React state may lag a fast keyboard drop.
+    const column = over
+      ? (COLUMNS as readonly UniqueIdentifier[]).includes(over.id)
+        ? (over.id as Column)
+        : columnData(over.data)
+      : undefined;
+    const from = task?.statusCategory as Column | undefined;
+    if (!over || !task || !column || !from || !(COLUMNS as readonly string[]).includes(from)) {
+      return reset();
+    }
 
-    let ids = columns[column];
-    const oldIndex = ids.indexOf(id);
-    const overIndex = over.id === column ? ids.length - 1 : ids.indexOf(String(over.id));
-    if (overIndex >= 0 && overIndex !== oldIndex) ids = arrayMove(ids, oldIndex, overIndex);
+    let ids: string[];
+    if (column === from) {
+      const list = base[from];
+      const oldIndex = list.indexOf(id);
+      const overIndex = over.id === column ? list.length - 1 : list.indexOf(String(over.id));
+      ids = overIndex >= 0 && overIndex !== oldIndex ? arrayMove(list, oldIndex, overIndex) : list;
+    } else {
+      const shown = (draft ?? base)[column];
+      if (shown.includes(id)) {
+        ids = shown;
+      } else {
+        const list = base[column];
+        const overIndex = list.indexOf(String(over.id));
+        ids = [...list];
+        ids.splice(overIndex >= 0 ? overIndex : list.length, 0, id);
+      }
+    }
     const index = ids.indexOf(id);
     const afterTaskId = ids[index - 1] ?? null;
     const beforeTaskId = ids[index + 1] ?? null;
+    if (column === from && ids === base[from]) return reset();
 
-    const baseIds = base[column];
-    const unchanged =
-      task.statusCategory === column &&
-      baseIds[baseIds.indexOf(id) - 1] === (afterTaskId ?? undefined) &&
-      baseIds[baseIds.indexOf(id) + 1] === (beforeTaskId ?? undefined);
-    if (unchanged) return reset();
-
-    const next: Columns = { ...columns, [column]: ids };
+    const next: Columns = {
+      ...base,
+      [from]: base[from].filter((taskId) => taskId !== id),
+      [column]: ids,
+    };
     const moved: Task = {
       ...task,
       statusKey: column,
@@ -195,6 +244,7 @@ export function TaskBoard({ tasks, listKey, today, hideProject }: TaskBoardProps
                   <SortableTask
                     key={taskId}
                     task={task}
+                    column={column}
                     today={today}
                     hideProject={hideProject}
                     onOpen={() => router.push(`/tasks/${taskId}`)}
@@ -232,7 +282,7 @@ function DroppableColumn({
   count: number;
   children: React.ReactNode;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: column });
+  const { setNodeRef, isOver } = useDroppable({ id: column, data: { column } });
   return (
     <BoardColumn
       title={statusLabel(column)}
@@ -248,17 +298,20 @@ function DroppableColumn({
 
 function SortableTask({
   task,
+  column,
   today,
   hideProject,
   onOpen,
 }: {
   task: Task;
+  column: Column;
   today: string;
   hideProject?: boolean;
   onOpen: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
+    data: { column },
     disabled: !task.can.edit,
   });
   return (
