@@ -4,12 +4,16 @@ import { ChartColumn, Flame, House, ListTodo, Settings, Target, Users } from 'lu
 import { useState } from 'react';
 
 import { t } from '@madar/i18n';
-import { formatNumber } from '@madar/shared';
+import { addDays, formatNumber } from '@madar/shared';
 import {
   Avatar,
+  Badge,
   BottomNav,
   Button,
+  BoardColumn,
   CompleteCheck,
+  DatePicker,
+  TaskCard,
   Modal,
   ModalClose,
   OrbitIllustration,
@@ -220,6 +224,82 @@ export function CelebrationDemo() {
           <Flame aria-hidden className="fill-current" />
           {t('designSystem.progress.streakDays', { days: formatNumber(streak) })}
         </span>
+      </div>
+    </div>
+  );
+}
+
+export function WorkDemo({ today }: { today: string }) {
+  const [due, setDue] = useState<string | null>(addDays(today, 1));
+  const [done, setDone] = useState<Record<string, boolean>>({});
+  const toggle = (id: string) => (checked: boolean) =>
+    setDone((current) => ({ ...current, [id]: checked }));
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,22rem)_1fr]">
+      <div className="flex flex-col gap-4">
+        <DatePicker
+          label={t('designSystem.work.dateLabel')}
+          value={due}
+          onChange={setDue}
+          today={today}
+        />
+        <TaskCard
+          title={t('designSystem.work.tasks.report')}
+          done={!!done.report}
+          onDoneChange={toggle('report')}
+          onOpen={() => undefined}
+          today={today}
+          dueOn={addDays(today, -2)}
+          priority="urgent"
+          assigneeName="سارا محمدی"
+          xp={20}
+          tag={
+            <Badge tone="accent" size="sm">
+              {t('designSystem.work.fromYesterday')}
+            </Badge>
+          }
+        />
+        <TaskCard
+          title={t('designSystem.work.tasks.tickets')}
+          done={!!done.tickets}
+          onDoneChange={toggle('tickets')}
+          today={today}
+          dueOn={due}
+          subtasks={{ done: 2, total: 5 }}
+          commentCount={3}
+          assigneeName="علی رضایی"
+        />
+      </div>
+      <div className="flex snap-x gap-3 overflow-x-auto pb-2">
+        <BoardColumn title={t('work.status.todo')} category="todo" count={1}>
+          <TaskCard
+            title={t('designSystem.work.tasks.banner')}
+            done={false}
+            today={today}
+            dueOn={today}
+            projectName={t('designSystem.work.project')}
+            assigneeName="نگار کریمی"
+            compact
+          />
+        </BoardColumn>
+        <BoardColumn
+          title={t('work.status.in_progress')}
+          category="in_progress"
+          count={1}
+          highlighted
+        >
+          <TaskCard
+            title={t('designSystem.work.tasks.review')}
+            done={false}
+            today={today}
+            priority="high"
+            assigneeName="مریم احمدی"
+            dragging
+            compact
+          />
+        </BoardColumn>
+        <BoardColumn title={t('work.status.done')} category="done" count={0} />
       </div>
     </div>
   );

@@ -175,3 +175,69 @@ export function formatRelativeTime(date: Date, now: Date = new Date()): string {
   }
   return rtf.format(0, 'second');
 }
+
+/* ---------- Calendar dates (YYYY-MM-DD, no time zone): due dates, plan days ---------- */
+
+function parseCalendarDate(date: string): { gy: number; gm: number; gd: number } {
+  const [gy, gm, gd] = date.split('-').map(Number) as [number, number, number];
+  return { gy, gm, gd };
+}
+
+/** The Jalali parts of a calendar date. */
+export function jalaliOfCalendarDate(date: string): JalaliDate {
+  const { gy, gm, gd } = parseCalendarDate(date);
+  return toJalaali(gy, gm, gd);
+}
+
+/** The calendar date (YYYY-MM-DD) of a Jalali date. */
+export function calendarDateOfJalali(jalali: JalaliDate): string {
+  return fromJalali(jalali).toISOString().slice(0, 10);
+}
+
+/** Persian weekday index (0 = Saturday … 6 = Friday) of a calendar date. */
+export function persianWeekdayOfCalendarDate(date: string): number {
+  // getUTCDay: 0 = Sunday … 6 = Saturday.
+  return (new Date(`${date}T00:00:00Z`).getUTCDay() + 1) % 7;
+}
+
+/** Formats a calendar date (styles as in `formatJalaliDate`). */
+export function formatCalendarDate(date: string, style: JalaliDateStyle = 'medium'): string {
+  return formatJalaliDate(new Date(`${date}T12:00:00Z`), style, 'UTC');
+}
+
+/**
+ * The weeks of a Jalali month for a calendar grid: rows of 7 cells starting on Saturday,
+ * each a calendar date or null for padding.
+ */
+export function jalaliMonthGrid(jy: number, jm: number): Array<Array<string | null>> {
+  const first = calendarDateOfJalali({ jy, jm, jd: 1 });
+  const cells: Array<string | null> = Array.from(
+    { length: persianWeekdayOfCalendarDate(first) },
+    () => null,
+  );
+  for (let d = 0; d < jalaliMonthLength(jy, jm); d++) cells.push(addDays(first, d));
+  while (cells.length % 7) cells.push(null);
+  const weeks: Array<Array<string | null>> = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+  return weeks;
+}
+
+/** Moves a Jalali month by `delta` months. */
+export function shiftJalaliMonth(
+  jy: number,
+  jm: number,
+  delta: number,
+): { jy: number; jm: number } {
+  const index = jy * 12 + (jm - 1) + delta;
+  return { jy: Math.floor(index / 12), jm: (index % 12) + 1 };
+}
+
+export type DueStatus = 'overdue' | 'today' | 'tomorrow' | 'upcoming';
+
+/** How a due date relates to today (both calendar dates in the tenant time zone). */
+export function dueStatus(dueOn: string, today: string): DueStatus {
+  if (dueOn < today) return 'overdue';
+  if (dueOn === today) return 'today';
+  if (dueOn === addDays(today, 1)) return 'tomorrow';
+  return 'upcoming';
+}

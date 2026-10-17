@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 
 import { t } from '@madar/i18n';
 import {
+  calendarDateIn,
   formatJalaliDate,
   formatNumber,
   formatPercent,
@@ -32,7 +33,7 @@ import {
   cn,
 } from '@madar/ui';
 
-import { CelebrationDemo, FeedbackDemo, NavigationDemo } from './interactive';
+import { CelebrationDemo, FeedbackDemo, NavigationDemo, WorkDemo } from './interactive';
 import { Code, Panel, Section } from './section';
 
 export const metadata: Metadata = { title: t('designSystem.title') };
@@ -402,6 +403,13 @@ export default function DesignSystemPage() {
         <Section id="celebration" title={t('designSystem.sections.celebration')}>
           <Panel>
             <CelebrationDemo />
+          </Panel>
+        </Section>
+
+        {/* ---------- Work ---------- */}
+        <Section id="work" title={t('designSystem.sections.work')}>
+          <Panel>
+            <WorkDemo today={calendarDateIn(new Date())} />
           </Panel>
         </Section>
 

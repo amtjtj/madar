@@ -49,3 +49,12 @@ export {
 export { CompleteCheck, type CompleteCheckProps } from './components/complete-check.js';
 export { ThemeToggle, useTheme, type ThemePreference } from './components/theme.js';
 export { THEME_STORAGE_KEY, themeScript } from './components/theme-script.js';
+export { DatePicker, type DatePickerProps } from './components/date-picker.js';
+export {
+  PriorityBadge,
+  TaskCard,
+  type PriorityBadgeProps,
+  type TaskCardProps,
+} from './components/task-card.js';
+export { BoardColumn, type BoardColumnProps } from './components/board-column.js';
+export { dueTone, priorityTone, statusDot } from './components/task-meta.js';

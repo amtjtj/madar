@@ -19,6 +19,16 @@ export const fa = {
     locked: 'قفل',
     notifications: 'اعلان‌ها',
     mainNavigation: 'ناوبری اصلی',
+    datePicker: {
+      placeholder: 'انتخاب تاریخ',
+      today: 'امروز',
+      tomorrow: 'فردا',
+      nextWeek: 'شنبه بعد',
+      clear: 'بدون تاریخ',
+      previousMonth: 'ماه قبل',
+      nextMonth: 'ماه بعد',
+      holiday: 'تعطیل',
+    },
   },
   theme: {
     label: 'پوسته',
@@ -332,6 +342,30 @@ export const fa = {
       department_oversight_changed: 'تغییر دسترسی ناظر',
     },
   },
+  work: {
+    priority: {
+      low: 'کم',
+      normal: 'عادی',
+      high: 'زیاد',
+      urgent: 'فوری',
+    },
+    status: {
+      todo: 'انجام‌نشده',
+      in_progress: 'در حال انجام',
+      done: 'انجام‌شده',
+      canceled: 'لغوشده',
+    },
+    due: {
+      overdue: 'عقب‌افتاده، {date}',
+      today: 'امروز',
+      tomorrow: 'فردا',
+      upcoming: '{date}',
+    },
+    subtasks: '{done} از {total} زیرکار',
+    comments: '{count} نظر',
+    noAssignee: 'بدون مسئول',
+    emptyColumn: 'کاری اینجا نیست',
+  },
   designSystem: {
     title: 'دیزاین‌سیستم مدار',
     intro:
@@ -351,8 +385,20 @@ export const fa = {
       feedback: 'توست و مودال',
       navigation: 'ناوبری',
       celebration: 'تکمیل کار',
+      work: 'کارها: تاریخ، کارت و برد',
       locale: 'تاریخ شمسی و اعداد',
       themes: 'مقایسه دو پوسته',
+    },
+    work: {
+      dateLabel: 'سررسید',
+      fromYesterday: 'از دیروز',
+      tasks: {
+        report: 'ارسال گزارش هفتگی به مدیر',
+        tickets: 'پاسخ به تیکت‌های باز',
+        banner: 'طراحی بنر جشنواره پاییز',
+        review: 'بازبینی متن اطلاعیه',
+      },
+      project: 'جشنواره پاییز',
     },
     colorGroups: {
       surfaces: 'سطح‌ها',

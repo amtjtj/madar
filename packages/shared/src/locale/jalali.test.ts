@@ -3,13 +3,20 @@ import { describe, expect, it } from 'vitest';
 import {
   addDays,
   calendarDateIn,
+  calendarDateOfJalali,
+  dueStatus,
+  formatCalendarDate,
   formatJalaliDate,
   formatRelativeTime,
   formatTime,
   fromJalali,
   isJalaliLeapYear,
+  jalaliMonthGrid,
   jalaliMonthLength,
+  jalaliOfCalendarDate,
   persianWeekdayIndex,
+  persianWeekdayOfCalendarDate,
+  shiftJalaliMonth,
   toJalali,
 } from './jalali.js';
 
@@ -67,5 +74,34 @@ describe('jalali', () => {
     expect(calendarDateIn(new Date('2026-10-17T21:00:00Z'), 'UTC')).toBe('2026-10-17');
     expect(addDays('2026-03-20', 1)).toBe('2026-03-21');
     expect(addDays('2026-03-01', -1)).toBe('2026-02-28');
+  });
+});
+
+describe('calendar dates', () => {
+  it('converts between calendar dates and Jalali', () => {
+    expect(jalaliOfCalendarDate('2026-10-17')).toEqual({ jy: 1405, jm: 7, jd: 25 });
+    expect(calendarDateOfJalali({ jy: 1405, jm: 1, jd: 1 })).toBe('2026-03-21');
+    expect(formatCalendarDate('2026-10-17', 'full')).toBe('شنبه ۲۵ مهر ۱۴۰۵');
+  });
+
+  it('builds a Saturday-first month grid', () => {
+    // 1 Mehr 1405 is a Wednesday (index 4).
+    const grid = jalaliMonthGrid(1405, 7);
+    expect(grid[0]?.slice(0, 5)).toEqual([null, null, null, null, '2026-09-23']);
+    expect(grid.flat().filter(Boolean)).toHaveLength(30);
+    expect(grid.every((week) => week.length === 7)).toBe(true);
+    expect(persianWeekdayOfCalendarDate('2026-10-23')).toBe(6); // Friday
+  });
+
+  it('shifts months across years', () => {
+    expect(shiftJalaliMonth(1405, 12, 1)).toEqual({ jy: 1406, jm: 1 });
+    expect(shiftJalaliMonth(1405, 1, -1)).toEqual({ jy: 1404, jm: 12 });
+  });
+
+  it('classifies due dates', () => {
+    expect(dueStatus('2026-10-16', '2026-10-17')).toBe('overdue');
+    expect(dueStatus('2026-10-17', '2026-10-17')).toBe('today');
+    expect(dueStatus('2026-10-18', '2026-10-17')).toBe('tomorrow');
+    expect(dueStatus('2026-11-01', '2026-10-17')).toBe('upcoming');
   });
 });

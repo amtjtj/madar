@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getInitials } from './lib/initials.js';
 import { Button } from './components/button.js';
 import { CompleteCheck } from './components/complete-check.js';
+import { DatePicker } from './components/date-picker.js';
+import { TaskCard } from './components/task-card.js';
 import { TextField } from './components/input.js';
 import { ProgressBar } from './components/progress.js';
 import { ThemeToggle } from './components/theme.js';
@@ -73,5 +75,54 @@ describe('ThemeToggle', () => {
     fireEvent.click(screen.getByRole('radio', { name: /سیستم/ }));
     expect(document.documentElement.dataset.theme).toBeUndefined();
     expect(localStorage.getItem('madar-theme')).toBeNull();
+  });
+});
+
+describe('DatePicker', () => {
+  it('shows the Jalali month and picks a day', () => {
+    const onChange = vi.fn();
+    render(<DatePicker value={null} onChange={onChange} today="2026-10-17" label="سررسید" />);
+    fireEvent.click(screen.getByRole('button', { name: 'سررسید' }));
+    expect(screen.getByText('مهر ۱۴۰۵')).toBeTruthy();
+    // Today is marked; Friday is labelled as a holiday.
+    expect(
+      screen.getByRole('button', { name: 'شنبه ۲۵ مهر ۱۴۰۵' }).getAttribute('aria-current'),
+    ).toBe('date');
+    expect(screen.getByRole('button', { name: 'جمعه ۲۴ مهر ۱۴۰۵ (تعطیل)' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'دوشنبه ۲۷ مهر ۱۴۰۵' }));
+    expect(onChange).toHaveBeenCalledWith('2026-10-19');
+  });
+
+  it('offers quick picks and moves between months', () => {
+    const onChange = vi.fn();
+    render(<DatePicker value="2026-10-18" onChange={onChange} today="2026-10-17" label="سررسید" />);
+    fireEvent.click(screen.getByRole('button', { name: 'سررسید' }));
+    fireEvent.click(screen.getByRole('button', { name: 'ماه بعد' }));
+    expect(screen.getByText('آبان ۱۴۰۵')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'شنبه بعد' }));
+    expect(onChange).toHaveBeenCalledWith('2026-10-24');
+  });
+});
+
+describe('TaskCard', () => {
+  it('shows due status, priority and counts, and toggles completion', () => {
+    const onDoneChange = vi.fn();
+    render(
+      <TaskCard
+        title="ارسال گزارش"
+        done={false}
+        onDoneChange={onDoneChange}
+        today="2026-10-17"
+        dueOn="2026-10-15"
+        priority="urgent"
+        subtasks={{ done: 1, total: 3 }}
+        commentCount={2}
+      />,
+    );
+    expect(screen.getByText('عقب‌افتاده، ۲۳ مهر')).toBeTruthy();
+    expect(screen.getByText('فوری')).toBeTruthy();
+    expect(screen.getByText('۱ از ۳ زیرکار')).toBeTruthy();
+    fireEvent.click(screen.getByRole('checkbox'));
+    expect(onDoneChange).toHaveBeenCalledWith(true);
   });
 });
