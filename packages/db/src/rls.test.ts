@@ -23,7 +23,20 @@ const DATA_PLANE = [
   'role_grants',
   'member_roles',
   'audit_logs',
+  'projects',
+  'project_members',
+  'tasks',
+  'task_collaborators',
+  'comments',
+  'activities',
+  'daily_plan_items',
+  'domain_events',
 ] as const;
+
+/** Tables the app may only append to (no UPDATE/DELETE grant). */
+const APPEND_ONLY = ['audit_logs', 'activities'];
+/** Tables the app may update but never delete from. */
+const NO_DELETE = ['domain_events'];
 
 describe.skipIf(!hasDatabase)('tenant isolation (RLS)', () => {
   let app: DbHandle;
@@ -98,18 +111,20 @@ describe.skipIf(!hasDatabase)('tenant isolation (RLS)', () => {
     expect(counts.other).toBe(0);
   });
 
-  it.each(DATA_PLANE.filter((t) => t !== 'audit_logs'))(
+  it.each(DATA_PLANE.filter((t) => !APPEND_ONLY.includes(t)))(
     "%s: tenant A cannot update, delete or insert tenant B's rows",
     async (table) => {
       await withTenant(app.db, { tenantId: a.tenantId }, async (tx) => {
         const updated = await tx.execute(
           sql`update ${sql.identifier(table)} set tenant_id = tenant_id where tenant_id = ${b.tenantId}`,
         );
-        const deleted = await tx.execute(
-          sql`delete from ${sql.identifier(table)} where tenant_id = ${b.tenantId}`,
-        );
         expect(updated.rowCount).toBe(0);
-        expect(deleted.rowCount).toBe(0);
+        if (!NO_DELETE.includes(table)) {
+          const deleted = await tx.execute(
+            sql`delete from ${sql.identifier(table)} where tenant_id = ${b.tenantId}`,
+          );
+          expect(deleted.rowCount).toBe(0);
+        }
       });
       // Writing a row that claims tenant B fails the WITH CHECK clause.
       await expect(
@@ -158,6 +173,42 @@ describe.skipIf(!hasDatabase)('tenant isolation (RLS)', () => {
     );
     const memberships = await listMemberships(app.db, a.userId);
     expect(memberships.map((m) => m.tenantId).sort()).toEqual([a.tenantId, b.tenantId].sort());
+  });
+});
+
+describe.skipIf(!hasDatabase)('activity history', () => {
+  let app: DbHandle;
+  let t: TenantFixture;
+
+  beforeAll(async () => {
+    app = appDb();
+    t = await createTenantFixture(app, 'act');
+  });
+  afterAll(() => app?.close());
+
+  it('the app role cannot delete domain events', async () => {
+    const error = await withTenant(app.db, { tenantId: t.tenantId }, (tx) =>
+      tx.execute(sql`delete from domain_events`),
+    ).then(
+      () => null,
+      (e: unknown) => e as Error & { cause?: Error },
+    );
+    expect(error?.cause?.message ?? error?.message).toMatch(/permission denied/);
+  });
+
+  it('is append-only for the app role', async () => {
+    for (const statement of [
+      sql`update activities set verb = 'tampered'`,
+      sql`delete from activities`,
+    ]) {
+      const error = await withTenant(app.db, { tenantId: t.tenantId }, (tx) =>
+        tx.execute(statement),
+      ).then(
+        () => null,
+        (e: unknown) => e as Error & { cause?: Error },
+      );
+      expect(error?.cause?.message ?? error?.message).toMatch(/permission denied/);
+    }
   });
 });
 

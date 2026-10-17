@@ -69,6 +69,39 @@ export async function createTenantFixture(handle: DbHandle, label = 't'): Promis
       .insert(s.roleGrants)
       .values({ roleId: role.id, permission: 'task.read', scope: 'department' });
     await tx.insert(s.memberRoles).values({ memberId: member.id, roleId: role.id });
+
+    // Work core: one row in every table
+    const [project] = await tx
+      .insert(s.projects)
+      .values({ name: `project ${suffix}`, departmentId: department.id, ownerId: member.id })
+      .returning({ id: s.projects.id });
+    const [task] = await tx
+      .insert(s.tasks)
+      .values({
+        title: `task ${suffix}`,
+        departmentId: department.id,
+        projectId: project?.id,
+        reporterId: member.id,
+        assigneeId: member.id,
+      })
+      .returning({ id: s.tasks.id });
+    if (!project || !task) throw new Error('fixture insert failed');
+    await tx
+      .insert(s.projectMembers)
+      .values({ projectId: project.id, memberId: member.id, role: 'owner' });
+    await tx.insert(s.taskCollaborators).values({ taskId: task.id, memberId: member.id });
+    await tx
+      .insert(s.comments)
+      .values({ subjectType: 'task', subjectId: task.id, authorId: member.id, body: 'hi' });
+    await tx
+      .insert(s.activities)
+      .values({ subjectType: 'task', subjectId: task.id, actorId: member.id, verb: 'created' });
+    await tx
+      .insert(s.dailyPlanItems)
+      .values({ memberId: member.id, planDate: '2026-10-17', taskId: task.id });
+    await tx
+      .insert(s.domainEvents)
+      .values({ type: 'task.created', payload: { taskId: task.id }, actorId: member.id });
     return {
       tenantId: tenant.id,
       userId: user.id,
