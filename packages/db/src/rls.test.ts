@@ -3,7 +3,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import type { DbHandle } from './client.js';
 import * as s from './schema/index.js';
-import { appendAudit, listMemberships, withTenant } from './tenant.js';
+import {
+  appendAudit,
+  listActiveTenants,
+  listMemberships,
+  lockUnpublishedEvents,
+  markEventsPublished,
+  withTenant,
+} from './tenant.js';
 import {
   appDb,
   createTenantFixture,
@@ -31,12 +38,16 @@ const DATA_PLANE = [
   'activities',
   'daily_plan_items',
   'domain_events',
+  'work_calendars',
+  'notifications',
+  'notification_preferences',
+  'processed_events',
 ] as const;
 
 /** Tables the app may only append to (no UPDATE/DELETE grant). */
-const APPEND_ONLY = ['audit_logs', 'activities'];
+const APPEND_ONLY = ['audit_logs', 'activities', 'processed_events'];
 /** Tables the app may update but never delete from. */
-const NO_DELETE = ['domain_events'];
+const NO_DELETE = ['domain_events', 'work_calendars', 'notifications', 'notification_preferences'];
 
 describe.skipIf(!hasDatabase)('tenant isolation (RLS)', () => {
   let app: DbHandle;
@@ -287,5 +298,118 @@ describe.skipIf(!hasDatabase)('audit log', () => {
       tx.execute<{ seq: number; problem: string }>(sql`select * from app.verify_audit_chain()`),
     );
     expect(broken.rows[0]).toMatchObject({ problem: 'hash does not match row contents' });
+  });
+});
+
+describe.skipIf(!hasDatabase)('outbox relay functions', () => {
+  let app: DbHandle;
+  let a: TenantFixture;
+  let b: TenantFixture;
+
+  // The shared test database keeps events from other suites; ours are dated before 2001 so the
+  // relay (oldest first) hands them out before anything else. Each run gets its own time slot so
+  // concurrent runs do not interleave.
+  const CUTOFF = new Date(Date.UTC(2001, 0, 1));
+  let stamp = Date.UTC(1990, 0, 1) + Math.floor(Math.random() * 300_000) * 1000;
+  const oldEvent = (tenantId: string, type: string) =>
+    withTenant(app.db, { tenantId }, async (tx) => {
+      const [row] = await tx
+        .insert(s.domainEvents)
+        .values({ type, payload: { test: true }, occurredAt: new Date(stamp++) })
+        .returning({ id: s.domainEvents.id });
+      return row?.id ?? '';
+    });
+
+  beforeAll(async () => {
+    app = appDb();
+    a = await createTenantFixture(app, 'ra');
+    b = await createTenantFixture(app, 'rb');
+    // Drain test events a crashed earlier run may have left at the front of the queue.
+    for (;;) {
+      const drained = await app.db.transaction(async (tx) => {
+        const old = (await lockUnpublishedEvents(tx, 50)).filter((e) => e.occurredAt < CUTOFF);
+        await markEventsPublished(
+          tx,
+          old.map((e) => e.id),
+        );
+        return old.length;
+      });
+      if (drained === 0) break;
+    }
+  });
+  afterAll(() => app?.close());
+
+  it("the app role cannot read other tenants' events directly", async () => {
+    const other = await withTenant(app.db, { tenantId: a.tenantId }, (tx) =>
+      tx.execute<{ n: number }>(
+        sql`select count(*)::int as n from domain_events where tenant_id = ${b.tenantId}`,
+      ),
+    );
+    expect(other.rows[0]?.n).toBe(0);
+  });
+
+  it('hands each event of every tenant to one relay only, then never again', async () => {
+    const ids = [
+      await oldEvent(a.tenantId, 'task.created'),
+      await oldEvent(b.tenantId, 'task.created'),
+    ];
+    const first = app.db.transaction(async (tx) => {
+      const events = await lockUnpublishedEvents(tx, 1);
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      await markEventsPublished(
+        tx,
+        events.map((e) => e.id),
+      );
+      return events;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const second = await app.db.transaction(async (tx) => {
+      const events = await lockUnpublishedEvents(tx, 1);
+      await markEventsPublished(
+        tx,
+        events.map((e) => e.id),
+      );
+      return events;
+    });
+    const firstEvents = await first;
+    expect(firstEvents.map((e) => e.id)).toEqual([ids[0]]);
+    expect(second.map((e) => e.id)).toEqual([ids[1]]);
+    expect(firstEvents[0]).toMatchObject({
+      tenantId: a.tenantId,
+      type: 'task.created',
+      version: 1,
+    });
+    expect(second[0]?.tenantId).toBe(b.tenantId);
+
+    const again = await app.db.transaction((tx) => lockUnpublishedEvents(tx, 5));
+    expect(again.map((e) => e.id)).not.toContain(ids[0]);
+    expect(again.map((e) => e.id)).not.toContain(ids[1]);
+  });
+
+  it('a relay that fails before commit leaves the events for the next one', async () => {
+    const id = await oldEvent(a.tenantId, 'comment.created');
+    await expect(
+      app.db.transaction(async (tx) => {
+        expect((await lockUnpublishedEvents(tx, 1)).map((e) => e.id)).toEqual([id]);
+        throw new Error('crash before enqueue');
+      }),
+    ).rejects.toThrow('crash before enqueue');
+    const retry = await app.db.transaction(async (tx) => {
+      const events = await lockUnpublishedEvents(tx, 1);
+      await markEventsPublished(
+        tx,
+        events.map((e) => e.id),
+      );
+      return events;
+    });
+    expect(retry.map((e) => e.id)).toEqual([id]);
+  });
+
+  it('lists active tenants with their time zone only', async () => {
+    const tenants = await listActiveTenants(app.db);
+    expect(tenants.find((t) => t.id === a.tenantId)).toEqual({
+      id: a.tenantId,
+      timezone: 'Asia/Tehran',
+    });
   });
 });

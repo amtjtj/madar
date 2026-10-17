@@ -102,6 +102,20 @@ export async function createTenantFixture(handle: DbHandle, label = 't'): Promis
     await tx
       .insert(s.domainEvents)
       .values({ type: 'task.created', payload: { taskId: task.id }, actorId: member.id });
+
+    // Notifications: one row in every table
+    await tx
+      .insert(s.workCalendars)
+      .values({ weeklyHours: [null, null, null, null, null, null, null] });
+    await tx.insert(s.notifications).values({
+      recipientId: member.id,
+      kind: 'task_assigned',
+      subjectType: 'task',
+      subjectId: task.id,
+      dedupeKey: `fixture:${suffix}`,
+    });
+    await tx.insert(s.notificationPreferences).values({ memberId: member.id });
+    await tx.insert(s.processedEvents).values({ consumer: 'fixture', eventId: uuidv7() });
     return {
       tenantId: tenant.id,
       userId: user.id,

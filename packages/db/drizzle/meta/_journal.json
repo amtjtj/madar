@@ -36,6 +36,20 @@
       "when": 1792274000540,
       "tag": "0004_grant_task_manage",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792279661749,
+      "tag": "0005_notify",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792279685795,
+      "tag": "0006_notify_rls",
+      "breakpoints": true
     }
   ]
 }
