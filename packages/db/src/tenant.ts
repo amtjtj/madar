@@ -32,6 +32,11 @@ export async function withTenant<T>(
   });
 }
 
+/** Sets the acting member for the rest of the transaction (e.g. right after creating them). */
+export async function setActor(tx: Tx, memberId: string): Promise<void> {
+  await tx.execute(sql`select set_config('app.member_id', ${memberId}, true)`);
+}
+
 export interface AuditEntry {
   action: string;
   subjectType: string;

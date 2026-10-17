@@ -2,6 +2,7 @@ export { createDb, pingDb, type Database, type DbHandle } from './client.js';
 export {
   appendAudit,
   listMemberships,
+  setActor,
   withTenant,
   type AuditEntry,
   type Membership,

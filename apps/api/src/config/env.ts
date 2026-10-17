@@ -18,6 +18,22 @@ const envSchema = z.object({
         .filter(Boolean),
     ),
   APP_VERSION: z.string().default('0.0.0'),
+  /** Secret for signing sessions and encrypting 2FA secrets (at least 32 characters). */
+  AUTH_SECRET: z.string().min(32),
+  /** Public origin the browser uses (the web app, which proxies /api). */
+  AUTH_BASE_URL: z.string().url().default('http://localhost:3000'),
+  /** Extra origins allowed to call auth endpoints (comma-separated). */
+  AUTH_TRUSTED_ORIGINS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean),
+    ),
+  /** Required to register a company in production; empty means signup is open (development). */
+  TENANT_SIGNUP_CODE: z.string().default(''),
 });
 
 export type Env = z.infer<typeof envSchema>;

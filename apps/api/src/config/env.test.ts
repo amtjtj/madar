@@ -6,6 +6,7 @@ describe('loadEnv', () => {
   it('applies defaults and parses CORS origins', () => {
     const env = loadEnv({
       APP_DATABASE_URL: 'postgres://u:p@localhost:5432/db',
+      AUTH_SECRET: 'x'.repeat(32),
       API_CORS_ORIGINS: 'http://a.test, http://b.test',
     });
     expect(env.API_PORT).toBe(4000);

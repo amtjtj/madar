@@ -21,7 +21,7 @@
     },
     "test": {
       "dependsOn": ["^build"],
-      "env": ["DATABASE_URL", "APP_DATABASE_URL", "REDIS_URL"]
+      "env": ["DATABASE_URL", "APP_DATABASE_URL", "REDIS_URL", "AUTH_SECRET", "AUTH_BASE_URL"]
     },
     "test:e2e": {
       "dependsOn": ["^build"],

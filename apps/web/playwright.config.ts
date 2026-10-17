@@ -31,7 +31,7 @@ export default defineConfig({
     {
       command: 'pnpm --filter @madar/api build && pnpm --filter @madar/api start',
       url: `http://localhost:${apiPort}/api/health`,
-      env: { API_PORT: String(apiPort) },
+      env: { API_PORT: String(apiPort), AUTH_BASE_URL: `http://localhost:${webPort}` },
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },

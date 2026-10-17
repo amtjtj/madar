@@ -1,4 +1,4 @@
-import type { INestApplication } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import { healthResponse } from '@madar/shared';
 import request from 'supertest';
@@ -10,7 +10,7 @@ import { DatabaseModule, DB_HANDLE } from '../src/database/database.module.js';
 import { HealthModule } from '../src/health/health.module.js';
 
 describe('GET /api/health', () => {
-  let app: INestApplication;
+  let app: NestExpressApplication;
   let databaseUp = true;
 
   beforeAll(async () => {
@@ -25,7 +25,7 @@ describe('GET /api/health', () => {
       .overrideProvider(ENV)
       .useValue({ APP_VERSION: '9.9.9' })
       .compile();
-    app = moduleRef.createNestApplication();
+    app = moduleRef.createNestApplication<NestExpressApplication>({ bodyParser: false });
     configureApp(app, { API_CORS_ORIGINS: [] });
     await app.init();
   });
