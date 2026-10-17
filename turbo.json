@@ -21,12 +21,19 @@
     },
     "test": {
       "dependsOn": ["^build"],
-      "env": ["DATABASE_URL", "REDIS_URL"]
+      "env": ["DATABASE_URL", "APP_DATABASE_URL", "REDIS_URL"]
     },
     "test:e2e": {
       "dependsOn": ["^build"],
       "cache": false,
-      "env": ["DATABASE_URL", "REDIS_URL", "API_PORT", "WEB_PORT", "API_INTERNAL_URL"]
+      "env": [
+        "DATABASE_URL",
+        "APP_DATABASE_URL",
+        "REDIS_URL",
+        "API_PORT",
+        "WEB_PORT",
+        "API_INTERNAL_URL"
+      ]
     }
   }
 }

@@ -12,7 +12,7 @@ export const DB_HANDLE = Symbol('DB_HANDLE');
     {
       provide: DB_HANDLE,
       inject: [ENV],
-      useFactory: (env: Env): DbHandle => createDb(env.DATABASE_URL),
+      useFactory: (env: Env): DbHandle => createDb(env.APP_DATABASE_URL),
     },
   ],
   exports: [DB_HANDLE],

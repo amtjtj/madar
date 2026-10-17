@@ -1,0 +1,240 @@
+import { sql } from 'drizzle-orm';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
+import type { DbHandle } from './client.js';
+import * as s from './schema/index.js';
+import { appendAudit, listMemberships, withTenant } from './tenant.js';
+import {
+  appDb,
+  createTenantFixture,
+  hasDatabase,
+  ownerDb,
+  type TenantFixture,
+} from './test/fixtures.js';
+
+/** Tables shared across tenants; everything else must carry tenant_id and forced RLS. */
+const CONTROL_PLANE = ['tenants', 'users', 'sessions', 'accounts', 'verifications', 'two_factors'];
+
+const DATA_PLANE = [
+  'members',
+  'departments',
+  'department_memberships',
+  'roles',
+  'role_grants',
+  'member_roles',
+  'audit_logs',
+] as const;
+
+describe.skipIf(!hasDatabase)('tenant isolation (RLS)', () => {
+  let app: DbHandle;
+  let a: TenantFixture;
+  let b: TenantFixture;
+
+  beforeAll(async () => {
+    app = appDb();
+    a = await createTenantFixture(app, 'a');
+    b = await createTenantFixture(app, 'b');
+    for (const t of [a, b]) {
+      await withTenant(app.db, { tenantId: t.tenantId, userId: t.userId }, (tx) =>
+        appendAudit(tx, {
+          action: 'fixture.created',
+          subjectType: 'tenant',
+          subjectId: t.tenantId,
+        }),
+      );
+    }
+  });
+
+  afterAll(() => app?.close());
+
+  it('connects as a role that cannot bypass RLS', async () => {
+    const { rows } = await app.pool.query<{
+      rolsuper: boolean;
+      rolbypassrls: boolean;
+      owner: boolean;
+    }>(`
+      select r.rolsuper, r.rolbypassrls,
+             exists (select 1 from pg_tables where tableowner = current_user and schemaname = 'public') as owner
+      from pg_roles r where r.rolname = current_user`);
+    expect(rows[0]).toEqual({ rolsuper: false, rolbypassrls: false, owner: false });
+  });
+
+  it('every non-control-plane table has tenant_id and forced RLS with a policy (meta test)', async () => {
+    const { rows } = await app.pool.query<{
+      table: string;
+      has_tenant: boolean;
+      rls: boolean;
+      forced: boolean;
+      policies: number;
+    }>(`
+      select c.relname as table,
+             exists (select 1 from information_schema.columns col
+                     where col.table_schema = 'public' and col.table_name = c.relname and col.column_name = 'tenant_id') as has_tenant,
+             c.relrowsecurity as rls,
+             c.relforcerowsecurity as forced,
+             (select count(*)::int from pg_policies p where p.schemaname = 'public' and p.tablename = c.relname and p.policyname = 'tenant_isolation') as policies
+      from pg_class c join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public' and c.relkind in ('r', 'p')
+      order by 1`);
+    const problems = rows
+      .filter((r) => !CONTROL_PLANE.includes(r.table))
+      .filter((r) => !r.has_tenant || !r.rls || !r.forced || r.policies !== 1)
+      .map((r) => r.table);
+    expect(problems).toEqual([]);
+    expect(rows.map((r) => r.table)).toEqual(expect.arrayContaining([...DATA_PLANE]));
+  });
+
+  it.each(DATA_PLANE)('%s: tenant A sees only its own rows', async (table) => {
+    const counts = await withTenant(app.db, { tenantId: a.tenantId }, async (tx) => {
+      const own = await tx.execute<{ n: number }>(
+        sql`select count(*)::int as n from ${sql.identifier(table)} where tenant_id = ${a.tenantId}`,
+      );
+      const other = await tx.execute<{ n: number }>(
+        sql`select count(*)::int as n from ${sql.identifier(table)} where tenant_id <> ${a.tenantId}`,
+      );
+      return { own: own.rows[0]?.n, other: other.rows[0]?.n };
+    });
+    expect(counts.own).toBeGreaterThan(0);
+    expect(counts.other).toBe(0);
+  });
+
+  it.each(DATA_PLANE.filter((t) => t !== 'audit_logs'))(
+    "%s: tenant A cannot update, delete or insert tenant B's rows",
+    async (table) => {
+      await withTenant(app.db, { tenantId: a.tenantId }, async (tx) => {
+        const updated = await tx.execute(
+          sql`update ${sql.identifier(table)} set tenant_id = tenant_id where tenant_id = ${b.tenantId}`,
+        );
+        const deleted = await tx.execute(
+          sql`delete from ${sql.identifier(table)} where tenant_id = ${b.tenantId}`,
+        );
+        expect(updated.rowCount).toBe(0);
+        expect(deleted.rowCount).toBe(0);
+      });
+      // Writing a row that claims tenant B fails the WITH CHECK clause.
+      await expect(
+        withTenant(app.db, { tenantId: a.tenantId }, (tx) =>
+          tx.insert(s.roles).values({ tenantId: b.tenantId, key: `x-${table}`, name: 'x' }),
+        ),
+      ).rejects.toThrow();
+    },
+  );
+
+  it('without a tenant context nothing is visible and nothing can be written', async () => {
+    const { rows } = await app.pool.query<{ n: number }>('select count(*)::int as n from members');
+    expect(rows[0]?.n).toBe(0);
+    await expect(
+      app.db.insert(s.roles).values({ key: 'orphan', name: 'orphan' }),
+    ).rejects.toThrow();
+  });
+
+  it("composite foreign keys reject references to another tenant's rows", async () => {
+    await expect(
+      withTenant(app.db, { tenantId: a.tenantId }, (tx) =>
+        tx
+          .update(s.members)
+          .set({ managerId: b.memberId })
+          .where(sql`${s.members.id} = ${a.memberId}`),
+      ),
+    ).rejects.toThrow();
+  });
+
+  it('transaction-local settings do not leak to the next query on the same connection', async () => {
+    const single = appDb();
+    try {
+      await withTenant(single.db, { tenantId: a.tenantId }, async () => undefined);
+      const { rows } = await single.pool.query<{ t: string | null }>(
+        "select nullif(current_setting('app.tenant_id', true), '') as t",
+      );
+      expect(rows[0]?.t).toBeNull();
+    } finally {
+      await single.close();
+    }
+  });
+
+  it('lists all memberships of a user across tenants only through the platform function', async () => {
+    await withTenant(app.db, { tenantId: b.tenantId }, (tx) =>
+      tx.insert(s.members).values({ userId: a.userId, displayName: 'guest in b' }),
+    );
+    const memberships = await listMemberships(app.db, a.userId);
+    expect(memberships.map((m) => m.tenantId).sort()).toEqual([a.tenantId, b.tenantId].sort());
+  });
+});
+
+describe.skipIf(!hasDatabase)('audit log', () => {
+  let app: DbHandle;
+  let owner: DbHandle;
+  let t: TenantFixture;
+
+  beforeAll(async () => {
+    app = appDb();
+    owner = ownerDb();
+    t = await createTenantFixture(app, 'audit');
+  });
+
+  afterAll(async () => {
+    await app?.close();
+    await owner?.close();
+  });
+
+  it('appends a hash chain with sequential numbers and records the actor', async () => {
+    await withTenant(
+      app.db,
+      { tenantId: t.tenantId, memberId: t.memberId, userId: t.userId },
+      async (tx) => {
+        await appendAudit(tx, {
+          action: 'member.role_changed',
+          subjectType: 'member',
+          subjectId: t.memberId,
+          before: { roles: [] },
+          after: { roles: ['admin'] },
+        });
+        await appendAudit(tx, {
+          action: 'department.oversight_changed',
+          subjectType: 'department',
+          subjectId: t.departmentId,
+        });
+      },
+    );
+    const rows = await withTenant(app.db, { tenantId: t.tenantId }, (tx) =>
+      tx.select().from(s.auditLogs).orderBy(s.auditLogs.seq),
+    );
+    expect(rows.map((r) => r.seq)).toEqual([1, 2]);
+    expect(rows[0]?.prevHash).toBeNull();
+    expect(rows[1]?.prevHash).toBe(rows[0]?.hash);
+    expect(rows[0]?.actorMemberId).toBe(t.memberId);
+    expect(rows[0]?.after).toEqual({ roles: ['admin'] });
+    const broken = await withTenant(app.db, { tenantId: t.tenantId }, (tx) =>
+      tx.execute(sql`select * from app.verify_audit_chain()`),
+    );
+    expect(broken.rows).toEqual([]);
+  });
+
+  it('the app role cannot insert, update or delete audit rows directly', async () => {
+    for (const statement of [
+      sql`insert into audit_logs (tenant_id, seq, action, subject_type, hash) values (${t.tenantId}, 99, 'x', 'x', 'x')`,
+      sql`update audit_logs set action = 'tampered'`,
+      sql`delete from audit_logs`,
+    ]) {
+      const error = await withTenant(app.db, { tenantId: t.tenantId }, (tx) =>
+        tx.execute(statement),
+      ).then(
+        () => null,
+        (e: unknown) => e as Error & { cause?: Error },
+      );
+      // Drizzle wraps the Postgres error; the reason is on `cause`.
+      expect(error?.cause?.message ?? error?.message).toMatch(/permission denied/);
+    }
+  });
+
+  it('detects tampering done outside the application', async () => {
+    await owner.pool.query(
+      'update audit_logs set after = \'{"roles":["owner"]}\'::jsonb where tenant_id = $1 and seq = 1',
+      [t.tenantId],
+    );
+    const broken = await withTenant(app.db, { tenantId: t.tenantId }, (tx) =>
+      tx.execute<{ seq: number; problem: string }>(sql`select * from app.verify_audit_chain()`),
+    );
+    expect(broken.rows[0]).toMatchObject({ problem: 'hash does not match row contents' });
+  });
+});

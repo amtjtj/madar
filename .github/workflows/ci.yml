@@ -13,6 +13,7 @@ env:
   NEXT_TELEMETRY_DISABLED: 1
   TURBO_TELEMETRY_DISABLED: 1
   DATABASE_URL: postgres://madar:madar_ci_password@localhost:5432/madar
+  APP_DATABASE_URL: postgres://madar_app:madar_app_ci_password@localhost:5432/madar
   REDIS_URL: redis://localhost:6379
 
 jobs:
@@ -42,6 +43,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm format:check
       - run: pnpm build
+      - run: pnpm db:migrate
       - run: pnpm turbo run typecheck lint test
       - run: pnpm --filter @madar/web exec playwright install --with-deps chromium
       - run: pnpm test:e2e
