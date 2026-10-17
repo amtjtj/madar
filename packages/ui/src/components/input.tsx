@@ -13,6 +13,8 @@ export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
   error?: string;
   /** Icon at the inline start of the field. */
   icon?: ReactNode;
+  /** Control at the inline end of the field (e.g. show/hide password). */
+  trailing?: ReactNode;
   /** Visually hide the label (it stays available to screen readers). */
   hideLabel?: boolean;
   ref?: Ref<HTMLInputElement>;
@@ -24,6 +26,7 @@ export function TextField({
   hint,
   error,
   icon,
+  trailing,
   hideLabel,
   id,
   className,
@@ -51,7 +54,8 @@ export function TextField({
           )}
         </label>
       )}
-      <div className="relative">
+      {/* Same direction as the input, so start/end icons and padding line up (e.g. dir="ltr"). */}
+      <div className="relative" dir={props.dir}>
         {icon && (
           <span className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-ink-subtle [&_svg]:size-5">
             {icon}
@@ -70,9 +74,13 @@ export function TextField({
             'disabled:cursor-not-allowed disabled:bg-sunken disabled:opacity-70',
             'aria-invalid:border-danger aria-invalid:focus:ring-danger-soft',
             icon && 'ps-11',
+            trailing && 'pe-12',
           )}
           {...props}
         />
+        {trailing && (
+          <span className="absolute inset-y-0 end-1.5 flex items-center">{trailing}</span>
+        )}
       </div>
       {message && (
         <p

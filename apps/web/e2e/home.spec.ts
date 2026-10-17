@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
-test('home page is RTL Persian and shows live data from the API', async ({ page }) => {
-  await page.goto('/');
+test('status page is RTL Persian and shows live data from the API', async ({ page }) => {
+  await page.goto('/status');
 
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   await expect(page.locator('html')).toHaveAttribute('lang', 'fa');
@@ -14,7 +14,7 @@ test('home page is RTL Persian and shows live data from the API', async ({ page 
 });
 
 test('layout has no horizontal overflow', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/status');
   await expect(page.getByTestId('health-result')).toBeVisible();
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,

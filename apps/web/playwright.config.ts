@@ -31,7 +31,12 @@ export default defineConfig({
     {
       command: 'pnpm --filter @madar/api build && pnpm --filter @madar/api start',
       url: `http://localhost:${apiPort}/api/health`,
-      env: { API_PORT: String(apiPort), AUTH_BASE_URL: `http://localhost:${webPort}` },
+      // NODE_ENV=test turns off rate limits so repeated signups in e2e runs are not throttled.
+      env: {
+        API_PORT: String(apiPort),
+        AUTH_BASE_URL: `http://localhost:${webPort}`,
+        NODE_ENV: 'test',
+      },
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },

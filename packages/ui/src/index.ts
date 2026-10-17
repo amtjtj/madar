@@ -2,6 +2,9 @@ export { cn } from './lib/cn.js';
 export { Button, type ButtonProps } from './components/button.js';
 export { buttonVariants } from './components/button-variants.js';
 export { TextField, type TextFieldProps } from './components/input.js';
+export { SelectField, type SelectFieldProps, type SelectOption } from './components/select.js';
+export { CheckboxField, type CheckboxFieldProps } from './components/checkbox.js';
+export { Menu, type MenuItem, type MenuProps } from './components/menu.js';
 export {
   Card,
   CardContent,

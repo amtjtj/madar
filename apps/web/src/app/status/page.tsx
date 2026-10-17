@@ -1,4 +1,5 @@
 import { ArrowLeft } from 'lucide-react';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { t } from '@madar/i18n';
@@ -6,7 +7,10 @@ import { Button, OrbitIllustration, ThemeToggle } from '@madar/ui';
 
 import { HealthStatus } from '@/components/health-status';
 
-export default function HomePage() {
+export const metadata: Metadata = { title: t('health.title') };
+
+/** Public status page: is the API (and its database) reachable? */
+export default function StatusPage() {
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-6 px-4 py-10">
       <header className="flex flex-col items-start gap-3">

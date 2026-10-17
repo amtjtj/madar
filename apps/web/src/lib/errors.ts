@@ -1,0 +1,35 @@
+import { t, type MessageKey } from '@madar/i18n';
+
+import { ApiClientError } from './api';
+
+const API_CODES = new Set([
+  'validation_failed',
+  'username_taken',
+  'slug_taken',
+  'signup_code_invalid',
+  'invalid_password',
+  'forbidden',
+  'not_found',
+  'conflict',
+  'member_suspended',
+  'tenant_locked',
+  'tenant_read_only',
+  'not_a_member',
+]);
+
+/** Persian message for any error thrown by `api()` or the auth helpers. */
+export function errorMessage(error: unknown): string {
+  if (!(error instanceof ApiClientError)) return t('errors.generic');
+  if (error.status === 0) return t('errors.network');
+  if (error.status === 429 || error.code === 'rate_limited') return t('errors.rateLimited');
+  const code = error.code ?? '';
+  if (code === 'INVALID_USERNAME_OR_PASSWORD' || code === 'INVALID_EMAIL_OR_PASSWORD') {
+    return t('errors.invalidCredentials');
+  }
+  if (code.startsWith('INVALID_') && /CODE|OTP|TOTP|BACKUP/.test(code))
+    return t('errors.invalidCode');
+  if (code === 'INVALID_PASSWORD') return t('errors.invalid_password');
+  if (API_CODES.has(code)) return t(`errors.${code}` as MessageKey);
+  if (error.status === 401) return t('errors.invalidCredentials');
+  return t('errors.generic');
+}

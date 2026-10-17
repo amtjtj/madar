@@ -1,0 +1,194 @@
+'use client';
+
+import { useQueryClient } from '@tanstack/react-query';
+import { Building2, ChartNetwork, House, LogOut, ScrollText, Users } from 'lucide-react';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import type { ReactNode } from 'react';
+
+import { t } from '@madar/i18n';
+import {
+  Avatar,
+  BottomNav,
+  Menu,
+  OrbitIllustration,
+  Sidebar,
+  ThemeToggle,
+  type LinkComponent,
+  type NavItem,
+} from '@madar/ui';
+
+import { useCan } from '@/hooks/queries';
+import { useMe } from '@/hooks/use-me';
+import { auth } from '@/lib/auth';
+
+const NextLink: LinkComponent = ({ href, children, ...props }) => (
+  <Link href={href} {...props}>
+    {children}
+  </Link>
+);
+
+function roleLabel(roles: string[]): string {
+  const order = ['owner', 'admin', 'executive', 'hr_manager', 'member'] as const;
+  const top = order.find((r) => roles.includes(r)) ?? 'member';
+  return t(`roles.${top}`);
+}
+
+export function AppShell({ children }: { children: ReactNode }) {
+  const { data: me } = useMe();
+  const can = useCan();
+  const pathname = usePathname();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+
+  const items: NavItem[] = [
+    { key: '/', label: t('nav.today'), href: '/', icon: <House aria-hidden /> },
+    ...(can('member.read')
+      ? [
+          {
+            key: '/members',
+            label: t('shell.members'),
+            href: '/members',
+            icon: <Users aria-hidden />,
+          },
+        ]
+      : []),
+    ...(can('department.read')
+      ? [
+          {
+            key: '/departments',
+            label: t('shell.departments'),
+            href: '/departments',
+            icon: <Building2 aria-hidden />,
+          },
+        ]
+      : []),
+    ...(can('org_chart.read')
+      ? [
+          {
+            key: '/org-chart',
+            label: t('shell.orgChart'),
+            href: '/org-chart',
+            icon: <ChartNetwork aria-hidden />,
+          },
+        ]
+      : []),
+    ...(can('audit.read')
+      ? [
+          {
+            key: '/audit',
+            label: t('shell.audit'),
+            href: '/audit',
+            icon: <ScrollText aria-hidden />,
+          },
+        ]
+      : []),
+  ];
+  // The mobile tab bar has little room: shorter labels where needed.
+  const shortLabels: Record<string, string> = {
+    '/org-chart': t('shell.orgChartShort'),
+    '/audit': t('shell.auditShort'),
+  };
+  const bottomItems = items.map((item) => ({
+    ...item,
+    label: shortLabels[item.key] ?? item.label,
+  }));
+  const activeKey =
+    items
+      .map((i) => i.key)
+      .filter((key) => (key === '/' ? pathname === '/' : pathname.startsWith(key)))
+      .sort((a, b) => b.length - a.length)[0] ?? '/';
+
+  async function signOut() {
+    await auth.signOut().catch(() => undefined);
+    queryClient.clear();
+    router.replace('/login');
+  }
+
+  const name = me?.member?.displayName ?? me?.user.name ?? '';
+  const brand = (
+    <div className="flex items-center gap-2">
+      <OrbitIllustration className="h-9" />
+      <div className="flex flex-col leading-tight">
+        <span className="text-lg font-black text-ink">{t('app.name')}</span>
+        <span className="text-xs text-ink-subtle">{me?.tenant?.name}</span>
+      </div>
+    </div>
+  );
+
+  const userMenu = (
+    <Menu
+      label={t('shell.account')}
+      trigger={
+        <button
+          type="button"
+          className="flex items-center gap-3 rounded-lg p-1 text-start hover:bg-sunken"
+          aria-label={t('shell.account')}
+        >
+          <Avatar name={name} size="sm" />
+          <span className="hidden flex-col md:flex">
+            <span className="text-sm font-bold text-ink">{name}</span>
+            <span className="text-xs text-ink-muted">{roleLabel(me?.member?.roles ?? [])}</span>
+          </span>
+        </button>
+      }
+      items={[
+        {
+          key: 'sign-out',
+          label: t('auth.signOut'),
+          icon: <LogOut aria-hidden />,
+          tone: 'danger',
+          onSelect: () => void signOut(),
+        },
+      ]}
+    />
+  );
+
+  return (
+    <div className="flex min-h-dvh">
+      <Sidebar
+        items={items}
+        activeKey={activeKey}
+        link={NextLink}
+        brand={brand}
+        footer={
+          <div className="flex flex-col gap-3">
+            {userMenu}
+            <ThemeToggle className="self-start" />
+          </div>
+        }
+      />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-30 flex items-center justify-between border-b border-line bg-canvas/90 px-4 py-2 backdrop-blur md:hidden">
+          {brand}
+          {userMenu}
+        </header>
+        <main className="mx-auto w-full max-w-5xl flex-1 px-4 pt-6 pb-28 md:px-8 md:pt-10 md:pb-12">
+          {children}
+        </main>
+      </div>
+      <BottomNav items={bottomItems} activeKey={activeKey} link={NextLink} />
+    </div>
+  );
+}
+
+/** Page header used by every app screen. */
+export function PageHeader({
+  title,
+  subtitle,
+  action,
+}: {
+  title: string;
+  subtitle?: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-2xl font-black text-ink md:text-3xl">{title}</h1>
+        {subtitle && <p className="text-ink-muted">{subtitle}</p>}
+      </div>
+      {action}
+    </div>
+  );
+}
