@@ -1,51 +1,5 @@
 @import 'tailwindcss';
+@import '../../../../packages/ui/src/styles/theme.css';
 
-/*
- * Minimal tokens for the skeleton. The full design system (colors, spacing, radius,
- * shadows, typography, Vazirmatn) replaces this in phase 0, step 3.
- */
+/* Let Tailwind see the class names used inside the ui package */
 @source '../../../../packages/ui/src';
-
-:root {
-  --color-bg: oklch(98.5% 0.005 250);
-  --color-surface: oklch(100% 0 0);
-  --color-fg: oklch(22% 0.02 260);
-  --color-muted: oklch(50% 0.02 260);
-  --color-border: oklch(91% 0.01 260);
-  --color-success: oklch(62% 0.16 150);
-  --color-danger: oklch(60% 0.2 25);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --color-bg: oklch(18% 0.015 260);
-    --color-surface: oklch(23% 0.015 260);
-    --color-fg: oklch(95% 0.005 260);
-    --color-muted: oklch(72% 0.015 260);
-    --color-border: oklch(32% 0.015 260);
-  }
-}
-
-:root[data-theme='dark'] {
-  --color-bg: oklch(18% 0.015 260);
-  --color-surface: oklch(23% 0.015 260);
-  --color-fg: oklch(95% 0.005 260);
-  --color-muted: oklch(72% 0.015 260);
-  --color-border: oklch(32% 0.015 260);
-}
-
-@theme inline {
-  --color-bg: var(--color-bg);
-  --color-surface: var(--color-surface);
-  --color-fg: var(--color-fg);
-  --color-muted: var(--color-muted);
-  --color-border: var(--color-border);
-  --color-success: var(--color-success);
-  --color-danger: var(--color-danger);
-}
-
-body {
-  background: var(--color-bg);
-  color: var(--color-fg);
-  font-family: system-ui, Tahoma, sans-serif;
-}

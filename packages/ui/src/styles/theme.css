@@ -1,0 +1,359 @@
+/*
+ * Madar design tokens.
+ *
+ * Usage (in an app's global CSS, after `@import 'tailwindcss';`):
+ *   @import '@madar/ui/theme.css';
+ *   @source '<path-to>/packages/ui/src';
+ *
+ * Theming: light by default; `data-theme="dark"` on any element switches that subtree.
+ * With no data-theme on <html>, the OS preference decides.
+ * Components must use these tokens only — never raw colors.
+ */
+
+/* ---------- Light (default) ---------- */
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+
+  /* Surfaces: warm paper, white cards, a sunken tone for wells */
+  --canvas: oklch(98.4% 0.006 95);
+  --surface: oklch(100% 0 0);
+  --sunken: oklch(96.2% 0.008 95);
+  --overlay: oklch(22% 0.03 255 / 0.45);
+
+  /* Ink */
+  --ink: oklch(24% 0.028 258);
+  --ink-muted: oklch(46% 0.022 258);
+  --ink-subtle: oklch(60% 0.016 258);
+  --line: oklch(91.5% 0.01 95);
+  --line-strong: oklch(84% 0.012 95);
+
+  /* Primary — «سبز مدار»: actions, progress, success of a task */
+  --primary: oklch(55% 0.135 163);
+  --primary-edge: oklch(44% 0.115 163);
+  --primary-soft: oklch(94.5% 0.04 163);
+  --primary-ink: oklch(38% 0.09 163);
+  --on-primary: oklch(99% 0.01 163);
+
+  /* Accent — saffron/gold: XP, levels, celebration */
+  --accent: oklch(81% 0.155 78);
+  --accent-edge: oklch(67% 0.15 66);
+  --accent-soft: oklch(95.5% 0.05 85);
+  --accent-ink: oklch(44% 0.1 62);
+  --on-accent: oklch(27% 0.06 62);
+
+  /* Streak — flame */
+  --streak: oklch(69% 0.19 42);
+  --streak-soft: oklch(95% 0.04 50);
+
+  /* Status */
+  --danger: oklch(56% 0.2 25);
+  --danger-edge: oklch(46% 0.18 25);
+  --danger-soft: oklch(95.5% 0.03 25);
+  --danger-ink: oklch(45% 0.16 25);
+  --on-danger: oklch(99% 0.01 25);
+
+  --warning: oklch(76% 0.15 72);
+  --warning-soft: oklch(96% 0.05 85);
+  --warning-ink: oklch(46% 0.1 62);
+
+  --success: oklch(60% 0.15 152);
+  --success-soft: oklch(95% 0.045 152);
+  --success-ink: oklch(40% 0.1 152);
+
+  --info: oklch(57% 0.15 255);
+  --info-soft: oklch(95.5% 0.03 255);
+  --info-ink: oklch(43% 0.13 258);
+
+  --focus: oklch(62% 0.15 163);
+
+  /* Elevation (ink-tinted, soft) */
+  --shadow-xs: 0 1px 2px oklch(24% 0.03 258 / 0.06);
+  --shadow-sm: 0 1px 2px oklch(24% 0.03 258 / 0.05), 0 2px 6px oklch(24% 0.03 258 / 0.06);
+  --shadow-md: 0 2px 4px oklch(24% 0.03 258 / 0.04), 0 8px 24px oklch(24% 0.03 258 / 0.08);
+  --shadow-lg: 0 4px 8px oklch(24% 0.03 258 / 0.05), 0 20px 48px oklch(24% 0.03 258 / 0.14);
+}
+
+/* ---------- Dark ---------- */
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --canvas: oklch(17% 0.02 258);
+  --surface: oklch(21.5% 0.022 258);
+  --sunken: oklch(19% 0.02 258);
+  --overlay: oklch(8% 0.02 258 / 0.65);
+
+  --ink: oklch(95% 0.008 95);
+  --ink-muted: oklch(75% 0.016 258);
+  --ink-subtle: oklch(61% 0.016 258);
+  --line: oklch(29.5% 0.022 258);
+  --line-strong: oklch(37% 0.022 258);
+
+  --primary: oklch(71% 0.145 163);
+  --primary-edge: oklch(55% 0.125 163);
+  --primary-soft: oklch(30% 0.055 163);
+  --primary-ink: oklch(85% 0.1 163);
+  --on-primary: oklch(18% 0.035 163);
+
+  --accent: oklch(82% 0.15 80);
+  --accent-edge: oklch(65% 0.14 68);
+  --accent-soft: oklch(31% 0.06 78);
+  --accent-ink: oklch(87% 0.11 85);
+  --on-accent: oklch(24% 0.05 62);
+
+  --streak: oklch(73% 0.18 45);
+  --streak-soft: oklch(31% 0.07 45);
+
+  --danger: oklch(68% 0.18 25);
+  --danger-edge: oklch(54% 0.17 25);
+  --danger-soft: oklch(30% 0.07 25);
+  --danger-ink: oklch(84% 0.1 25);
+  --on-danger: oklch(18% 0.03 25);
+
+  --warning: oklch(80% 0.14 75);
+  --warning-soft: oklch(31% 0.06 75);
+  --warning-ink: oklch(87% 0.1 85);
+
+  --success: oklch(72% 0.15 152);
+  --success-soft: oklch(30% 0.055 152);
+  --success-ink: oklch(86% 0.1 152);
+
+  --info: oklch(70% 0.13 255);
+  --info-soft: oklch(30% 0.06 258);
+  --info-ink: oklch(85% 0.08 258);
+
+  --focus: oklch(74% 0.14 163);
+
+  --shadow-xs: 0 1px 2px oklch(5% 0.02 258 / 0.4);
+  --shadow-sm: 0 1px 2px oklch(5% 0.02 258 / 0.35), 0 2px 6px oklch(5% 0.02 258 / 0.3);
+  --shadow-md: 0 2px 4px oklch(5% 0.02 258 / 0.3), 0 8px 24px oklch(5% 0.02 258 / 0.4);
+  --shadow-lg: 0 4px 8px oklch(5% 0.02 258 / 0.35), 0 20px 48px oklch(5% 0.02 258 / 0.55);
+}
+
+/* OS dark preference when the user has not chosen a theme */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --canvas: oklch(17% 0.02 258);
+    --surface: oklch(21.5% 0.022 258);
+    --sunken: oklch(19% 0.02 258);
+    --overlay: oklch(8% 0.02 258 / 0.65);
+    --ink: oklch(95% 0.008 95);
+    --ink-muted: oklch(75% 0.016 258);
+    --ink-subtle: oklch(61% 0.016 258);
+    --line: oklch(29.5% 0.022 258);
+    --line-strong: oklch(37% 0.022 258);
+    --primary: oklch(71% 0.145 163);
+    --primary-edge: oklch(55% 0.125 163);
+    --primary-soft: oklch(30% 0.055 163);
+    --primary-ink: oklch(85% 0.1 163);
+    --on-primary: oklch(18% 0.035 163);
+    --accent: oklch(82% 0.15 80);
+    --accent-edge: oklch(65% 0.14 68);
+    --accent-soft: oklch(31% 0.06 78);
+    --accent-ink: oklch(87% 0.11 85);
+    --on-accent: oklch(24% 0.05 62);
+    --streak: oklch(73% 0.18 45);
+    --streak-soft: oklch(31% 0.07 45);
+    --danger: oklch(68% 0.18 25);
+    --danger-edge: oklch(54% 0.17 25);
+    --danger-soft: oklch(30% 0.07 25);
+    --danger-ink: oklch(84% 0.1 25);
+    --on-danger: oklch(18% 0.03 25);
+    --warning: oklch(80% 0.14 75);
+    --warning-soft: oklch(31% 0.06 75);
+    --warning-ink: oklch(87% 0.1 85);
+    --success: oklch(72% 0.15 152);
+    --success-soft: oklch(30% 0.055 152);
+    --success-ink: oklch(86% 0.1 152);
+    --info: oklch(70% 0.13 255);
+    --info-soft: oklch(30% 0.06 258);
+    --info-ink: oklch(85% 0.08 258);
+    --focus: oklch(74% 0.14 163);
+    --shadow-xs: 0 1px 2px oklch(5% 0.02 258 / 0.4);
+    --shadow-sm: 0 1px 2px oklch(5% 0.02 258 / 0.35), 0 2px 6px oklch(5% 0.02 258 / 0.3);
+    --shadow-md: 0 2px 4px oklch(5% 0.02 258 / 0.3), 0 8px 24px oklch(5% 0.02 258 / 0.4);
+    --shadow-lg: 0 4px 8px oklch(5% 0.02 258 / 0.35), 0 20px 48px oklch(5% 0.02 258 / 0.55);
+  }
+}
+
+/* ---------- Tailwind mapping ---------- */
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-sunken: var(--sunken);
+  --color-overlay: var(--overlay);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-subtle: var(--ink-subtle);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-primary: var(--primary);
+  --color-primary-edge: var(--primary-edge);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-ink: var(--primary-ink);
+  --color-on-primary: var(--on-primary);
+
+  --color-accent: var(--accent);
+  --color-accent-edge: var(--accent-edge);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
+  --color-on-accent: var(--on-accent);
+
+  --color-streak: var(--streak);
+  --color-streak-soft: var(--streak-soft);
+
+  --color-danger: var(--danger);
+  --color-danger-edge: var(--danger-edge);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-ink: var(--danger-ink);
+  --color-on-danger: var(--on-danger);
+
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-ink: var(--warning-ink);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-success-ink: var(--success-ink);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-info-ink: var(--info-ink);
+  --color-focus: var(--focus);
+
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+}
+
+@theme {
+  /* Typography: Vazirmatn (self-hosted, set by the app as --font-vazirmatn) */
+  --font-sans: var(--font-vazirmatn), 'Vazirmatn', system-ui, Tahoma, sans-serif;
+
+  /* Persian needs taller line-heights than Latin */
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.6;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.7;
+  --text-base: 1rem;
+  --text-base--line-height: 1.8;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.7;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.6;
+  --text-2xl: 1.5rem;
+  --text-2xl--line-height: 1.5;
+  --text-3xl: 1.875rem;
+  --text-3xl--line-height: 1.4;
+  --text-4xl: 2.25rem;
+  --text-4xl--line-height: 1.3;
+
+  /* Corners */
+  --radius-xs: 0.375rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.75rem;
+
+  /* Motion: UI feedback stays under 400ms */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+
+  --animate-shimmer: shimmer 1.4s ease-in-out infinite;
+  --animate-fade-in: fade-in 160ms var(--ease-out-quart);
+  --animate-fade-out: fade-out 140ms ease-in forwards;
+  --animate-dialog-in: dialog-in 220ms var(--ease-spring);
+  --animate-dialog-out: dialog-out 140ms ease-in forwards;
+  --animate-sheet-in: sheet-in 280ms var(--ease-out-quart);
+  --animate-sheet-out: sheet-out 180ms ease-in forwards;
+  --animate-toast-in: toast-in 260ms var(--ease-spring);
+  --animate-toast-out: fade-out 160ms ease-in forwards;
+
+  @keyframes shimmer {
+    0% {
+      background-position: 100% 0;
+    }
+    100% {
+      background-position: -100% 0;
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes fade-out {
+    to {
+      opacity: 0;
+    }
+  }
+  @keyframes dialog-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.96);
+    }
+  }
+  @keyframes dialog-out {
+    to {
+      opacity: 0;
+      transform: translateY(4px) scale(0.97);
+    }
+  }
+  @keyframes sheet-in {
+    from {
+      transform: translateY(100%);
+    }
+  }
+  @keyframes sheet-out {
+    to {
+      transform: translateY(100%);
+    }
+  }
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(12px) scale(0.96);
+    }
+  }
+}
+
+/* ---------- Base ---------- */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background-color: var(--canvas);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background-color: var(--primary-soft);
+    color: var(--primary-ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 1ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 1ms !important;
+    }
+  }
+}

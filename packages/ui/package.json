@@ -3,12 +3,16 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "*.css"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    }
+    },
+    "./theme.css": "./src/styles/theme.css",
+    "./fonts/*": "./fonts/*"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -17,14 +21,29 @@
     "lint": "eslint .",
     "test": "vitest run"
   },
+  "dependencies": {
+    "@madar/i18n": "workspace:*",
+    "@madar/shared": "workspace:*",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "lucide-react": "1.59.0",
+    "motion": "14.3.0",
+    "radix-ui": "1.8.1",
+    "tailwind-merge": "3.7.0"
+  },
   "peerDependencies": {
-    "react": "^19.0.0"
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@madar/config": "workspace:*",
+    "@testing-library/react": "16.3.3",
     "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
     "eslint": "9.39.5",
+    "happy-dom": "21.0.3",
     "react": "19.3.1",
+    "react-dom": "19.3.1",
     "typescript": "6.0.3",
     "vitest": "5.0.5"
   }

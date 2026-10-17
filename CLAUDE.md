@@ -85,6 +85,10 @@ docs/
 - Animations must be short (under 400ms for UI feedback) and never block input.
 - Light and dark themes via design tokens; no hardcoded colors in components.
 - Home screen per role: an employee knows what to do today within 10 seconds; a CEO understands company status within 30 seconds.
+- Build screens from `@madar/ui` (see `/design-system` and `docs/decisions/0008-design-system.md`). Colors only through tokens (`bg-surface`, `text-ink`, `bg-primary`, …); add a token before adding a color.
+- Dates: `formatJalaliDate`, `formatTime`, `formatRelativeTime` from `@madar/shared` (tenant timezone, default `Asia/Tehran`). Numbers: `formatNumber`, `formatPercent`, `toPersianDigits`; normalize user input with `toLatinDigits`. The font does **not** convert digits.
+- A `'use client'` file exports only components, hooks and types. Constants, helpers and `cva` variants go in a plain module, because server components receive client-module values as references, not values (this caused a production-only hydration error once).
+- Next.js 16 docs ship inside `node_modules/next/dist/docs/` (see `apps/web/AGENTS.md`); check them before using an unfamiliar Next API.
 
 ## Gamification rules
 

@@ -13,3 +13,4 @@ Template: Status · Date · Context · Decision · Alternatives considered · Co
 | 0005 | Permissions and visibility | Accepted |
 | 0006 | API style, workers, events and file storage | Accepted |
 | 0007 | Gamification data and streak rules | Accepted |
+| 0008 | Design system foundations | Accepted |

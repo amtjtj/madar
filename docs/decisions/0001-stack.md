@@ -31,9 +31,16 @@ CLAUDE.md fixes the stack; this records the exact versions chosen when the monor
 | Lint | eslint-config-next | 16.4.2 | core-web-vitals |
 | Format | prettier | 3.9.10 | Markdown excluded |
 | Dev services | postgres / redis images | 18-alpine / 8-alpine | Any Postgres 16+ works locally |
+| UI | radix-ui | 1.8.1 | Dialog, Toast, Slot (accessible primitives, shadcn-style) |
+| UI | motion | 14.3.0 | `motion/react`; completion animation, nav indicators |
+| UI | lucide-react | 1.59.0 | Icons |
+| UI | class-variance-authority / clsx / tailwind-merge | 0.7.1 / 2.1.1 / 3.7.0 | Variants and class merging (`cn`) |
+| Font | Vazirmatn (variable) | 33.0.3 | Committed in `packages/ui/fonts/` (OFL), loaded with `next/font/local` |
+| Dates | jalaali-js | 2.0.1 | Jalali ⇄ Gregorian conversion; formatting uses built-in `Intl` |
+| UI tests | @testing-library/react / happy-dom | 16.3.3 / 21.0.3 | **happy-dom, not jsdom 30** (jsdom 30 needs Node ≥ 22.22.2) |
 | Claude Code MCP | @upstash/context7-mcp / @playwright/mcp | 4.4.2 / 0.0.83 | `.mcp.json` |
 
-Better Auth (1.7.x at time of writing), BullMQ, Socket.IO, shadcn/ui, Framer Motion and Vazirmatn are added in the step that first needs them and recorded here.
+Better Auth (1.7.x at time of writing), BullMQ and Socket.IO are added in the step that first needs them and recorded here. "Framer Motion" is now published as `motion`. shadcn/ui is used as a pattern (Radix primitives + `cva` + tokens, components owned in `packages/ui`), not as a dependency.
 
 ## Decisions taken during scaffolding
 - **No Nest CLI.** `@nestjs/cli` 12 requires Node ≥ 22.22.3 and adds webpack/schematics we do not need; the API builds with `tsc` and runs dev with `tsc --watch` + `node --watch` (via `concurrently`).

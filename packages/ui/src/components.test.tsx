@@ -1,0 +1,77 @@
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { getInitials } from './lib/initials.js';
+import { Button } from './components/button.js';
+import { CompleteCheck } from './components/complete-check.js';
+import { TextField } from './components/input.js';
+import { ProgressBar } from './components/progress.js';
+import { ThemeToggle } from './components/theme.js';
+
+afterEach(cleanup);
+
+describe('getInitials', () => {
+  it('takes the first letters of the first and last name', () => {
+    expect(getInitials('مریم احمدی')).toBe('م‌ا');
+    expect(getInitials('Sara Mohammadi')).toBe('S‌M');
+  });
+
+  it('treats ZWNJ as a word break and handles single names', () => {
+    expect(getInitials('علی')).toBe('ع');
+    expect(getInitials('  ')).toBe('');
+    expect(getInitials('مریم احمدی', 1)).toBe('م');
+  });
+});
+
+describe('Button', () => {
+  it('defaults to type="button" and marks loading as busy', () => {
+    render(<Button loading>ثبت</Button>);
+    const button = screen.getByRole('button', { name: 'ثبت' });
+    expect(button.getAttribute('type')).toBe('button');
+    expect(button.getAttribute('aria-busy')).toBe('true');
+  });
+});
+
+describe('TextField', () => {
+  it('links label, input and error message', () => {
+    render(<TextField label="نام کاربری" error="تکراری است" />);
+    const input = screen.getByLabelText('نام کاربری');
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    const describedBy = input.getAttribute('aria-describedby') ?? '';
+    expect(document.getElementById(describedBy)?.textContent).toBe('تکراری است');
+  });
+});
+
+describe('ProgressBar', () => {
+  it('exposes clamped progress to assistive tech with Persian text', () => {
+    render(<ProgressBar value={1.4} label="برنامه امروز" />);
+    const bar = screen.getByRole('progressbar', { name: 'برنامه امروز' });
+    expect(bar.getAttribute('aria-valuenow')).toBe('100');
+    expect(bar.getAttribute('aria-valuetext')).toContain('۱۰۰٪');
+  });
+});
+
+describe('CompleteCheck', () => {
+  it('toggles through onCheckedChange', () => {
+    const onChange = vi.fn();
+    render(<CompleteCheck checked={false} onCheckedChange={onChange} label="گزارش" xp={20} />);
+    const box = screen.getByRole('checkbox');
+    expect(box.getAttribute('aria-checked')).toBe('false');
+    fireEvent.click(box);
+    expect(onChange).toHaveBeenCalledWith(true);
+  });
+});
+
+describe('ThemeToggle', () => {
+  it('applies and persists the chosen theme', () => {
+    render(<ThemeToggle />);
+    fireEvent.click(screen.getByRole('radio', { name: /تیره/ }));
+    expect(document.documentElement.dataset.theme).toBe('dark');
+    expect(localStorage.getItem('madar-theme')).toBe('dark');
+    expect(screen.getByRole('radio', { name: /تیره/ }).getAttribute('aria-checked')).toBe('true');
+
+    fireEvent.click(screen.getByRole('radio', { name: /سیستم/ }));
+    expect(document.documentElement.dataset.theme).toBeUndefined();
+    expect(localStorage.getItem('madar-theme')).toBeNull();
+  });
+});
