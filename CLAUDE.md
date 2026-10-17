@@ -50,6 +50,7 @@ packages/
 docs/
   brief.md    Product brief (source of truth for scope)
   architecture.md  Approved architecture (read before structural changes)
+  pilot-assumptions.md  Assumed facts about the pilot company until confirmed
   decisions/  Architecture decision records (one file per decision)
 ```
 
