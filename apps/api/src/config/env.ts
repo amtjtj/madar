@@ -32,6 +32,12 @@ const envSchema = z.object({
         .map((origin) => origin.trim())
         .filter(Boolean),
     ),
+  /** Redis for queues (BullMQ) and realtime fan-out (Socket.IO adapter). */
+  REDIS_URL: z.string().url().default('redis://localhost:6379'),
+  /** Queue key prefix; tests use their own so parallel suites do not share jobs. */
+  QUEUE_PREFIX: z.string().default('madar'),
+  /** How often the worker polls the outbox when it is empty (ms). */
+  RELAY_INTERVAL_MS: z.coerce.number().int().min(50).default(500),
   /** Required to register a company in production; empty means signup is open (development). */
   TENANT_SIGNUP_CODE: z.string().default(''),
 });

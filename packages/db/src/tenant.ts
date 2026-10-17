@@ -121,6 +121,12 @@ export async function listMemberships(db: Database, userId: string): Promise<Mem
   }));
 }
 
+const uuidArray = (ids: string[]) =>
+  sql`array[${sql.join(
+    ids.map((id) => sql`${id}::uuid`),
+    sql`, `,
+  )}]::uuid[]`;
+
 /** An outbox event as the relay sees it (from the platform function, minimal columns). */
 export interface OutboxEvent {
   id: string;
@@ -136,7 +142,11 @@ export interface OutboxEvent {
  * Locks up to `batch` unpublished events of any tenant for the calling transaction (ADR 0006).
  * Call `markEventsPublished` in the same transaction once they are enqueued.
  */
-export async function lockUnpublishedEvents(tx: Tx, batch: number): Promise<OutboxEvent[]> {
+export async function lockUnpublishedEvents(
+  tx: Tx,
+  batch: number,
+  tenantIds?: string[],
+): Promise<OutboxEvent[]> {
   const result = await tx.execute<{
     id: string;
     tenant_id: string;
@@ -145,7 +155,11 @@ export async function lockUnpublishedEvents(tx: Tx, batch: number): Promise<Outb
     payload: Record<string, unknown>;
     actor_id: string | null;
     occurred_at: string | Date;
-  }>(sql`select * from app.lock_unpublished_events(${batch}::int)`);
+  }>(
+    tenantIds
+      ? sql`select * from app.lock_unpublished_events(${batch}::int, ${uuidArray(tenantIds)})`
+      : sql`select * from app.lock_unpublished_events(${batch}::int)`,
+  );
   return result.rows.map((row) => ({
     id: row.id,
     tenantId: row.tenant_id,

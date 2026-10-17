@@ -41,6 +41,14 @@ export default defineConfig({
       timeout: 120_000,
     },
     {
+      // Outbox relay and consumers (notifications, realtime), started once the API above is built and up.
+      command: `until curl -sf http://localhost:${apiPort}/api/health > /dev/null; do sleep 1; done; pnpm --filter @madar/api worker`,
+      wait: { stdout: /Worker started/ },
+      env: { NODE_ENV: 'test' },
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+    },
+    {
       command: `pnpm next dev --port ${webPort}`,
       url: `http://localhost:${webPort}`,
       env: { API_INTERNAL_URL: `http://localhost:${apiPort}` },

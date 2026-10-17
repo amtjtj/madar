@@ -5,6 +5,7 @@ import {
   withTenant,
   type DbHandle,
   type Membership,
+  type Tx,
 } from '@madar/db';
 import {
   OVERSIGHT_RESOURCES,
@@ -13,7 +14,7 @@ import {
   type Grant,
   type OversightResource,
 } from '@madar/shared';
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNull, type SQL } from 'drizzle-orm';
 
 import { DB_HANDLE } from '../database/tokens.js';
 
@@ -49,71 +50,74 @@ export class TenantContextService {
 
   /** The member row for `userId` in `tenantId` with roles, grants, departments and oversight. */
   async loadMember(tenantId: string, userId: string): Promise<LoadedMember | null> {
-    return withTenant(this.handle.db, { tenantId, userId }, async (tx) => {
-      const [member] = await tx
-        .select({
-          id: s.members.id,
-          displayName: s.members.displayName,
-          title: s.members.title,
-          status: s.members.status,
-        })
-        .from(s.members)
-        .where(eq(s.members.userId, userId));
-      if (!member) return null;
-
-      const roleRows = await tx
-        .select({ id: s.roles.id, key: s.roles.key })
-        .from(s.memberRoles)
-        .innerJoin(s.roles, eq(s.roles.id, s.memberRoles.roleId))
-        .where(eq(s.memberRoles.memberId, member.id));
-
-      const grantRows = roleRows.length
-        ? await tx
-            .select({ permission: s.roleGrants.permission, scope: s.roleGrants.scope })
-            .from(s.roleGrants)
-            .where(
-              inArray(
-                s.roleGrants.roleId,
-                roleRows.map((r) => r.id),
-              ),
-            )
-        : [];
-
-      const deptRows = await tx
-        .select({
-          id: s.departments.id,
-          deptRole: s.departmentMemberships.deptRole,
-          oversight: s.departments.oversight,
-        })
-        .from(s.departmentMemberships)
-        .innerJoin(s.departments, eq(s.departments.id, s.departmentMemberships.departmentId))
-        .where(
-          and(eq(s.departmentMemberships.memberId, member.id), isNull(s.departments.archivedAt)),
-        );
-
-      const oversight = new Set<OversightResource>();
-      for (const d of deptRows) {
-        for (const resource of d.oversight?.resources ?? []) {
-          if ((OVERSIGHT_RESOURCES as readonly string[]).includes(resource)) {
-            oversight.add(resource as OversightResource);
-          }
-        }
-      }
-
-      const actor: Actor = {
-        memberId: member.id,
-        roles: roleRows.map((r) => r.key),
-        grants: grantRows.map((g) => [g.permission, g.scope] as unknown as Grant),
-        departments: deptRows.map((d) => ({ id: d.id, deptRole: d.deptRole as DeptRole })),
-        oversight: [...oversight],
-      };
-      return {
-        memberId: member.id,
-        displayName: member.displayName,
-        title: member.title,
-        status: member.status,
-        actor,
-      };
-    });
+    return withTenant(this.handle.db, { tenantId, userId }, (tx) =>
+      loadMemberInTx(tx, eq(s.members.userId, userId)),
+    );
   }
+}
+
+/** A member with their actor (roles, grants, departments, oversight), inside a tenant transaction. */
+export async function loadMemberInTx(tx: Tx, where: SQL): Promise<LoadedMember | null> {
+  const [member] = await tx
+    .select({
+      id: s.members.id,
+      displayName: s.members.displayName,
+      title: s.members.title,
+      status: s.members.status,
+    })
+    .from(s.members)
+    .where(where);
+  if (!member) return null;
+
+  const roleRows = await tx
+    .select({ id: s.roles.id, key: s.roles.key })
+    .from(s.memberRoles)
+    .innerJoin(s.roles, eq(s.roles.id, s.memberRoles.roleId))
+    .where(eq(s.memberRoles.memberId, member.id));
+
+  const grantRows = roleRows.length
+    ? await tx
+        .select({ permission: s.roleGrants.permission, scope: s.roleGrants.scope })
+        .from(s.roleGrants)
+        .where(
+          inArray(
+            s.roleGrants.roleId,
+            roleRows.map((r) => r.id),
+          ),
+        )
+    : [];
+
+  const deptRows = await tx
+    .select({
+      id: s.departments.id,
+      deptRole: s.departmentMemberships.deptRole,
+      oversight: s.departments.oversight,
+    })
+    .from(s.departmentMemberships)
+    .innerJoin(s.departments, eq(s.departments.id, s.departmentMemberships.departmentId))
+    .where(and(eq(s.departmentMemberships.memberId, member.id), isNull(s.departments.archivedAt)));
+
+  const oversight = new Set<OversightResource>();
+  for (const d of deptRows) {
+    for (const resource of d.oversight?.resources ?? []) {
+      if ((OVERSIGHT_RESOURCES as readonly string[]).includes(resource)) {
+        oversight.add(resource as OversightResource);
+      }
+    }
+  }
+
+  const actor: Actor = {
+    memberId: member.id,
+    roles: roleRows.map((r) => r.key),
+    grants: grantRows.map((g) => [g.permission, g.scope] as unknown as Grant),
+    departments: deptRows.map((d) => ({ id: d.id, deptRole: d.deptRole as DeptRole })),
+    oversight: [...oversight],
+  };
+  return {
+    memberId: member.id,
+    displayName: member.displayName,
+    title: member.title,
+    status: member.status,
+    actor,
+  };
 }

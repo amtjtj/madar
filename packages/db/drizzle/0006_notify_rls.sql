@@ -28,7 +28,8 @@ CREATE POLICY platform_relay_update ON domain_events FOR UPDATE TO madar_platfor
 -- Locks a batch of unpublished events for the calling transaction (other relays skip them).
 -- The relay enqueues the jobs, then calls app.mark_events_published in the same transaction;
 -- a crash before commit releases the locks and the events are relayed again (at least once).
-CREATE OR REPLACE FUNCTION app.lock_unpublished_events(p_batch int)
+-- p_tenants limits the batch to some tenants (tests run relays side by side); NULL means all.
+CREATE OR REPLACE FUNCTION app.lock_unpublished_events(p_batch int, p_tenants uuid[] DEFAULT NULL)
   RETURNS TABLE (
     id uuid,
     tenant_id uuid,
@@ -44,16 +45,17 @@ CREATE OR REPLACE FUNCTION app.lock_unpublished_events(p_batch int)
     SELECT e.id, e.tenant_id, e.type, e.version, e.payload, e.actor_id, e.occurred_at
     FROM domain_events e
     WHERE e.published_at IS NULL
+      AND (p_tenants IS NULL OR e.tenant_id = ANY (p_tenants))
     ORDER BY e.occurred_at
     LIMIT least(greatest(p_batch, 1), 500)
     FOR UPDATE SKIP LOCKED
   $$;
 --> statement-breakpoint
-ALTER FUNCTION app.lock_unpublished_events(int) OWNER TO madar_platform;
+ALTER FUNCTION app.lock_unpublished_events(int, uuid[]) OWNER TO madar_platform;
 --> statement-breakpoint
-REVOKE ALL ON FUNCTION app.lock_unpublished_events(int) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app.lock_unpublished_events(int, uuid[]) FROM PUBLIC;
 --> statement-breakpoint
-GRANT EXECUTE ON FUNCTION app.lock_unpublished_events(int) TO madar_app;
+GRANT EXECUTE ON FUNCTION app.lock_unpublished_events(int, uuid[]) TO madar_app;
 --> statement-breakpoint
 
 CREATE OR REPLACE FUNCTION app.mark_events_published(p_ids uuid[]) RETURNS void
