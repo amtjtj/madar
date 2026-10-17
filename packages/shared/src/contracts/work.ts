@@ -173,3 +173,25 @@ export const setProjectMembersRequest = z.object({
   members: z.array(z.object({ memberId: z.uuid(), role: z.enum(['owner', 'member']) })).max(200),
 });
 export type SetProjectMembersRequest = z.infer<typeof setProjectMembersRequest>;
+
+export const TODAY_SUGGESTION_REASONS = [
+  'from_yesterday',
+  'overdue',
+  'due_today',
+  'in_progress',
+] as const;
+export type TodaySuggestionReason = (typeof TODAY_SUGGESTION_REASONS)[number];
+
+/** The member's plan for their local day, plus tasks they may want to add (never auto-added). */
+export const today = z.object({
+  /** The tenant-local calendar day. */
+  date: calendarDate,
+  items: z.array(task),
+  progress: z.object({ done: z.number().int(), total: z.number().int() }),
+  suggestions: z.array(z.object({ reason: z.enum(TODAY_SUGGESTION_REASONS), task })),
+});
+export type Today = z.infer<typeof today>;
+
+/** Replace today's plan with these tasks, in this order. */
+export const setTodayItemsRequest = z.object({ taskIds: z.array(z.uuid()).max(50) });
+export type SetTodayItemsRequest = z.infer<typeof setTodayItemsRequest>;
