@@ -274,4 +274,79 @@ describe.skipIf(!hasDatabase)('notifications', () => {
     // Friday: no working day, no reminders.
     expect(await reminders.runForTenant(tenantId, tehran('2026-10-23', '10:00'))).toBe(0);
   });
+
+  describe('API', () => {
+    it('lists only my notifications, marks them read, and hides others (also across companies)', async () => {
+      await lead.c.post('/api/tasks', { title: 'برای فهرست', assigneeId: agent.memberId });
+      await eventually(async () => {
+        const res = await agent.c.get('/api/notifications');
+        return res.body.items.filter((n: { title: string }) => n.title === 'برای فهرست');
+      });
+      const list = await agent.c.get('/api/notifications?limit=50');
+      expect(list.status).toBe(200);
+      const item = list.body.items.find((n: { title: string }) => n.title === 'برای فهرست');
+      expect(item).toMatchObject({ kind: 'task_assigned', subjectType: 'task', readAt: null });
+      expect(item.actor.id).toBe(lead.memberId);
+      expect(list.body.unreadCount).toBeGreaterThan(0);
+
+      // Someone else, in the same company or another one, cannot read or mark it.
+      expect((await colleague.c.post(`/api/notifications/${item.id}/read`)).status).toBe(404);
+      const other = await ownerSession(app, env);
+      expect((await other.c.post(`/api/notifications/${item.id}/read`)).status).toBe(404);
+      expect((await other.c.get('/api/notifications')).body.items).toEqual([]);
+
+      expect((await agent.c.post(`/api/notifications/${item.id}/read`)).status).toBe(204);
+      const after = await agent.c.get('/api/notifications?limit=50');
+      expect(after.body.items.find((n: { id: string }) => n.id === item.id).readAt).not.toBeNull();
+
+      const colleagueUnread = (await colleague.c.get('/api/notifications/unread-count')).body
+        .unreadCount;
+      expect((await agent.c.post('/api/notifications/read-all')).status).toBe(204);
+      expect((await agent.c.get('/api/notifications/unread-count')).body.unreadCount).toBe(0);
+      // read-all touched only my own notifications.
+      expect((await colleague.c.get('/api/notifications/unread-count')).body.unreadCount).toBe(
+        colleagueUnread,
+      );
+    });
+
+    it('saves my preferences', async () => {
+      const initial = await agent.c.get('/api/me/notification-preferences');
+      expect(initial.body).toEqual({ mutedKinds: [], offHours: false });
+      const saved = await agent.c.put('/api/me/notification-preferences', {
+        mutedKinds: ['task_commented'],
+        offHours: true,
+      });
+      expect(saved.body).toEqual({ mutedKinds: ['task_commented'], offHours: true });
+      expect((await agent.c.get('/api/me/notification-preferences')).body.offHours).toBe(true);
+      expect(
+        (
+          await agent.c.put('/api/me/notification-preferences', {
+            mutedKinds: ['nope'],
+            offHours: false,
+          })
+        ).status,
+      ).toBe(400);
+    });
+
+    it('lets everyone read the work calendar and only the owner change it (audited)', async () => {
+      const read = await agent.c.get('/api/work-calendar');
+      expect(read.body.weeklyHours[5]).toEqual({ start: '09:00', end: '13:00' }); // Thursday half day
+      expect(read.body.weeklyHours[6]).toBeNull(); // Friday
+      const calendar = { ...read.body, holidays: ['2026-11-01'], overdueEscalationDays: 3 };
+      expect((await lead.c.put('/api/work-calendar', calendar)).status).toBe(403);
+      const saved = await owner.put('/api/work-calendar', calendar);
+      expect(saved.status).toBe(200);
+      expect(saved.body.overdueEscalationDays).toBe(3);
+      expect((await agent.c.get('/api/work-calendar')).body.holidays).toEqual(['2026-11-01']);
+      const bad = {
+        ...calendar,
+        weeklyHours: [{ start: '18:00', end: '09:00' }, ...calendar.weeklyHours.slice(1)],
+      };
+      expect((await owner.put('/api/work-calendar', bad)).status).toBe(400);
+      const audit = await owner.get('/api/audit-logs');
+      expect(audit.body.map((e: { action: string }) => e.action)).toContain(
+        'work_calendar.updated',
+      );
+    });
+  });
 });

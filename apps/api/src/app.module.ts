@@ -9,6 +9,7 @@ import { DepartmentsModule } from './departments/departments.module.js';
 import { HealthModule } from './health/health.module.js';
 import { MeModule } from './me/me.module.js';
 import { MembersModule } from './members/members.module.js';
+import { NotificationsModule } from './notifications/notifications-http.module.js';
 import { TenantsModule } from './tenants/tenants.module.js';
 import { WorkModule } from './work/work.module.js';
 
@@ -23,6 +24,7 @@ import { WorkModule } from './work/work.module.js';
     DepartmentsModule,
     MembersModule,
     WorkModule,
+    NotificationsModule,
   ],
   providers: [{ provide: APP_GUARD, useExisting: AuthGuard }],
 })

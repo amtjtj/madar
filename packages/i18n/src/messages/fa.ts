@@ -524,6 +524,7 @@ export const fa = {
       department_archived: 'بایگانی دپارتمان',
       department_oversight_changed: 'تغییر دسترسی ناظر',
       task_deleted: 'حذف کار',
+      work_calendar_updated: 'تغییر ساعت کاری شرکت',
     },
   },
   work: {
