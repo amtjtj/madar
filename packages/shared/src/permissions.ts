@@ -16,8 +16,10 @@ export const PERMISSIONS = [
   'department.set_oversight',
   'org_chart.read',
   'audit.read',
-  // Work content (enforced from the tasks step on; listed so oversight can reference it)
+  // Work content
   'task.read',
+  /** Edit, weigh and delete any task or project in scope (beyond what involvement allows). */
+  'task.manage',
   'project.read',
   'goal.read',
   'metric.read',
@@ -43,9 +45,12 @@ const all = (scope: Scope, ...permissions: Permission[]): Grant[] =>
 /** Default grants seeded for each system role when a tenant is created. */
 export const SYSTEM_ROLE_GRANTS: Record<SystemRole, Grant[]> = {
   owner: all('tenant', ...PERMISSIONS),
+  // System administration, not content management: no oversight changes, no task.manage.
   admin: all(
     'tenant',
-    ...PERMISSIONS.filter((p) => p !== 'department.set_oversight' && p !== 'tenant.manage'),
+    ...PERMISSIONS.filter(
+      (p) => p !== 'department.set_oversight' && p !== 'tenant.manage' && p !== 'task.manage',
+    ),
   ),
   executive: all(
     'tenant',

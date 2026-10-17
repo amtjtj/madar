@@ -78,6 +78,19 @@ export function toJalali(date: Date, timeZone = DEFAULT_TIME_ZONE): JalaliDate {
   return toJalaali(gy, gm, gd);
 }
 
+/** The Gregorian calendar date (YYYY-MM-DD) of an instant as seen in `timeZone`. */
+export function calendarDateIn(date: Date, timeZone = DEFAULT_TIME_ZONE): string {
+  const { gy, gm, gd } = gregorianPartsIn(date, timeZone);
+  return `${gy}-${String(gm).padStart(2, '0')}-${String(gd).padStart(2, '0')}`;
+}
+
+/** A calendar date (YYYY-MM-DD) shifted by whole days. */
+export function addDays(calendarDate: string, days: number): string {
+  const d = new Date(`${calendarDate}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 /** Persian weekday index (0 = Saturday … 6 = Friday) of an instant in `timeZone`. */
 export function persianWeekdayIndex(date: Date, timeZone = DEFAULT_TIME_ZONE): number {
   return EN_WEEKDAY_TO_PERSIAN_INDEX[gregorianPartsIn(date, timeZone).weekday] ?? 0;

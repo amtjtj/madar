@@ -21,6 +21,8 @@ export type ErrorCode =
   | 'signup_code_invalid'
   | 'invalid_password'
   | 'rate_limited'
+  | 'version_conflict'
+  | 'no_department'
   | 'conflict';
 
 export class ApiError extends HttpException {

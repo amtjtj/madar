@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  addDays,
+  calendarDateIn,
   formatJalaliDate,
   formatRelativeTime,
   formatTime,
@@ -58,5 +60,12 @@ describe('jalali', () => {
     expect(formatRelativeTime(new Date('2026-10-17T07:00:00Z'), now)).toBe('۳ ساعت پیش');
     expect(formatRelativeTime(new Date('2026-10-18T10:00:00Z'), now)).toBe('فردا');
     expect(formatRelativeTime(now, now)).toBe('اکنون');
+  });
+
+  it('gives the calendar date in a time zone and shifts by days', () => {
+    expect(calendarDateIn(new Date('2026-10-17T21:00:00Z'))).toBe('2026-10-18');
+    expect(calendarDateIn(new Date('2026-10-17T21:00:00Z'), 'UTC')).toBe('2026-10-17');
+    expect(addDays('2026-03-20', 1)).toBe('2026-03-21');
+    expect(addDays('2026-03-01', -1)).toBe('2026-02-28');
   });
 });

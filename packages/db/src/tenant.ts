@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 
 import type { Database } from './client.js';
+import { activities, domainEvents } from './schema/work.js';
 
 /** The transaction handle passed to tenant-scoped work. */
 export type Tx = Parameters<Parameters<Database['transaction']>[0]>[0];
@@ -63,6 +64,32 @@ export async function appendAudit(tx: Tx, entry: AuditEntry): Promise<string> {
   const id = result.rows[0]?.id;
   if (!id) throw new Error('append_audit returned no id');
   return id;
+}
+
+/** Writes a domain event to the outbox in the caller's transaction (architecture §5). */
+export async function emitEvent(
+  tx: Tx,
+  type: string,
+  payload: Record<string, unknown>,
+  actorId: string | null,
+): Promise<void> {
+  await tx.insert(domainEvents).values({ type, payload, actorId });
+}
+
+export type ActivityChanges = Record<string, { from: unknown; to: unknown }>;
+
+/** Appends a user-visible history entry (not the security audit log). */
+export async function recordActivity(
+  tx: Tx,
+  entry: {
+    subjectType: string;
+    subjectId: string;
+    actorId: string | null;
+    verb: string;
+    changes?: ActivityChanges | null;
+  },
+): Promise<void> {
+  await tx.insert(activities).values({ ...entry, changes: entry.changes ?? null });
 }
 
 export interface Membership {

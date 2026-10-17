@@ -31,7 +31,7 @@ export async function createTestApp(overrides: Partial<Env> = {}) {
     .compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>({
     bodyParser: false,
-    logger: false,
+    logger: process.env.TEST_LOG ? ['error'] : false,
   });
   configureApp(app, env, app.get<Auth>(AUTH));
   await app.init();

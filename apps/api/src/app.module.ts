@@ -10,6 +10,7 @@ import { HealthModule } from './health/health.module.js';
 import { MeModule } from './me/me.module.js';
 import { MembersModule } from './members/members.module.js';
 import { TenantsModule } from './tenants/tenants.module.js';
+import { WorkModule } from './work/work.module.js';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { TenantsModule } from './tenants/tenants.module.js';
     TenantsModule,
     DepartmentsModule,
     MembersModule,
+    WorkModule,
   ],
   providers: [{ provide: APP_GUARD, useExisting: AuthGuard }],
 })
