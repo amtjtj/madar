@@ -2,7 +2,7 @@
 
 Madar is a unified work operating system for companies: one shared core (tasks, projects, goals, approvals, reports, gamification) with a module for every department on top of it, plus a private AI layer. Benchmark for UX: Duolingo. Direct competitor: Mizito (Iranian). First customer (pilot): a ~200-person online-gold fintech startup that currently uses Mizito.
 
-The full product brief lives in `docs/brief.md`. Read it before any planning task.
+The full product brief lives in `docs/brief.md`. Read it before any planning task. The approved architecture is in `docs/architecture.md` and decisions in `docs/decisions/`.
 
 ## Golden rules
 
@@ -25,7 +25,7 @@ The full product brief lives in `docs/brief.md`. Read it before any planning tas
 | DB | PostgreSQL with Row-Level Security; Drizzle ORM |
 | Cache / queues | Redis; BullMQ for background jobs |
 | Realtime | WebSocket (Socket.IO via NestJS gateway) |
-| Auth | Better Auth, self-hosted; 2FA required for admins |
+| Auth | Better Auth, self-hosted; MVP login is admin-issued username + password (phone + SMS OTP later); 2FA (TOTP) required for admins |
 | Validation | Zod, schemas shared between web and API |
 | AI service | Python, FastAPI, vLLM, pgvector (RAG) |
 | Monorepo | Turborepo + pnpm |
@@ -46,8 +46,10 @@ packages/
   shared/     Zod schemas, types, constants, permission definitions
   ui/         Design system components and tokens
   i18n/       Persian strings
+  config/     Shared tsconfig, ESLint and Prettier presets
 docs/
   brief.md    Product brief (source of truth for scope)
+  architecture.md  Approved architecture (read before structural changes)
   decisions/  Architecture decision records (one file per decision)
 ```
 
