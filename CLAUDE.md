@@ -80,7 +80,7 @@ docs/
 - RTL with Tailwind logical utilities (`ms-*`, `me-*`, `ps-*`, `pe-*`, `start-*`, `end-*`). Never use `ml-*`, `mr-*`, `left-*`, `right-*` for layout.
 - Jalali (Shamsi) calendar for all dates shown to users; store UTC in the DB.
 - Persian digits in the UI; Latin digits in code and data.
-- Font: Vazirmatn, self-hosted.
+- Font: **Abar Low** (Fontiran, licensed; weights 100/300/400/700/900), self-hosted from `apps/web/public/fonts/abar/`. The font files are **never committed** (commercial license, public repo): install them per environment with `pnpm fonts:install <dir>`. Without them the UI falls back to Vazirmatn (open license, in git).
 - Optimistic UI for user actions; skeletons instead of spinners; a designed empty state for every list.
 - Animations must be short (under 400ms for UI feedback) and never block input.
 - Light and dark themes via design tokens; no hardcoded colors in components.
@@ -132,6 +132,7 @@ Requirements: Node 22.12+ (24 LTS recommended), pnpm 10 (`corepack enable`), Doc
 | Generate a migration from the Drizzle schema | `pnpm db:generate` |
 | Apply migrations | `pnpm db:migrate` |
 | Seed demo data | `pnpm db:seed` |
+| Install the licensed Abar Low fonts (git-ignored) | `pnpm fonts:install <dir-with-AbarLow-files>` |
 | One package only | `pnpm --filter @madar/<name> <script>` (e.g. `pnpm --filter @madar/api test`) |
 
 Notes:

@@ -5,7 +5,7 @@ test.describe('design system page', () => {
     await page.goto('/design-system');
   });
 
-  test('renders every section with the self-hosted font', async ({ page }) => {
+  test('renders every section with the self-hosted fonts', async ({ page }) => {
     for (const id of [
       'colors',
       'typography',
@@ -26,8 +26,12 @@ test.describe('design system page', () => {
     ]) {
       await expect(page.locator(`section#${id}`)).toBeVisible();
     }
-    const font = await page.evaluate(() => getComputedStyle(document.body).fontFamily);
-    expect(font.toLowerCase()).toContain('vazirmatn');
+    // Abar Low is primary when installed; Vazirmatn is always present as the fallback.
+    const font = (
+      await page.evaluate(() => getComputedStyle(document.body).fontFamily)
+    ).toLowerCase();
+    expect(font).toContain('abar low');
+    expect(font).toContain('vazirmatn');
   });
 
   test('has no horizontal overflow', async ({ page }) => {

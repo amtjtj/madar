@@ -20,7 +20,8 @@
     "db:down": "docker compose --env-file .env -f docker/docker-compose.yml down",
     "db:generate": "pnpm --filter @madar/db db:generate",
     "db:migrate": "pnpm --filter @madar/db db:migrate",
-    "db:seed": "pnpm --filter @madar/db db:seed"
+    "db:seed": "pnpm --filter @madar/db db:seed",
+    "fonts:install": "node scripts/install-fonts.mjs"
   },
   "devDependencies": {
     "prettier": "3.9.10",

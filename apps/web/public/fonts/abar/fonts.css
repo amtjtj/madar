@@ -1,0 +1,50 @@
+/*
+ * Abar Low (Fontiran) — the primary UI typeface.
+ * Commercial font: the font files are NOT in git. Install them with `pnpm fonts:install <dir>`.
+ * The root layout links this file only when the files are present; otherwise Vazirmatn is used.
+ */
+@font-face {
+  font-family: 'Abar Low';
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+  src:
+    url('./AbarLow-Thin.woff2') format('woff2'),
+    url('./AbarLow-Thin.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Abar Low';
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+  src:
+    url('./AbarLow-Light.woff2') format('woff2'),
+    url('./AbarLow-Light.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Abar Low';
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src:
+    url('./AbarLow-Regular.woff2') format('woff2'),
+    url('./AbarLow-Regular.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Abar Low';
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+  src:
+    url('./AbarLow-Bold.woff2') format('woff2'),
+    url('./AbarLow-Bold.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Abar Low';
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+  src:
+    url('./AbarLow-Black.woff2') format('woff2'),
+    url('./AbarLow-Black.ttf') format('truetype');
+}

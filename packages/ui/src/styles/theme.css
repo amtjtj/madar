@@ -228,8 +228,12 @@
 }
 
 @theme {
-  /* Typography: Vazirmatn (self-hosted, set by the app as --font-vazirmatn) */
-  --font-sans: var(--font-vazirmatn), 'Vazirmatn', system-ui, Tahoma, sans-serif;
+  /*
+   * Typography: Abar Low (licensed, weights 100/300/400/700/900) with Vazirmatn as fallback.
+   * The app defines the 'Abar Low' @font-face when the files are installed, and --font-vazirmatn.
+   * Tailwind's medium (500) renders with Regular, semibold (600) with Bold, extrabold (800) with Black.
+   */
+  --font-sans: 'Abar Low', var(--font-vazirmatn), 'Vazirmatn', system-ui, Tahoma, sans-serif;
 
   /* Persian needs taller line-heights than Latin */
   --text-xs: 0.75rem;
@@ -333,6 +337,7 @@
     background-color: var(--canvas);
     color: var(--ink);
     font-family: var(--font-sans);
+    font-synthesis-weight: none;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
   }

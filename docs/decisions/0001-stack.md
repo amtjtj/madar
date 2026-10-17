@@ -35,7 +35,8 @@ CLAUDE.md fixes the stack; this records the exact versions chosen when the monor
 | UI | motion | 14.3.0 | `motion/react`; completion animation, nav indicators |
 | UI | lucide-react | 1.59.0 | Icons |
 | UI | class-variance-authority / clsx / tailwind-merge | 0.7.1 / 2.1.1 / 3.7.0 | Variants and class merging (`cn`) |
-| Font | Vazirmatn (variable) | 33.0.3 | Committed in `packages/ui/fonts/` (OFL), loaded with `next/font/local` |
+| Font | Abar Low (Fontiran) | 2025 release | Primary; licensed, git-ignored, installed with `pnpm fonts:install` (ADR 0008) |
+| Font | Vazirmatn (variable) | 33.0.3 | Fallback; committed in `packages/ui/fonts/` (OFL), loaded with `next/font/local` |
 | Dates | jalaali-js | 2.0.1 | Jalali ⇄ Gregorian conversion; formatting uses built-in `Intl` |
 | UI tests | @testing-library/react / happy-dom | 16.3.3 / 21.0.3 | **happy-dom, not jsdom 30** (jsdom 30 needs Node ≥ 22.22.2) |
 | Claude Code MCP | @upstash/context7-mcp / @playwright/mcp | 4.4.2 / 0.0.83 | `.mcp.json` |
