@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { schema as s, type Tx } from '@madar/db';
+import { emitEvent, schema as s, type Tx } from '@madar/db';
 import type {
   CreateProjectRequest,
   Project,
@@ -77,7 +77,7 @@ export class ProjectsService {
       for (const memberId of input.memberIds ?? []) {
         if (!members.has(memberId)) members.set(memberId, 'member');
       }
-      await this.writeMembers(tx, row.id, members);
+      await this.writeMembers(tx, ctx, row.id, members);
       return this.one(tx, ctx, row.id);
     });
   }
@@ -121,13 +121,23 @@ export class ProjectsService {
       const members = new Map(input.members.map((m) => [m.memberId, m.role]));
       // The owner always stays a member.
       members.set(current.ownerId, 'owner');
-      await this.writeMembers(tx, id, members);
+      await this.writeMembers(tx, ctx, id, members);
       return this.one(tx, ctx, id);
     });
   }
 
-  private async writeMembers(tx: Tx, projectId: string, members: Map<string, 'owner' | 'member'>) {
+  /** Replaces the member list; people newly added get a `project.member_added` event. */
+  private async writeMembers(
+    tx: Tx,
+    ctx: TenantContext,
+    projectId: string,
+    members: Map<string, 'owner' | 'member'>,
+  ) {
     const ids = [...members.keys()];
+    const before = await tx
+      .select({ memberId: s.projectMembers.memberId })
+      .from(s.projectMembers)
+      .where(eq(s.projectMembers.projectId, projectId));
     const active = await tx
       .select({ id: s.members.id })
       .from(s.members)
@@ -137,6 +147,11 @@ export class ProjectsService {
     await tx
       .insert(s.projectMembers)
       .values([...members].map(([memberId, role]) => ({ projectId, memberId, role })));
+    const existing = new Set(before.map((m) => m.memberId));
+    const added = ids.filter((id) => !existing.has(id) && id !== ctx.memberId);
+    if (added.length) {
+      await emitEvent(tx, 'project.member_added', { projectId, memberIds: added }, ctx.memberId);
+    }
   }
 
   async requireVisible(tx: Tx, ctx: TenantContext, id: string): Promise<ProjectRow> {

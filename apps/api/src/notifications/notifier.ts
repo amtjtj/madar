@@ -1,0 +1,83 @@
+import { Injectable } from '@nestjs/common';
+import { emitEvent, schema as s, type Tx } from '@madar/db';
+import { deliverAfter, type NotificationKind } from '@madar/shared';
+import { and, eq, isNull } from 'drizzle-orm';
+
+import { loadMemberInTx } from '../auth/tenant-context.service.js';
+import { visibleProjects, visibleTasks } from '../work/access.js';
+import { loadWorkCalendar } from './calendar.js';
+
+export interface NewNotification {
+  tenantId: string;
+  recipientId: string;
+  kind: NotificationKind;
+  subjectType: 'task' | 'project';
+  subjectId: string;
+  actorId: string | null;
+  /** Shown in the list: the title at the time plus message values. */
+  payload: { title: string; data?: Record<string, string | number> };
+  dedupeKey: string;
+  now?: Date;
+}
+
+/**
+ * Creates notifications inside a tenant transaction: never for the actor themself, only for active
+ * members who can see the subject, respecting muted kinds and quiet hours (deliver_after).
+ */
+@Injectable()
+export class Notifier {
+  async notify(tx: Tx, input: NewNotification): Promise<boolean> {
+    if (input.recipientId === input.actorId) return false;
+    const recipient = await loadMemberInTx(tx, eq(s.members.id, input.recipientId));
+    if (!recipient || recipient.status !== 'active') return false;
+    if (!(await this.canSee(tx, recipient.actor, input.subjectType, input.subjectId))) return false;
+
+    const [prefs] = await tx
+      .select()
+      .from(s.notificationPreferences)
+      .where(eq(s.notificationPreferences.memberId, input.recipientId));
+    if (prefs?.mutedKinds.includes(input.kind)) return false;
+
+    const now = input.now ?? new Date();
+    const { calendar, timeZone } = await loadWorkCalendar(tx, input.tenantId);
+    const [row] = await tx
+      .insert(s.notifications)
+      .values({
+        recipientId: input.recipientId,
+        kind: input.kind,
+        subjectType: input.subjectType,
+        subjectId: input.subjectId,
+        actorId: input.actorId,
+        payload: input.payload,
+        dedupeKey: input.dedupeKey,
+        createdAt: now,
+        deliverAfter: deliverAfter(calendar, now, { timeZone, offHours: prefs?.offHours ?? false }),
+      })
+      .onConflictDoNothing()
+      .returning({ id: s.notifications.id });
+    if (!row) return false;
+    // Realtime: tell the recipient's sessions (content-free; ADR 0011).
+    await emitEvent(tx, 'notification.created', { recipientId: input.recipientId }, input.actorId);
+    return true;
+  }
+
+  private async canSee(
+    tx: Tx,
+    actor: Parameters<typeof visibleTasks>[0],
+    subjectType: 'task' | 'project',
+    subjectId: string,
+  ): Promise<boolean> {
+    if (subjectType === 'task') {
+      const [row] = await tx
+        .select({ id: s.tasks.id })
+        .from(s.tasks)
+        .where(and(eq(s.tasks.id, subjectId), isNull(s.tasks.deletedAt), visibleTasks(actor)));
+      return Boolean(row);
+    }
+    const [row] = await tx
+      .select({ id: s.projects.id })
+      .from(s.projects)
+      .where(and(eq(s.projects.id, subjectId), visibleProjects(actor)));
+    return Boolean(row);
+  }
+}
