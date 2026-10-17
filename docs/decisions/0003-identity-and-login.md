@@ -21,3 +21,11 @@ The product owner wants accounts created by company admins (username + password 
 
 ## Consequences
 - Login page has two fields (username, password); no tenant field. A user in several tenants picks the active tenant after login.
+
+## Implementation notes (phase 1, step 4)
+- Better Auth 1.7 with the `username` and `twoFactor` plugins; `generateId` = UUIDv7; telemetry disabled explicitly; public `sign-up` disabled.
+- Accounts are created server-side (`AccountsService`, via Better Auth's internal adapter and password hasher), never through public endpoints.
+- `users.must_change_password` forces a password change; `/api/me/password` calls Better Auth and forwards the replacement session cookie (revoking sessions replaces the current one).
+- `sessions.active_tenant_id` holds the chosen company; it is set automatically when the user belongs to exactly one.
+- Rate limits: Better Auth's own limiter on sign-in, 2FA and password change; an in-memory limiter on company signup (moves to Redis when the API scales out). Both are off when `NODE_ENV=test`.
+- Lost authenticator: backup codes, or an owner/admin resets the member's 2FA (`member.two_factor_reset`, audited).

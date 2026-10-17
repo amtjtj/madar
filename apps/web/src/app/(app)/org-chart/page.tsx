@@ -73,16 +73,28 @@ function OrgNode({
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
-            aria-label={open ? t('orgChart.collapse') : t('orgChart.expand')}
-            className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-ink-muted hover:bg-sunken [&_svg]:size-4"
+            aria-label={`${t('orgChart.reports', { count: formatNumber(reports.length) })} — ${open ? t('orgChart.collapse') : t('orgChart.expand')}`}
+            className="flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-ink-muted hover:bg-sunken [&_svg]:size-4"
           >
-            {t('orgChart.reports', { count: formatNumber(reports.length) })}
+            {/* Full label from sm up; just the count on narrow screens. */}
+            <span aria-hidden className="hidden sm:inline">
+              {t('orgChart.reports', { count: formatNumber(reports.length) })}
+            </span>
+            <span
+              aria-hidden
+              className="grid h-6 min-w-6 place-items-center rounded-full bg-sunken px-1.5 sm:hidden"
+            >
+              {formatNumber(reports.length)}
+            </span>
             <ChevronDown aria-hidden className={cn('transition-transform', open && 'rotate-180')} />
           </button>
         )}
       </div>
       {open && reports.length > 0 && (
-        <ul role="group" className="ms-6 mt-3 flex flex-col gap-3 border-s-2 border-line ps-5">
+        <ul
+          role="group"
+          className="ms-4 mt-3 flex flex-col gap-3 border-s-2 border-line ps-3 sm:ms-6 sm:ps-5"
+        >
           {reports.map((child) => (
             <OrgNode key={child.id} node={child} childrenOf={childrenOf} depth={depth + 1} />
           ))}

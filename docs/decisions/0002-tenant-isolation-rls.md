@@ -26,3 +26,10 @@ Madar is multi-tenant and the pilot customer is a fintech. A data leak between c
 ## Consequences
 - All DB access must go through `withTenant()` (enforced by lint).
 - Slight overhead of a transaction per request; acceptable.
+
+## Implementation notes (phase 1, step 4)
+- `madar_auth` is **not** created yet: `madar_app` reads/writes the Better Auth tables, which are control-plane tables without RLS. Revisit when the API is split into services.
+- `madar_platform` (NOLOGIN) owns the only cross-tenant function, `app.list_memberships(user_id)`, through a `FOR SELECT TO madar_platform` policy on `members`. `madar_app` cannot assume that role.
+- `db:migrate` creates or updates `madar_app` (LOGIN, NOBYPASSRLS, NOSUPERUSER) from `APP_DATABASE_URL` before applying migrations; the API and tests connect with that URL only.
+- Every new data-plane table must call `select app.enable_tenant_rls('<table>')` in its migration; the catalog meta-test fails CI otherwise.
+- Composite foreign keys never use `ON DELETE SET NULL` (it would null `tenant_id`); members are never hard-deleted (`status = left`), departments are archived.

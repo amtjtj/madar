@@ -14,3 +14,4 @@ Template: Status · Date · Context · Decision · Alternatives considered · Co
 | 0006 | API style, workers, events and file storage | Accepted |
 | 0007 | Gamification data and streak rules | Accepted |
 | 0008 | Design system foundations | Accepted |
+| 0009 | Append-only, hash-chained audit log | Accepted |

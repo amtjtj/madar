@@ -73,6 +73,10 @@ docs/
 - Validate every input with Zod. Rate-limit auth and AI endpoints. No secrets in code; use env files that are git-ignored.
 - A tenant can be suspended (read-only or locked) for non-payment without deleting data.
 - A tenant can export all of its data at any time.
+- All tenant data access goes through `withTenant()` from `@madar/db` (API: `TenantDb.run(ctx, …)`); raw `pg` imports are lint errors in the API.
+- New data-plane tables: composite `(tenant_id, x)` foreign keys and `select app.enable_tenant_rls('<table>')` in the migration (the catalog meta-test enforces it).
+- Sensitive changes call `TenantDb.audit()` inside the same transaction (ADR 0009).
+- API errors carry codes only (`{ error: { code } }`); the web maps them to Persian in `apps/web/src/lib/errors.ts` and `errors.*` strings.
 
 ## UI and UX rules
 
@@ -119,7 +123,7 @@ Requirements: Node 22.12+ (24 LTS recommended), pnpm 10 (`corepack enable`), Doc
 
 | Task | Command |
 |---|---|
-| First setup | `cp .env.example .env && pnpm install && pnpm db:up` |
+| First setup | `cp .env.example .env && pnpm install && pnpm db:up && pnpm db:migrate && pnpm db:seed` |
 | Dev (web :3000, api :4000) | `pnpm dev` |
 | Build everything | `pnpm build` |
 | Typecheck | `pnpm typecheck` |
@@ -130,14 +134,16 @@ Requirements: Node 22.12+ (24 LTS recommended), pnpm 10 (`corepack enable`), Doc
 | Everything CI runs before e2e | `pnpm check` |
 | Start / stop Postgres + Redis | `pnpm db:up` / `pnpm db:down` |
 | Generate a migration from the Drizzle schema | `pnpm db:generate` |
-| Apply migrations | `pnpm db:migrate` |
-| Seed demo data | `pnpm db:seed` |
+| Apply migrations (also creates the `madar_app` role) | `pnpm db:migrate` |
+| Drop everything and re-migrate (development only) | `pnpm db:reset` |
+| Seed the demo company «زرین‌مدار» (20 people; password `SEED_PASSWORD`) | `pnpm db:seed` |
 | Install the licensed Abar Low fonts (git-ignored) | `pnpm fonts:install <dir-with-AbarLow-files>` |
 | One package only | `pnpm --filter @madar/<name> <script>` (e.g. `pnpm --filter @madar/api test`) |
 
 Notes:
 - Internal packages are consumed from their built `dist/`; turbo builds dependencies first. If an import from `@madar/*` looks stale, run `pnpm build`.
-- One `.env` at the repo root serves all apps and the DB package.
+- One `.env` at the repo root serves all apps and the DB package. `DATABASE_URL` is the owner (migrations, seed); `APP_DATABASE_URL` is the RLS-bound app role used by the API and tests.
+- Integration tests (db, api) need a migrated database; they are skipped when `APP_DATABASE_URL` is missing.
 - Without Docker, any local Postgres 16+ and Redis 7+ work; point `DATABASE_URL`/`REDIS_URL` at them.
 - If Playwright cannot download its browser, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to a local Chromium.
 - Markdown files are not formatted by Prettier (Persian tables); keep them tidy by hand.
