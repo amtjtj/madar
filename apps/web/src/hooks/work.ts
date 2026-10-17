@@ -2,21 +2,77 @@
 
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type {
+  Activity,
+  Comment,
+  CreateProjectRequest,
   CreateTaskRequest,
   ListTasksQuery,
+  MoveTaskRequest,
+  Project,
+  SetProjectMembersRequest,
   Task,
   Today,
+  UpdateProjectRequest,
   UpdateTaskRequest,
 } from '@madar/shared';
+import { calendarDateIn, categoryOf } from '@madar/shared';
 
 import { api, ApiClientError } from '@/lib/api';
+
+import { useMe } from './use-me';
 
 export const workKeys = {
   today: ['today'] as const,
   tasks: (params: Partial<ListTasksQuery> = {}) => ['tasks', params] as const,
   allTasks: ['tasks'] as const,
   task: (id: string) => ['task', id] as const,
+  comments: (taskId: string) => ['task', taskId, 'comments'] as const,
+  activity: (taskId: string) => ['task', taskId, 'activity'] as const,
+  projects: ['projects'] as const,
+  project: (id: string) => ['projects', id] as const,
 };
+
+export function useTasks(params: Partial<ListTasksQuery>, options: { enabled?: boolean } = {}) {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== '') search.set(key, String(value));
+  }
+  return useQuery({
+    queryKey: workKeys.tasks(params),
+    queryFn: () => api<Task[]>(`/api/tasks?${search.toString()}`),
+    placeholderData: (previous) => previous,
+    enabled: options.enabled,
+  });
+}
+
+export function useTask(id: string) {
+  return useQuery({ queryKey: workKeys.task(id), queryFn: () => api<Task>(`/api/tasks/${id}`) });
+}
+
+export function useComments(taskId: string) {
+  return useQuery({
+    queryKey: workKeys.comments(taskId),
+    queryFn: () => api<Comment[]>(`/api/tasks/${taskId}/comments`),
+  });
+}
+
+export function useActivity(taskId: string) {
+  return useQuery({
+    queryKey: workKeys.activity(taskId),
+    queryFn: () => api<Activity[]>(`/api/tasks/${taskId}/activity`),
+  });
+}
+
+export function useProjects() {
+  return useQuery({ queryKey: workKeys.projects, queryFn: () => api<Project[]>('/api/projects') });
+}
+
+export function useProject(id: string) {
+  return useQuery({
+    queryKey: workKeys.project(id),
+    queryFn: () => api<Project>(`/api/projects/${id}`),
+  });
+}
 
 export function useToday() {
   return useQuery({
@@ -87,12 +143,7 @@ export function useUpdateTask() {
         ...(changes.dueOn !== undefined && { dueOn: changes.dueOn }),
         ...(changes.statusKey !== undefined && {
           statusKey: changes.statusKey,
-          statusCategory:
-            changes.statusKey === 'done'
-              ? 'done'
-              : task.statusCategory === 'done'
-                ? 'todo'
-                : task.statusCategory,
+          statusCategory: categoryOf(changes.statusKey) ?? task.statusCategory,
         }),
       }));
       return snap;
@@ -106,6 +157,8 @@ export function useUpdateTask() {
     onSuccess: (task) => {
       patchTaskEverywhere(client, task.id, () => task);
       client.setQueryData(workKeys.task(task.id), task);
+      void client.invalidateQueries({ queryKey: workKeys.activity(task.id) });
+      void client.invalidateQueries({ queryKey: workKeys.allTasks });
     },
   });
 }
@@ -231,3 +284,101 @@ function planMutation(path: (taskId: string) => string, method: 'POST' | 'DELETE
 
 export const useAddToToday = planMutation((id) => `/api/today/items/${id}`, 'POST');
 export const useRemoveFromToday = planMutation((id) => `/api/today/items/${id}`, 'DELETE');
+
+/** Board drag and drop: the card moves at once; the server assigns the final position. */
+export function useMoveTask(listKey: readonly unknown[]) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: MoveTaskRequest & { id: string; optimistic: Task[] }) =>
+      api<Task>(`/api/tasks/${id}/move`, {
+        method: 'POST',
+        body: {
+          statusKey: body.statusKey,
+          afterTaskId: body.afterTaskId,
+          beforeTaskId: body.beforeTaskId,
+        },
+      }),
+    onMutate: async ({ optimistic }) => {
+      await client.cancelQueries({ queryKey: listKey });
+      const previous = client.getQueryData<Task[]>(listKey);
+      client.setQueryData(listKey, optimistic);
+      return previous;
+    },
+    onError: (_error, _vars, previous) => client.setQueryData(listKey, previous),
+    onSuccess: (task) => {
+      client.setQueryData<Task[]>(listKey, (list) =>
+        list?.map((t) => (t.id === task.id ? task : t)),
+      );
+      client.setQueryData(workKeys.task(task.id), task);
+      void client.invalidateQueries({ queryKey: workKeys.today });
+    },
+  });
+}
+
+export function useDeleteTask() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api<undefined>(`/api/tasks/${id}`, { method: 'DELETE' }),
+    onSuccess: () => invalidateWork(client),
+  });
+}
+
+export function useAddComment(taskId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: string) =>
+      api<Comment>(`/api/tasks/${taskId}/comments`, { method: 'POST', body: { body } }),
+    onSuccess: (comment) => {
+      client.setQueryData<Comment[]>(workKeys.comments(taskId), (list) => [
+        ...(list ?? []),
+        comment,
+      ]);
+      void client.invalidateQueries({ queryKey: workKeys.task(taskId), exact: true });
+    },
+  });
+}
+
+export function useEditComment(taskId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, body }: { id: string; body: string | null }): Promise<undefined> => {
+      if (body === null) await api<undefined>(`/api/comments/${id}`, { method: 'DELETE' });
+      else await api<Comment>(`/api/comments/${id}`, { method: 'PATCH', body: { body } });
+    },
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: workKeys.comments(taskId) });
+      void client.invalidateQueries({ queryKey: workKeys.task(taskId), exact: true });
+    },
+  });
+}
+
+function projectMutation<TVars>(request: (vars: TVars) => Promise<unknown>) {
+  return function useProjectMutation() {
+    const client = useQueryClient();
+    return useMutation({
+      mutationFn: request,
+      onSuccess: () => client.invalidateQueries({ queryKey: workKeys.projects }),
+    });
+  };
+}
+
+export const useCreateProject = projectMutation((body: CreateProjectRequest) =>
+  api<Project>('/api/projects', { method: 'POST', body }),
+);
+export const useUpdateProject = projectMutation(
+  ({ id, ...body }: UpdateProjectRequest & { id: string }) =>
+    api<Project>(`/api/projects/${id}`, { method: 'PATCH', body }),
+);
+export const useArchiveProject = projectMutation((id: string) =>
+  api<undefined>(`/api/projects/${id}/archive`, { method: 'POST' }),
+);
+export const useSetProjectMembers = projectMutation(
+  ({ id, ...body }: SetProjectMembersRequest & { id: string }) =>
+    api<Project>(`/api/projects/${id}/members`, { method: 'PUT', body }),
+);
+
+/** Today's calendar date in the tenant time zone. */
+export function useTodayDate(): string {
+  const { data: me } = useMe();
+  return calendarDateIn(new Date(), me?.tenant?.timezone);
+}

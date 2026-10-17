@@ -2,6 +2,7 @@
 
 import { ArrowLeft, Check, Plus, Sparkles, X } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 import { t } from '@madar/i18n';
 import {
@@ -70,6 +71,7 @@ function TodaySkeleton() {
 }
 
 function TodayPlan({ today }: { today: Today }) {
+  const router = useRouter();
   const toggle = useToggleDone();
   const add = useAddToToday();
   const remove = useRemoveFromToday();
@@ -122,6 +124,7 @@ function TodayPlan({ today }: { today: Today }) {
                   title={task.title}
                   done={task.statusCategory === 'done'}
                   onDoneChange={task.can.edit ? onToggle(task) : undefined}
+                  onOpen={isDraft(task) ? undefined : () => router.push(`/tasks/${task.id}`)}
                   priority={task.priority}
                   dueOn={task.dueOn}
                   today={today.date}
@@ -162,6 +165,7 @@ function TodayPlan({ today }: { today: Today }) {
                 <TaskCard
                   title={task.title}
                   done={false}
+                  onOpen={() => router.push(`/tasks/${task.id}`)}
                   priority={task.priority}
                   dueOn={reason === 'overdue' || reason === 'due_today' ? null : task.dueOn}
                   today={today.date}

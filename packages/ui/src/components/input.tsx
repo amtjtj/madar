@@ -1,6 +1,12 @@
 'use client';
 
-import { useId, type InputHTMLAttributes, type ReactNode, type Ref } from 'react';
+import {
+  useId,
+  type InputHTMLAttributes,
+  type ReactNode,
+  type Ref,
+  type TextareaHTMLAttributes,
+} from 'react';
 
 import { t } from '@madar/i18n';
 
@@ -82,6 +88,65 @@ export function TextField({
           <span className="absolute inset-y-0 end-1.5 flex items-center">{trailing}</span>
         )}
       </div>
+      {message && (
+        <p
+          id={messageId}
+          className={cn('text-sm', error ? 'font-medium text-danger-ink' : 'text-ink-muted')}
+        >
+          {message}
+        </p>
+      )}
+    </div>
+  );
+}
+
+export interface TextAreaFieldProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
+  label: string;
+  hint?: string;
+  error?: string;
+  hideLabel?: boolean;
+  ref?: Ref<HTMLTextAreaElement>;
+}
+
+/** Multi-line text with the same label, hint and error treatment as TextField. */
+export function TextAreaField({
+  label,
+  hint,
+  error,
+  hideLabel,
+  id,
+  className,
+  rows = 4,
+  ref,
+  ...props
+}: TextAreaFieldProps) {
+  const autoId = useId();
+  const inputId = id ?? autoId;
+  const messageId = `${inputId}-message`;
+  const message = error ?? hint;
+  return (
+    <div className={cn('flex flex-col gap-1.5', className)}>
+      <label
+        htmlFor={inputId}
+        className={cn('text-sm font-medium text-ink', hideLabel && 'sr-only')}
+      >
+        {label}
+      </label>
+      <textarea
+        ref={ref}
+        id={inputId}
+        rows={rows}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={message ? messageId : undefined}
+        className={cn(
+          'w-full resize-y rounded-lg border-2 border-line bg-surface px-4 py-3 text-base leading-7 text-ink',
+          'placeholder:text-ink-subtle transition-colors duration-(--duration-fast)',
+          'hover:border-line-strong focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary-soft',
+          'disabled:cursor-not-allowed disabled:bg-sunken disabled:opacity-70',
+          'aria-invalid:border-danger',
+        )}
+        {...props}
+      />
       {message && (
         <p
           id={messageId}

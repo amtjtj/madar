@@ -1,7 +1,17 @@
 'use client';
 
 import { useQueryClient } from '@tanstack/react-query';
-import { Building2, ChartNetwork, House, LogOut, ScrollText, Users } from 'lucide-react';
+import {
+  Building2,
+  ChartNetwork,
+  FolderKanban,
+  House,
+  ListTodo,
+  LogOut,
+  Network,
+  ScrollText,
+  Users,
+} from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
@@ -34,15 +44,10 @@ function roleLabel(roles: string[]): string {
   return t(`roles.${top}`);
 }
 
-export function AppShell({ children }: { children: ReactNode }) {
-  const { data: me } = useMe();
+/** The organization screens the member may open (sidebar section and the /org hub). */
+export function useOrgNavItems(): NavItem[] {
   const can = useCan();
-  const pathname = usePathname();
-  const router = useRouter();
-  const queryClient = useQueryClient();
-
-  const items: NavItem[] = [
-    { key: '/', label: t('nav.today'), href: '/', icon: <House aria-hidden /> },
+  return [
     ...(can('member.read')
       ? [
           {
@@ -84,20 +89,40 @@ export function AppShell({ children }: { children: ReactNode }) {
         ]
       : []),
   ];
-  // The mobile tab bar has little room: shorter labels where needed.
-  const shortLabels: Record<string, string> = {
-    '/org-chart': t('shell.orgChartShort'),
-    '/audit': t('shell.auditShort'),
-  };
-  const bottomItems = items.map((item) => ({
-    ...item,
-    label: shortLabels[item.key] ?? item.label,
-  }));
+}
+
+export function AppShell({ children }: { children: ReactNode }) {
+  const { data: me } = useMe();
+  const pathname = usePathname();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+
+  const workItems: NavItem[] = [
+    { key: '/', label: t('nav.today'), href: '/', icon: <House aria-hidden /> },
+    { key: '/tasks', label: t('shell.tasks'), href: '/tasks', icon: <ListTodo aria-hidden /> },
+    {
+      key: '/projects',
+      label: t('shell.projects'),
+      href: '/projects',
+      icon: <FolderKanban aria-hidden />,
+    },
+  ];
+  const orgItems = useOrgNavItems();
+  const items = [...workItems, ...orgItems];
+  // The mobile tab bar has room for four: the organization screens share one «سازمان» hub.
+  const bottomItems: NavItem[] = [
+    ...workItems,
+    ...(orgItems.length
+      ? [{ key: '/org', label: t('shell.org'), href: '/org', icon: <Network aria-hidden /> }]
+      : []),
+  ];
   const activeKey =
     items
       .map((i) => i.key)
       .filter((key) => (key === '/' ? pathname === '/' : pathname.startsWith(key)))
       .sort((a, b) => b.length - a.length)[0] ?? '/';
+  const bottomActiveKey =
+    pathname === '/org' || orgItems.some((i) => i.key === activeKey) ? '/org' : activeKey;
 
   async function signOut() {
     await auth.signOut().catch(() => undefined);
@@ -167,7 +192,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           {children}
         </main>
       </div>
-      <BottomNav items={bottomItems} activeKey={activeKey} link={NextLink} />
+      <BottomNav items={bottomItems} activeKey={bottomActiveKey} link={NextLink} />
     </div>
   );
 }
