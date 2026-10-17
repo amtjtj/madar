@@ -15,7 +15,7 @@ import {
 } from '@madar/shared';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 
-import { DB_HANDLE } from '../database/database.module.js';
+import { DB_HANDLE } from '../database/tokens.js';
 
 export interface LoadedMember {
   memberId: string;

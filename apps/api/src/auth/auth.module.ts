@@ -3,7 +3,7 @@ import type { DbHandle } from '@madar/db';
 
 import { ENV } from '../config/config.module.js';
 import type { Env } from '../config/env.js';
-import { DB_HANDLE } from '../database/database.module.js';
+import { DB_HANDLE } from '../database/tokens.js';
 import { AccountsService } from './accounts.service.js';
 import { createAuth, type Auth } from './auth.js';
 import { AuthGuard } from './auth.guard.js';

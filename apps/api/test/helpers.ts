@@ -107,3 +107,35 @@ export async function ownerSession(app: NestExpressApplication, env: Env) {
   const totpUri = await enableTwoFactor(c);
   return { c, ...body, tenantId: res.body.tenantId as string, totpUri };
 }
+
+/**
+ * Creates a member through the API as `admin`, then signs them in on a fresh client and
+ * completes the required steps (password change; 2FA when their role needs it).
+ */
+export async function memberSession(
+  app: NestExpressApplication,
+  env: Env,
+  admin: Client,
+  input: { roles?: string[]; departments?: object[]; displayName?: string; managerId?: string },
+) {
+  const username = unique('m.');
+  const created = await admin.post('/api/members', {
+    displayName: input.displayName ?? 'کارمند آزمایشی',
+    username,
+    roles: input.roles ?? ['member'],
+    departments: input.departments ?? [],
+    ...(input.managerId ? { managerId: input.managerId } : {}),
+  });
+  if (created.status !== 201)
+    throw new Error(`create member failed: ${created.status} ${created.text}`);
+  const c = client(app, env);
+  await signIn(c, username, created.body.temporaryPassword);
+  const changed = await c.post('/api/me/password', {
+    currentPassword: created.body.temporaryPassword,
+    newPassword: PASSWORD,
+  });
+  if (changed.status !== 204) throw new Error(`password change failed: ${changed.status}`);
+  let totpUri: string | null = null;
+  if (input.roles?.some((r) => r === 'owner' || r === 'admin')) totpUri = await enableTwoFactor(c);
+  return { c, username, memberId: created.body.member.id as string, totpUri };
+}

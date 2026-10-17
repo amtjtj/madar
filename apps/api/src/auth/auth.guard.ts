@@ -70,9 +70,11 @@ export class AuthGuard implements CanActivate {
     // Tenant: the session's active tenant, or the only one the user belongs to.
     let tenantId = session.activeTenantId;
     if (!tenantId) {
-      const active = (await this.tenants.memberships(session.user.id)).filter(
-        (m) => m.memberStatus === 'active',
-      );
+      const memberships = await this.tenants.memberships(session.user.id);
+      const active = memberships.filter((m) => m.memberStatus === 'active');
+      if (active.length === 0 && memberships.length > 0) {
+        throw new ApiError(HttpStatus.FORBIDDEN, 'member_suspended', 'Membership is not active');
+      }
       if (active.length !== 1 || !active[0]) {
         throw new ApiError(
           HttpStatus.CONFLICT,

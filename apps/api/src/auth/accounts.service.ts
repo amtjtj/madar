@@ -4,7 +4,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { schema, uuidv7, type DbHandle } from '@madar/db';
 import { eq } from 'drizzle-orm';
 
-import { DB_HANDLE } from '../database/database.module.js';
+import { DB_HANDLE } from '../database/tokens.js';
 import type { Auth } from './auth.js';
 import { AUTH } from './auth.tokens.js';
 

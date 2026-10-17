@@ -22,7 +22,7 @@ import { AccountsService } from '../auth/accounts.service.js';
 import { ENV } from '../config/config.module.js';
 import type { Env } from '../config/env.js';
 import { ApiError } from '../common/errors.js';
-import { DB_HANDLE } from '../database/database.module.js';
+import { DB_HANDLE } from '../database/tokens.js';
 
 function sameSecret(a: string, b: string): boolean {
   const left = Buffer.from(a);

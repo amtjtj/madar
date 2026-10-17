@@ -3,8 +3,10 @@ import { createDb, type DbHandle } from '@madar/db';
 
 import { ENV } from '../config/config.module.js';
 import type { Env } from '../config/env.js';
+import { TenantDb } from './tenant-db.service.js';
+import { DB_HANDLE } from './tokens.js';
 
-export const DB_HANDLE = Symbol('DB_HANDLE');
+export { DB_HANDLE };
 
 @Global()
 @Module({
@@ -14,8 +16,9 @@ export const DB_HANDLE = Symbol('DB_HANDLE');
       inject: [ENV],
       useFactory: (env: Env): DbHandle => createDb(env.APP_DATABASE_URL),
     },
+    TenantDb,
   ],
-  exports: [DB_HANDLE],
+  exports: [DB_HANDLE, TenantDb],
 })
 export class DatabaseModule implements OnApplicationShutdown {
   constructor(@Inject(DB_HANDLE) private readonly handle: DbHandle) {}

@@ -4,7 +4,7 @@ import type { HealthResponse } from '@madar/shared';
 
 import { ENV } from '../config/config.module.js';
 import type { Env } from '../config/env.js';
-import { DB_HANDLE } from '../database/database.module.js';
+import { DB_HANDLE } from '../database/tokens.js';
 
 @Injectable()
 export class HealthService {
