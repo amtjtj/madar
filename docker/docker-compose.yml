@@ -1,0 +1,41 @@
+# Development services. Usage from the repo root: pnpm db:up / pnpm db:down
+# Reads variables from the repo-root .env (copy .env.example first).
+# If Docker Hub is blocked from your network, set a registry mirror in Docker's daemon.json.
+name: madar
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-madar}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-madar_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-madar}
+    ports:
+      - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '127.0.0.1:${REDIS_PORT:-6379}:6379'
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:
+  redis-data:

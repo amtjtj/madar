@@ -1,0 +1,5 @@
+{
+  "extends": "@madar/config/tsconfig/library.json",
+  "compilerOptions": { "rootDir": ".", "noEmit": true },
+  "include": ["src", "*.ts"]
+}

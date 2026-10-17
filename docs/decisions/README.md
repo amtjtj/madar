@@ -6,7 +6,7 @@ Template: Status · Date · Context · Decision · Alternatives considered · Co
 
 | # | Title | Status |
 |---|---|---|
-| 0001 | Stack and exact versions | Pending (written in step 2) |
+| 0001 | Stack and exact versions | Accepted |
 | 0002 | Tenant isolation with PostgreSQL RLS | Accepted |
 | 0003 | Identity and login | Accepted |
 | 0004 | Department modules as versioned config | Accepted |

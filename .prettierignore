@@ -1,0 +1,11 @@
+pnpm-lock.yaml
+dist
+.next
+.turbo
+coverage
+playwright-report
+test-results
+packages/db/drizzle/meta
+# Markdown docs are hand-formatted (Persian tables get padded badly)
+*.md
+next-env.d.ts

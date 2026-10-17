@@ -110,4 +110,29 @@ docs/
 
 ## Commands
 
-Fill this section in after the monorepo is scaffolded (install, dev, test, lint, typecheck, db migrate, db seed).
+Requirements: Node 22.12+ (24 LTS recommended), pnpm 10 (`corepack enable`), Docker for Postgres/Redis.
+
+| Task | Command |
+|---|---|
+| First setup | `cp .env.example .env && pnpm install && pnpm db:up` |
+| Dev (web :3000, api :4000) | `pnpm dev` |
+| Build everything | `pnpm build` |
+| Typecheck | `pnpm typecheck` |
+| Lint | `pnpm lint` |
+| Format / check format | `pnpm format` / `pnpm format:check` |
+| Unit tests (Vitest) | `pnpm test` |
+| E2E tests (Playwright, 360px + 1440px) | `pnpm test:e2e` |
+| Everything CI runs before e2e | `pnpm check` |
+| Start / stop Postgres + Redis | `pnpm db:up` / `pnpm db:down` |
+| Generate a migration from the Drizzle schema | `pnpm db:generate` |
+| Apply migrations | `pnpm db:migrate` |
+| Seed demo data | `pnpm db:seed` |
+| One package only | `pnpm --filter @madar/<name> <script>` (e.g. `pnpm --filter @madar/api test`) |
+
+Notes:
+- Internal packages are consumed from their built `dist/`; turbo builds dependencies first. If an import from `@madar/*` looks stale, run `pnpm build`.
+- One `.env` at the repo root serves all apps and the DB package.
+- Without Docker, any local Postgres 16+ and Redis 7+ work; point `DATABASE_URL`/`REDIS_URL` at them.
+- If Playwright cannot download its browser, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to a local Chromium.
+- Markdown files are not formatted by Prettier (Persian tables); keep them tidy by hand.
+- ESLint forbids physical Tailwind classes (`ml-*`, `left-*`, `text-right`, …) in web code.

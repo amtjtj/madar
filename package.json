@@ -1,0 +1,30 @@
+{
+  "name": "madar",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "test:e2e": "turbo run test:e2e",
+    "check": "pnpm format:check && turbo run typecheck lint test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:up": "docker compose --env-file .env -f docker/docker-compose.yml up -d --wait",
+    "db:down": "docker compose --env-file .env -f docker/docker-compose.yml down",
+    "db:generate": "pnpm --filter @madar/db db:generate",
+    "db:migrate": "pnpm --filter @madar/db db:migrate",
+    "db:seed": "pnpm --filter @madar/db db:seed"
+  },
+  "devDependencies": {
+    "prettier": "3.9.10",
+    "turbo": "2.11.9",
+    "typescript": "6.0.3"
+  }
+}

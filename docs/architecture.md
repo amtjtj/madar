@@ -41,7 +41,7 @@ madar/
 ├─ docs/
 │  ├─ brief.md, architecture.md
 │  └─ decisions/    ADR ها
-├─ docker/          docker-compose توسعه: postgres، redis، minio، mailpit
+├─ docker/          docker-compose توسعه: postgres و redis (minio هنگام اضافه شدن فایل‌ها)
 └─ turbo.json, pnpm-workspace.yaml
 ```
 
@@ -538,7 +538,7 @@ Extract (آداپتور منبع)  →  Stage  →  Map  →  Validate (dry-run)
 | ۱۱ | تعطیلات هفتگی پیش‌فرض | جمعه + پنجشنبه نیمه‌وقت، قابل تنظیم؛ تعطیلات رسمی ایران seed می‌شود | Claude | 0007 |
 | ۱۲ | `packages/config` | اضافه شد؛ CLAUDE.md به‌روز شد | Claude | — |
 
-ADR های ۰۰۰۲ تا ۰۰۰۷ در `docs/decisions/` هستند. ADR ۰۰۰۱ (نسخه دقیق کتابخانه‌ها) در قدم ۲ نوشته می‌شود.
+ADR های ۰۰۰۲ تا ۰۰۰۷ در `docs/decisions/` هستند. ADR ۰۰۰۱ (نسخه دقیق کتابخانه‌ها) در قدم ۲ نوشته شد.
 
 **هنوز از شرکت پایلوت لازم است:** خروجی نمونه میزیتو، روزها و ساعت کاری، و اینکه الان در میزیتو چه کسی چه چیزی را می‌بیند.
 
