@@ -15,6 +15,8 @@ const API_CODES = new Set([
   'tenant_locked',
   'tenant_read_only',
   'not_a_member',
+  'version_conflict',
+  'no_department',
 ]);
 
 /** Persian message for any error thrown by `api()` or the auth helpers. */
