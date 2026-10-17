@@ -11,7 +11,19 @@
     "dev": {
       "dependsOn": ["^build"],
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "passThroughEnv": [
+        "DATABASE_URL",
+        "APP_DATABASE_URL",
+        "REDIS_URL",
+        "AUTH_*",
+        "TENANT_SIGNUP_CODE",
+        "SEED_PASSWORD",
+        "API_PORT",
+        "WEB_PORT",
+        "API_INTERNAL_URL",
+        "API_CORS_ORIGINS"
+      ]
     },
     "typecheck": {
       "dependsOn": ["^build"]
@@ -21,7 +33,7 @@
     },
     "test": {
       "dependsOn": ["^build"],
-      "env": ["DATABASE_URL", "APP_DATABASE_URL", "REDIS_URL", "AUTH_SECRET", "AUTH_BASE_URL"]
+      "env": ["DATABASE_URL", "APP_DATABASE_URL", "REDIS_URL", "AUTH_*", "TENANT_SIGNUP_CODE"]
     },
     "test:e2e": {
       "dependsOn": ["^build"],
@@ -30,8 +42,11 @@
         "DATABASE_URL",
         "APP_DATABASE_URL",
         "REDIS_URL",
+        "AUTH_*",
+        "TENANT_SIGNUP_CODE",
         "API_PORT",
         "WEB_PORT",
+        "E2E_*",
         "API_INTERNAL_URL"
       ]
     }
