@@ -142,8 +142,12 @@ test('today, assignment, comments, board and department visibility', async ({
       .locator('[aria-roledescription]')
       .filter({ hasText: 'پیگیری تیکت شماره ۴۲' });
     await draggable.focus();
+    // Wait for each screen-reader announcement, as a keyboard user would.
+    const live = page.locator('[aria-live]');
     await page.keyboard.press('Space');
+    await expect(draggable).toHaveAttribute('aria-pressed', 'true');
     await page.keyboard.press('ArrowLeft');
+    await expect(live.filter({ hasText: 'انتقال به در حال انجام' })).toHaveCount(1);
     await page.keyboard.press('Space');
     await expect(doing.getByText('پیگیری تیکت شماره ۴۲')).toBeVisible();
     await expect
