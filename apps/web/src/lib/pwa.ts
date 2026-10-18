@@ -109,7 +109,7 @@ export function subscriptionBody(subscription: PushSubscription) {
   return { endpoint: json.endpoint, keys: json.keys };
 }
 
-/** Where this device stands; re-registers an existing subscription so the server stays in step. */
+/** Where this device stands (the app shell keeps the server in step, see `syncDevicePush`). */
 export async function detectPushStatus(
   config: PushConfig,
   platform: { ios: boolean; standalone: boolean },
@@ -118,13 +118,48 @@ export async function detectPushStatus(
   if (!pushSupported()) return platform.ios && !platform.standalone ? 'ios-install' : 'unsupported';
   if (Notification.permission === 'denied') return 'denied';
   const subscription = await currentSubscription().catch(() => null);
-  if (!subscription || Notification.permission !== 'granted') return 'off';
-  // Another member may have used this browser before: the subscription is now this member's.
-  await api('/api/push/subscriptions', {
-    method: 'POST',
-    body: subscriptionBody(subscription),
-  }).catch(() => undefined);
-  return 'on';
+  return subscription && Notification.permission === 'granted' ? 'on' : 'off';
+}
+
+/** Who this browser's subscription was made for (`tenant:member`). */
+const OWNER_KEY = 'madar.push-owner';
+
+export function setPushOwner(owner: string | null): void {
+  try {
+    if (owner) localStorage.setItem(OWNER_KEY, owner);
+    else localStorage.removeItem(OWNER_KEY);
+  } catch {
+    // Storage blocked: the next sync simply renews the subscription.
+  }
+}
+
+function pushOwner(): string | null {
+  try {
+    return localStorage.getItem(OWNER_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Keeps this browser's subscription with the signed-in member. When someone else (or the same
+ * person in another company) used the browser before without signing out, the subscription is
+ * renewed: the old endpoint then answers «gone» and every company drops it.
+ */
+export async function syncDevicePush(owner: string, publicKey: string): Promise<void> {
+  if (!pushSupported() || Notification.permission !== 'granted') return;
+  let subscription = await currentSubscription().catch(() => null);
+  if (!subscription) return;
+  if (pushOwner() !== owner) {
+    await subscription.unsubscribe();
+    const registration = await navigator.serviceWorker.ready;
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToBytes(publicKey),
+    });
+  }
+  await api('/api/push/subscriptions', { method: 'POST', body: subscriptionBody(subscription) });
+  setPushOwner(owner);
 }
 
 /**
@@ -132,11 +167,16 @@ export async function detectPushStatus(
  * Called on sign-out (shared phones) while the session is still valid.
  */
 export async function removeDevicePush(): Promise<void> {
+  setPushOwner(null);
   const subscription = await currentSubscription().catch(() => null);
   if (!subscription) return;
-  await api('/api/push/subscriptions', {
-    method: 'DELETE',
-    body: { endpoint: subscription.endpoint },
-  }).catch(() => undefined);
+  // Never hold up signing out on a slow network: the browser side below is what matters most.
+  await Promise.race([
+    api('/api/push/subscriptions', {
+      method: 'DELETE',
+      body: { endpoint: subscription.endpoint },
+    }).catch(() => undefined),
+    new Promise((resolve) => setTimeout(resolve, 3000)),
+  ]);
   await subscription.unsubscribe().catch(() => undefined);
 }

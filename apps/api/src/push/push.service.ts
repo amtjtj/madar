@@ -35,15 +35,20 @@ export class PushService {
       );
     }
     return this.db.run(ctx, async (tx) => {
-      // A browser has one subscription: if someone else signed in on it before, it is theirs no more.
-      await tx.delete(s.pushSubscriptions).where(eq(s.pushSubscriptions.endpoint, input.endpoint));
-      await tx.insert(s.pushSubscriptions).values({
+      // One browser belongs to one member per company: the last one who signed in on it.
+      const subscription = {
         memberId: ctx.memberId,
-        endpoint: input.endpoint,
         p256dh: input.keys.p256dh,
         auth: input.keys.auth,
         userAgent: ctx.userAgent?.slice(0, 300) ?? null,
-      });
+      };
+      await tx
+        .insert(s.pushSubscriptions)
+        .values({ ...subscription, endpoint: input.endpoint })
+        .onConflictDoUpdate({
+          target: [s.pushSubscriptions.tenantId, s.pushSubscriptions.endpoint],
+          set: subscription,
+        });
     });
   }
 

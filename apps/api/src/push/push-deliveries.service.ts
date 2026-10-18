@@ -8,7 +8,7 @@ import type { Env } from '../config/env.js';
 import { DB_HANDLE } from '../database/tokens.js';
 import { REDIS } from '../events/consumer.js';
 import { PUSH_SENDER, type PushSender } from './push-sender.js';
-import { claimDue, recordResults, sendToDevices } from './push-store.js';
+import { claimDue, recordResults, releaseClaim, sendToDevices } from './push-store.js';
 
 const QUEUE = 'push-deliveries';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -63,7 +63,10 @@ export class PushDeliveries implements OnModuleDestroy {
     );
   }
 
-  /** Pushes whatever is due for one member; safe to run twice (claimed notifications are marked). */
+  /**
+   * Pushes whatever is due for one member; safe to run twice (claimed notifications are marked).
+   * Throws when every device failed, after putting the notifications back, so the job is retried.
+   */
   async deliver({ tenantId, memberId }: DeliveryJob): Promise<number> {
     if (!UUID.test(tenantId) || !UUID.test(memberId)) throw new Error('invalid push job');
     const claim = await withTenant(this.handle.db, { tenantId }, (tx) =>
@@ -71,7 +74,13 @@ export class PushDeliveries implements OnModuleDestroy {
     );
     if (!claim) return 0;
     const results = await sendToDevices(this.sender, claim.devices, claim.payload);
-    await withTenant(this.handle.db, { tenantId }, (tx) => recordResults(tx, results, new Date()));
+    const allFailed = results.every((r) => r.result === 'failed');
+    await withTenant(this.handle.db, { tenantId }, async (tx) => {
+      await recordResults(tx, results, new Date());
+      if (allFailed) await releaseClaim(tx, claim.ids);
+    });
+    // Retried by BullMQ (attempts, backoff); older than PUSH_MAX_AGE_MS they are dropped.
+    if (allFailed) throw new Error('every device failed');
     return results.filter((r) => r.result === 'sent').length;
   }
 

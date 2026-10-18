@@ -1,11 +1,13 @@
 import { schema as s, type Tx } from '@madar/db';
 import type { NotificationKind, PushPayload } from '@madar/shared';
-import { and, asc, eq, inArray, isNull, lte, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNull, lte, sql } from 'drizzle-orm';
 
 import type { PushResult, PushSender, PushTarget } from './push-sender.js';
 
 /** Dropped after this many failed deliveries in a row (a gone endpoint is dropped at once). */
 const MAX_FAILURES = 5;
+/** Older notifications are never pushed (push services drop messages after the same time). */
+export const PUSH_MAX_AGE_MS = 12 * 60 * 60_000;
 
 export interface Device extends PushTarget {
   id: string;
@@ -32,7 +34,7 @@ export async function claimDue(
   tx: Tx,
   memberId: string,
   now: Date,
-): Promise<{ payload: PushPayload; devices: Device[] } | null> {
+): Promise<{ payload: PushPayload; devices: Device[]; ids: string[] } | null> {
   const [member] = await tx
     .select({ status: s.members.status, tenantStatus: s.tenants.status })
     .from(s.members)
@@ -40,6 +42,17 @@ export async function claimDue(
     .where(eq(s.members.id, memberId));
   if (!member || member.status !== 'active' || member.tenantStatus === 'locked') return null;
 
+  const unpushed = and(
+    eq(s.notifications.recipientId, memberId),
+    isNull(s.notifications.pushedAt),
+    isNull(s.notifications.readAt),
+  );
+  const oldest = new Date(now.getTime() - PUSH_MAX_AGE_MS);
+  // A stale backlog (e.g. from before push was configured) is marked, never pushed as «37 new».
+  await tx
+    .update(s.notifications)
+    .set({ pushedAt: now })
+    .where(and(unpushed, lte(s.notifications.deliverAfter, oldest)));
   const due = await tx
     .select({
       id: s.notifications.id,
@@ -50,14 +63,14 @@ export async function claimDue(
     .from(s.notifications)
     .where(
       and(
-        eq(s.notifications.recipientId, memberId),
-        isNull(s.notifications.pushedAt),
-        isNull(s.notifications.readAt),
+        unpushed,
         lte(s.notifications.deliverAfter, now),
+        gt(s.notifications.deliverAfter, oldest),
       ),
     )
     .orderBy(asc(s.notifications.createdAt))
-    .for('update', { skipLocked: true });
+    // Jobs are per member and short: wait for a concurrent claim rather than skip its rows.
+    .for('update');
   if (due.length === 0) return null;
   await tx
     .update(s.notifications)
@@ -75,6 +88,7 @@ export async function claimDue(
   const single = due.length === 1;
   return {
     devices,
+    ids: due.map((n) => n.id),
     payload: {
       v: 1,
       kind: latest.kind as NotificationKind,
@@ -135,4 +149,13 @@ export async function recordResults(
   if (gone.length) {
     await tx.delete(s.pushSubscriptions).where(inArray(s.pushSubscriptions.id, gone));
   }
+}
+
+/** Every device failed (push service down): the notifications become due again for a retry. */
+export async function releaseClaim(tx: Tx, ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  await tx
+    .update(s.notifications)
+    .set({ pushedAt: null })
+    .where(and(inArray(s.notifications.id, ids), isNull(s.notifications.readAt)));
 }

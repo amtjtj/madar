@@ -89,11 +89,7 @@ self.addEventListener('push', (event) => {
     renotify: true,
     data: { url: urlFor(data) },
   });
-  const badge =
-    data.kind !== 'test' && 'setAppBadge' in self.navigator
-      ? self.navigator.setAppBadge(data.count).catch(() => undefined)
-      : Promise.resolve();
-  event.waitUntil(Promise.all([shown, badge]));
+  event.waitUntil(shown);
 });
 
 self.addEventListener('notificationclick', (event) => {
@@ -102,8 +98,12 @@ self.addEventListener('notificationclick', (event) => {
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
       const open = windows.find((w) => new URL(w.url).origin === target.origin);
-      if (open) return open.focus().then((w) => (w || open).navigate(target.href));
-      return self.clients.openWindow(target.href);
+      if (!open) return self.clients.openWindow(target.href);
+      // navigate() is refused for a window this worker does not control yet: open a new one then.
+      return open
+        .focus()
+        .then((w) => (w || open).navigate(target.href))
+        .catch(() => self.clients.openWindow(target.href));
     }),
   );
 });

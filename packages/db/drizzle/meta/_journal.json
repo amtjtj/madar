@@ -64,6 +64,13 @@
       "when": 1792308950523,
       "tag": "0008_push",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792310038291,
+      "tag": "0009_push_endpoint_key",
+      "breakpoints": true
     }
   ]
 }

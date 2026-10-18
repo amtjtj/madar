@@ -33,8 +33,10 @@ class FakeSender implements PushSender {
   readonly publicKey = 'BFakePublicKey';
   readonly sent: { endpoint: string; payload: PushPayload; raw: string }[] = [];
   readonly gone = new Set<string>();
+  readonly failing = new Set<string>();
 
   async send(target: PushTarget, payload: PushPayload): Promise<PushResult> {
+    if (this.failing.has(target.endpoint)) return 'failed';
     this.sent.push({ endpoint: target.endpoint, payload, raw: JSON.stringify(payload) });
     return this.gone.has(target.endpoint) ? 'gone' : 'sent';
   }
@@ -244,6 +246,67 @@ describe.skipIf(!hasDatabase)('device push', () => {
       return left.length === 0 ? [true] : [];
     });
     expect(rows).toEqual([true]);
+  });
+
+  /** A member with one device and one due notification inserted directly. */
+  async function memberWithDue(deliverAfter: Date) {
+    const m = await memberSession(app, env, owner, {
+      departments: [{ departmentId: support.id, deptRole: 'member', isPrimary: true }],
+    });
+    const url = endpoint();
+    await subscribe(m.c, url);
+    const subjectId = (await assign(lead.c, lead.memberId)).id;
+    const [n] = await withTenant(handle.db, { tenantId }, (tx) =>
+      tx
+        .insert(s.notifications)
+        .values({
+          recipientId: m.memberId,
+          kind: 'task_assigned',
+          subjectType: 'task',
+          subjectId,
+          dedupeKey: unique('k'),
+          deliverAfter,
+        })
+        .returning(),
+    );
+    return { memberId: m.memberId, url, notificationId: n?.id ?? '' };
+  }
+
+  const pushedAt = async (id: string) =>
+    (
+      await withTenant(handle.db, { tenantId }, (tx) =>
+        tx.select().from(s.notifications).where(eq(s.notifications.id, id)),
+      )
+    )[0]?.pushedAt;
+
+  it('puts notifications back for a retry when every device failed', async () => {
+    const m = await memberWithDue(new Date(Date.now() - 1000));
+    sender.failing.add(m.url);
+    const deliveries = worker.get(PushDeliveries);
+    await expect(deliveries.deliver({ tenantId, memberId: m.memberId })).rejects.toThrow();
+    expect(await pushedAt(m.notificationId)).toBeNull();
+    sender.failing.delete(m.url);
+    expect(await deliveries.deliver({ tenantId, memberId: m.memberId })).toBe(1);
+    expect(await pushedAt(m.notificationId)).toBeInstanceOf(Date);
+  });
+
+  it('never pushes a stale backlog', async () => {
+    const m = await memberWithDue(new Date(Date.now() - 13 * 60 * 60_000));
+    expect(await worker.get(PushDeliveries).deliver({ tenantId, memberId: m.memberId })).toBe(0);
+    expect(sender.to(m.url)).toHaveLength(0);
+    expect(await pushedAt(m.notificationId)).toBeInstanceOf(Date);
+  });
+
+  it('keeps one row per browser, even when it subscribes twice at once', async () => {
+    const url = endpoint();
+    const results = await Promise.all([subscribe(agent.c, url), subscribe(agent.c, url)]);
+    expect(results.map((r) => r.status)).toEqual([204, 204]);
+    // The same browser later used by a colleague now belongs to the colleague.
+    await subscribe(lead.c, url);
+    const rows = await withTenant(handle.db, { tenantId }, (tx) =>
+      tx.select().from(s.pushSubscriptions).where(eq(s.pushSubscriptions.endpoint, url)),
+    );
+    expect(rows.map((r) => r.memberId)).toEqual([lead.memberId]);
   });
 
   it('pushes nothing to a suspended member', async () => {

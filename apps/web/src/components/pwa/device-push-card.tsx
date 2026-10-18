@@ -6,6 +6,7 @@ import { t } from '@madar/i18n';
 import { Badge, Button, Card, CardContent, Skeleton, useToast } from '@madar/ui';
 
 import { useDevicePush, type DevicePushStatus } from '@/hooks/pwa';
+import { useMe } from '@/hooks/use-me';
 import { ApiClientError } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 
@@ -17,7 +18,9 @@ const HINT: Partial<Record<DevicePushStatus, string>> = {
 
 /** «Notifications on this device»: Web Push for the browser in hand. Hidden when push is off. */
 export function DevicePushCard() {
-  const { status, enable, disable, test } = useDevicePush();
+  const { data: me } = useMe();
+  const owner = me?.member && me.tenant ? `${me.tenant.id}:${me.member.id}` : null;
+  const { status, enable, disable, test } = useDevicePush(owner);
   const { toast } = useToast();
 
   if (status === 'disabled') return null;

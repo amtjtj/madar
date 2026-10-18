@@ -38,7 +38,14 @@ export class PushConsumer implements EventConsumer {
       .from(s.pushSubscriptions)
       .where(eq(s.pushSubscriptions.memberId, notification.recipientId))
       .limit(1);
-    if (!device) return;
+    if (!device) {
+      // No device to tell: never pushed later as part of a pile.
+      await tx
+        .update(s.notifications)
+        .set({ pushedAt: new Date() })
+        .where(eq(s.notifications.id, id));
+      return;
+    }
     // A job enqueued for a transaction that then rolls back finds nothing to claim.
     await this.deliveries.schedule(
       event.tenantId,

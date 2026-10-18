@@ -141,7 +141,8 @@ export const pushSubscriptions = pgTable(
     failureCount: smallint('failure_count').notNull().default(0),
   },
   (t) => [
-    unique('push_subscriptions_member_endpoint_key').on(t.tenantId, t.memberId, t.endpoint),
+    // One browser belongs to one member per company (the last one who signed in on it).
+    unique('push_subscriptions_endpoint_key').on(t.tenantId, t.endpoint),
     foreignKey({
       name: 'push_subscriptions_member_fk',
       columns: [t.tenantId, t.memberId],

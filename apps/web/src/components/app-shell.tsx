@@ -36,7 +36,7 @@ import {
   NotificationLink,
   NotificationPopover,
 } from '@/components/notifications/notification-bell';
-import { useInstall } from '@/hooks/pwa';
+import { useInstall, usePushSync } from '@/hooks/pwa';
 import { useCan } from '@/hooks/queries';
 import { useRealtime } from '@/hooks/realtime';
 import { useMe } from '@/hooks/use-me';
@@ -154,6 +154,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   const install = useInstall();
+  usePushSync(me?.member && me.tenant ? `${me.tenant.id}:${me.member.id}` : null);
   const installable = install.canPrompt || install.iosManual;
   const name = me?.member?.displayName ?? me?.user.name ?? '';
   const online = useRealtime(Boolean(me?.member), me?.tenant?.id);

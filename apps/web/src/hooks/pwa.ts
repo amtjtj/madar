@@ -13,8 +13,10 @@ import {
   isStandalone,
   promptInstall,
   removeDevicePush,
+  setPushOwner,
   subscribeInstall,
   subscriptionBody,
+  syncDevicePush,
   urlBase64ToBytes,
   type DevicePushStatus,
 } from '@/lib/pwa';
@@ -94,8 +96,17 @@ export function usePushConfig() {
 
 export type { DevicePushStatus };
 
+/** Keeps this device's push subscription with the signed-in member (app shell). */
+export function usePushSync(owner: string | null): void {
+  const { data: config } = usePushConfig();
+  const publicKey = config?.enabled ? config.publicKey : null;
+  useEffect(() => {
+    if (owner && publicKey) void syncDevicePush(owner, publicKey).catch(() => undefined);
+  }, [owner, publicKey]);
+}
+
 /** This device's push subscription: status plus turn on / turn off / send a test. */
-export function useDevicePush() {
+export function useDevicePush(owner: string | null) {
   const { data: config } = usePushConfig();
   const platform = usePlatform();
   const [status, setStatus] = useState<DevicePushStatus>('loading');
@@ -140,6 +151,7 @@ export function useDevicePush() {
         method: 'POST',
         body: subscriptionBody(subscription),
       });
+      setPushOwner(owner);
       setStatus('on');
       return true;
     },
