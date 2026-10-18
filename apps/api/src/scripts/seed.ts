@@ -40,13 +40,17 @@ import { SEED_COMPANY, SEED_DEPARTMENTS, SEED_PEOPLE } from './seed-data.js';
 import { SEED_GOALS, SEED_PROJECT_LINKS, SEED_TASK_LINKS } from './seed-goals.js';
 import { SEED_HISTORY, SEED_PROJECTS, SEED_TASKS } from './seed-work.js';
 
+import { demoMode } from './demo.js';
+
 const logger = new Logger('Seed');
 /** Summary lines go straight to stdout (the Nest logger is limited to warnings while seeding). */
 const say = (line: string) => process.stdout.write(`${line}\n`);
 
 async function main(): Promise<void> {
-  if (process.env.NODE_ENV === 'production')
-    throw new Error('Refusing to seed a production database');
+  // A production database is only ever seeded on the demo server (plan phase-1-step-9 §5).
+  if (process.env.NODE_ENV === 'production' && !demoMode(process.env)) {
+    throw new Error('Refusing to seed a production database (set DEMO_MODE=true on a demo server)');
+  }
   const password = process.env.SEED_PASSWORD ?? 'madar-demo-1234';
 
   const app = await NestFactory.createApplicationContext(AppModule, { logger: ['error', 'warn'] });

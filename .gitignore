@@ -44,3 +44,4 @@ apps/web/public/fonts/abar/*.ttf
 docker/caddy/certs/*.pem
 docker/caddy/certs/*.key
 backups/
+.deploy/

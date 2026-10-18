@@ -112,6 +112,23 @@ services:
         condition: service_healthy
     logging: *logging
 
+  # Demo server only (COMPOSE_PROFILES=demo): resets the demo company every night.
+  demo:
+    image: madar-api:${MADAR_TAG:-latest}
+    profiles: [demo]
+    restart: unless-stopped
+    command: ['node', 'dist/scripts/demo-reset.js', '--daily']
+    environment:
+      <<: *app-env
+      DATABASE_URL: ${DATABASE_URL}
+      DEMO_RESET_AT: ${DEMO_RESET_AT:-05:00}
+    healthcheck:
+      disable: true
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    logging: *logging
+
   # Nightly pg_dump with a restore check after every backup (docker/backup/backup.sh).
   backup:
     image: ${BASE_REGISTRY:-docker.io/library}/postgres:18-alpine

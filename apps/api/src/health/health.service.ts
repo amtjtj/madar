@@ -42,7 +42,8 @@ export class HealthService implements OnApplicationShutdown {
     }
   }
 
-  async onApplicationShutdown(): Promise<void> {
-    await this.redis.quit().catch(() => undefined);
+  onApplicationShutdown(): void {
+    // disconnect, not quit: quit() never settles on a lazy connection that was never opened.
+    this.redis.disconnect();
   }
 }

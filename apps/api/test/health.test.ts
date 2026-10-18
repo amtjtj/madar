@@ -29,7 +29,7 @@ describe('GET /api/health', () => {
       .useValue({
         status: 'ready',
         get: () => (redisUp ? Promise.resolve(heartbeat) : Promise.reject(new Error('down'))),
-        quit: () => Promise.resolve(),
+        disconnect: () => undefined,
       })
       .overrideProvider(ENV)
       .useValue({ APP_VERSION: '9.9.9', QUEUE_PREFIX: 'test' })
