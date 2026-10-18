@@ -53,6 +53,8 @@ export class RelayService implements OnModuleDestroy {
   async runOnce(tenantIds?: string[]): Promise<number> {
     return this.handle.db.transaction(async (tx) => {
       const events = await lockUnpublishedEvents(tx, BATCH, tenantIds);
+      // One round trip per consumer queue while the rows are locked.
+      const byConsumer = new Map<string, Parameters<Queue<EventJob>['addBulk']>[0]>();
       for (const event of events) {
         const job: EventJob = {
           tenantId: event.tenantId,
@@ -60,11 +62,16 @@ export class RelayService implements OnModuleDestroy {
         };
         for (const consumer of this.consumers) {
           if (!consumer.handles(event.type)) continue;
-          await this.queue(consumer.name).add(event.type, job, {
-            jobId: `${consumer.name}-${event.id}`,
+          const jobs = byConsumer.get(consumer.name) ?? [];
+          jobs.push({
+            name: event.type,
+            data: job,
+            opts: { jobId: `${consumer.name}-${event.id}` },
           });
+          byConsumer.set(consumer.name, jobs);
         }
       }
+      for (const [consumer, jobs] of byConsumer) await this.queue(consumer).addBulk(jobs);
       await markEventsPublished(
         tx,
         events.map((e) => e.id),

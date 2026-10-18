@@ -173,11 +173,7 @@ export async function lockUnpublishedEvents(
 
 export async function markEventsPublished(tx: Tx, ids: string[]): Promise<void> {
   if (ids.length === 0) return;
-  await tx.execute(
-    sql`select app.mark_events_published(${sql.raw(
-      `ARRAY[${ids.map((id) => `'${id.replace(/[^0-9a-f-]/gi, '')}'`).join(',')}]`,
-    )}::uuid[])`,
-  );
+  await tx.execute(sql`select app.mark_events_published(${uuidArray(ids)})`);
 }
 
 /** Active tenants (id and time zone only), for scheduled jobs. */

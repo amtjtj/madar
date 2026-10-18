@@ -309,6 +309,20 @@ describe.skipIf(!hasDatabase)('notifications', () => {
       );
     });
 
+    it('orders by when things happened and pages with a cursor', async () => {
+      const all = (await agent.c.get('/api/notifications?limit=100')).body.items as Array<{
+        id: string;
+        createdAt: string;
+      }>;
+      expect(all.length).toBeGreaterThan(2);
+      const times = all.map((n) => n.createdAt);
+      expect([...times].sort().reverse()).toEqual(times);
+      const first = (await agent.c.get('/api/notifications?limit=2')).body.items;
+      const next = (await agent.c.get(`/api/notifications?limit=2&before=${first[1].id}`)).body
+        .items;
+      expect(next[0].id).toBe(all[2]?.id);
+    });
+
     it('saves my preferences', async () => {
       const initial = await agent.c.get('/api/me/notification-preferences');
       expect(initial.body).toEqual({ mutedKinds: [], offHours: false });

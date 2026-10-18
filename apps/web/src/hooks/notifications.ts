@@ -11,13 +11,7 @@ import type { NotificationList, NotificationPreferences, WorkCalendarDto } from 
 
 import { api } from '@/lib/api';
 
-export const notificationKeys = {
-  all: ['notifications'] as const,
-  list: ['notifications', 'list'] as const,
-  unread: ['notifications', 'unread'] as const,
-  preferences: ['notification-preferences'] as const,
-  calendar: ['work-calendar'] as const,
-};
+import { notificationKeys } from './keys';
 
 const PAGE = 30;
 

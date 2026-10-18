@@ -149,7 +149,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   const name = me?.member?.displayName ?? me?.user.name ?? '';
-  const online = useRealtime(Boolean(me?.member));
+  const online = useRealtime(Boolean(me?.member), me?.tenant?.id);
   const offline = !online && (
     <span
       role="status"

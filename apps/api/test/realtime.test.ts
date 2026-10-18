@@ -44,14 +44,14 @@ describe.skipIf(!hasDatabase)('realtime (Socket.IO)', () => {
     return cookies.map((c) => c.split(';')[0]).join('; ');
   }
 
-  function connect(cookie?: string): Promise<Live> {
+  function connect(cookie?: string, origin?: string): Promise<Live> {
     const socket = io(url, {
       path: REALTIME_PATH,
       addTrailingSlash: false,
       transports: ['websocket'],
       forceNew: true,
       reconnection: false,
-      extraHeaders: cookie ? { cookie } : {},
+      extraHeaders: { ...(cookie ? { cookie } : {}), ...(origin ? { origin } : {}) },
     });
     sockets.push(socket);
     const live: Live = { socket, events: [], disconnected: false };
@@ -126,6 +126,13 @@ describe.skipIf(!hasDatabase)('realtime (Socket.IO)', () => {
     expect(anonymous.disconnected).toBe(true);
   });
 
+  it('refuses a browser connection from another site, even with a valid session', async () => {
+    const foreign = await connect(await cookieFor(agent.username), 'https://evil.example');
+    expect(foreign.disconnected).toBe(true);
+    const ours = await connect(await cookieFor(agent.username), env.AUTH_BASE_URL);
+    expect(ours.disconnected).toBe(false);
+  });
+
   it('delivers hints only to the right people of the right company', async () => {
     const agentLive = await connect(await cookieFor(agent.username));
     const leadLive = await connect(await cookieFor(lead.username));
@@ -180,6 +187,41 @@ describe.skipIf(!hasDatabase)('realtime (Socket.IO)', () => {
     expect(await until(() => outsiderLive.events.includes(REALTIME_EVENTS.workChanged))).toBe(true);
     outsiderLive.events.length = 0;
     await lead.c.post('/api/tasks', { title: 'کار پروژه مشترک', projectId: project.id });
+    expect(await until(() => outsiderLive.events.includes(REALTIME_EVENTS.workChanged))).toBe(true);
+  });
+
+  it('takes removed project members out of the project room', async () => {
+    const outsiderLive = await connect(await cookieFor(outsider.username));
+    const project = (
+      await lead.c.post('/api/projects', {
+        name: 'موقت',
+        departmentId: support.id,
+        visibility: 'private',
+        memberIds: [outsider.memberId],
+      })
+    ).body;
+    expect(await until(() => outsiderLive.events.includes(REALTIME_EVENTS.workChanged))).toBe(true);
+    await lead.c.put(`/api/projects/${project.id}/members`, { members: [] });
+    await until(() => outsiderLive.events.length > 1);
+    await new Promise((r) => setTimeout(r, 500));
+    outsiderLive.events.length = 0;
+    await lead.c.post('/api/tasks', { title: 'بعد از رفتن', projectId: project.id });
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(outsiderLive.events).not.toContain(REALTIME_EVENTS.workChanged);
+  });
+
+  it('reaches everyone for company-wide projects', async () => {
+    const outsiderLive = await connect(await cookieFor(outsider.username));
+    const project = (
+      await lead.c.post('/api/projects', {
+        name: 'همه شرکت',
+        departmentId: support.id,
+        visibility: 'tenant',
+      })
+    ).body;
+    await new Promise((r) => setTimeout(r, 500));
+    outsiderLive.events.length = 0;
+    await lead.c.post('/api/tasks', { title: 'برای همه', projectId: project.id });
     expect(await until(() => outsiderLive.events.includes(REALTIME_EVENTS.workChanged))).toBe(true);
   });
 

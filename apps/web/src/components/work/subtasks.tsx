@@ -9,7 +9,8 @@ import { t } from '@madar/i18n';
 import { formatNumber, type Task } from '@madar/shared';
 import { ProgressBar, TaskCard, TextField, useToast } from '@madar/ui';
 
-import { useCreateTask, useTasks, useTodayDate, useToggleDone, workKeys } from '@/hooks/work';
+import { workKeys } from '@/hooks/keys';
+import { useCreateTask, useTasks, useTodayDate, useToggleDone } from '@/hooks/work';
 import { errorMessage } from '@/lib/errors';
 
 export function Subtasks({ task }: { task: Task }) {

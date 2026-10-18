@@ -39,6 +39,14 @@ const TIME_OPTIONS = Array.from({ length: 36 }, (_, i) => {
   return { value, label: toPersianDigits(value) };
 });
 
+/** The half-hour steps, plus a saved time outside them (so it never shows as empty). */
+const timeOptions = (current: string) =>
+  TIME_OPTIONS.some((o) => o.value === current)
+    ? TIME_OPTIONS
+    : [...TIME_OPTIONS, { value: current, label: toPersianDigits(current) }].sort((a, b) =>
+        a.value.localeCompare(b.value),
+      );
+
 export default function WorkCalendarPage() {
   const can = useCan();
   const { data } = useWorkCalendar();
@@ -104,13 +112,13 @@ function CalendarForm({ initial }: { initial: WorkCalendarDto }) {
                       label={t('workCalendar.from')}
                       value={day.start}
                       onChange={(e) => setDay(i, { ...day, start: e.target.value })}
-                      options={TIME_OPTIONS}
+                      options={timeOptions(day.start)}
                     />
                     <SelectField
                       label={t('workCalendar.to')}
                       value={day.end}
                       onChange={(e) => setDay(i, { ...day, end: e.target.value })}
-                      options={TIME_OPTIONS}
+                      options={timeOptions(day.end)}
                       error={day.start >= day.end ? t('workCalendar.invalidHours') : undefined}
                     />
                   </div>

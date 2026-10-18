@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { emitEvent, schema as s, type Tx } from '@madar/db';
-import { deliverAfter, type NotificationKind } from '@madar/shared';
+import { deliverAfter, type NotificationKind, type WorkCalendar } from '@madar/shared';
 import { and, eq, isNull } from 'drizzle-orm';
 
 import { loadMemberInTx } from '../auth/tenant-context.service.js';
@@ -18,6 +18,8 @@ export interface NewNotification {
   payload: { title: string; data?: Record<string, string | number> };
   dedupeKey: string;
   now?: Date;
+  /** Already loaded by batch callers (reminders); loaded here otherwise. */
+  calendar?: { calendar: WorkCalendar; timeZone: string };
 }
 
 /**
@@ -39,7 +41,7 @@ export class Notifier {
     if (prefs?.mutedKinds.includes(input.kind)) return false;
 
     const now = input.now ?? new Date();
-    const { calendar, timeZone } = await loadWorkCalendar(tx, input.tenantId);
+    const { calendar, timeZone } = input.calendar ?? (await loadWorkCalendar(tx, input.tenantId));
     const [row] = await tx
       .insert(s.notifications)
       .values({

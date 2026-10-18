@@ -5,14 +5,13 @@ import { REALTIME_EVENTS, REALTIME_PATH } from '@madar/shared';
 import { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 
-import { notificationKeys } from './notifications';
-import { workKeys } from './work';
+import { notificationKeys, workKeys } from './keys';
 
 /**
  * Live updates: the server sends content-free hints and the matching queries refetch through
  * the API (which checks access). Returns whether the live connection is up.
  */
-export function useRealtime(enabled: boolean): boolean {
+export function useRealtime(enabled: boolean, tenantId?: string): boolean {
   const client = useQueryClient();
   const [online, setOnline] = useState(true);
 
@@ -59,7 +58,8 @@ export function useRealtime(enabled: boolean): boolean {
       clearTimeout(timer);
       socket.disconnect();
     };
-  }, [client, enabled]);
+    // A new company means new rooms: reconnect when the active tenant changes.
+  }, [client, enabled, tenantId]);
 
   return online;
 }

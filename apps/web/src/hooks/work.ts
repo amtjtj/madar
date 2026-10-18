@@ -19,18 +19,8 @@ import { calendarDateIn, categoryOf } from '@madar/shared';
 
 import { api, ApiClientError } from '@/lib/api';
 
+import { workKeys } from './keys';
 import { useMe } from './use-me';
-
-export const workKeys = {
-  today: ['today'] as const,
-  tasks: (params: Partial<ListTasksQuery> = {}) => ['tasks', params] as const,
-  allTasks: ['tasks'] as const,
-  task: (id: string) => ['task', id] as const,
-  comments: (taskId: string) => ['task', taskId, 'comments'] as const,
-  activity: (taskId: string) => ['task', taskId, 'activity'] as const,
-  projects: ['projects'] as const,
-  project: (id: string) => ['projects', id] as const,
-};
 
 export function useTasks(params: Partial<ListTasksQuery>, options: { enabled?: boolean } = {}) {
   const search = new URLSearchParams();

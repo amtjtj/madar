@@ -7,7 +7,8 @@ import { t } from '@madar/i18n';
 import type { ListTasksQuery } from '@madar/shared';
 import { Card, EmptyState, Skeleton, TextField, cn } from '@madar/ui';
 
-import { useTasks, useTodayDate, workKeys } from '@/hooks/work';
+import { workKeys } from '@/hooks/keys';
+import { useTasks, useTodayDate } from '@/hooks/work';
 
 import { TaskBoard } from './task-board';
 import { TaskList } from './task-list';

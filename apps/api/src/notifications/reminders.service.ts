@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { listActiveTenants, schema as s, withTenant, type DbHandle, type Tx } from '@madar/db';
 import { addDays, isWorkingDay, workdayStarted, workingDaysBetween } from '@madar/shared';
-import { and, eq, gte, inArray, isNotNull, isNull, lt, lte } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, isNotNull, isNull, lt, lte, sql, type SQL } from 'drizzle-orm';
 
 import { DB_HANDLE } from '../database/tokens.js';
 import { loadWorkCalendar } from './calendar.js';
@@ -34,7 +34,8 @@ export class RemindersService {
 
   runForTenant(tenantId: string, now = new Date()): Promise<number> {
     return withTenant(this.handle.db, { tenantId }, async (tx) => {
-      const { calendar, timeZone } = await loadWorkCalendar(tx, tenantId);
+      const loaded = await loadWorkCalendar(tx, tenantId);
+      const { calendar, timeZone } = loaded;
       const { date: today, started } = workdayStarted(calendar, now, timeZone);
       if (!started) return 0;
 
@@ -44,7 +45,7 @@ export class RemindersService {
         nextWorkday = addDays(nextWorkday, 1);
       }
       let created = 0;
-      const base = { tenantId, actorId: null, now };
+      const base = { tenantId, actorId: null, now, calendar: loaded };
       for (const task of await this.openTasks(
         tx,
         gte(s.tasks.dueOn, addDays(today, 1)),
@@ -65,32 +66,52 @@ export class RemindersService {
           created++;
       }
 
-      // «Overdue» once per due date for the assignee, and after N working days for the managers.
-      const overdue = await this.openTasks(tx, lt(s.tasks.dueOn, today));
-      const managersByDept = new Map<string, string[]>();
-      for (const task of overdue) {
-        if (!task.dueOn) continue;
-        if (task.assigneeId) {
-          if (
-            await this.notifier.notify(tx, {
-              ...base,
-              recipientId: task.assigneeId,
-              kind: 'task_overdue',
-              subjectType: 'task',
-              subjectId: task.id,
-              payload: { title: task.title, data: { dueOn: task.dueOn } },
-              dedupeKey: `overdue:${task.id}:${task.dueOn}`,
-            })
-          )
-            created++;
+      // «Overdue» once per due date for the assignee.
+      for (const task of await this.openTasks(
+        tx,
+        lt(s.tasks.dueOn, today),
+        notReminded('task_overdue', 'overdue'),
+      )) {
+        if (!task.dueOn || !task.assigneeId) continue;
+        if (
+          await this.notifier.notify(tx, {
+            ...base,
+            recipientId: task.assigneeId,
+            kind: 'task_overdue',
+            subjectType: 'task',
+            subjectId: task.id,
+            payload: { title: task.title, data: { dueOn: task.dueOn } },
+            dedupeKey: `overdue:${task.id}:${task.dueOn}`,
+          })
+        )
+          created++;
+      }
+
+      // After N working days, the department's head and managers, once per task and due date.
+      if (calendar.overdueEscalationDays > 0) {
+        // The latest due date that is N working days behind today.
+        let cutoff = today;
+        for (
+          let i = 0;
+          i < 400 && workingDaysBetween(calendar, cutoff, today) < calendar.overdueEscalationDays;
+          i++
+        ) {
+          cutoff = addDays(cutoff, -1);
         }
-        const days = workingDaysBetween(calendar, task.dueOn, today);
-        if (calendar.overdueEscalationDays > 0 && days >= calendar.overdueEscalationDays) {
+        const managersByDept = new Map<string, string[]>();
+        const late = await this.openTasks(
+          tx,
+          lte(s.tasks.dueOn, cutoff),
+          notReminded('task_overdue_escalation', 'escalation'),
+        );
+        for (const task of late) {
+          if (!task.dueOn) continue;
           let managers = managersByDept.get(task.departmentId);
           if (!managers) {
             managers = await this.managers(tx, task.departmentId);
             managersByDept.set(task.departmentId, managers);
           }
+          const days = workingDaysBetween(calendar, task.dueOn, today);
           for (const managerId of managers) {
             if (managerId === task.assigneeId) continue;
             if (
@@ -115,7 +136,8 @@ export class RemindersService {
     });
   }
 
-  private openTasks(tx: Tx, ...conditions: ReturnType<typeof eq>[]) {
+  /** Open tasks with a due date, oldest due first (so a capped batch never starves old tasks). */
+  private openTasks(tx: Tx, ...conditions: SQL[]) {
     return tx
       .select({
         id: s.tasks.id,
@@ -135,6 +157,7 @@ export class RemindersService {
           ...conditions,
         ),
       )
+      .orderBy(asc(s.tasks.dueOn), asc(s.tasks.id))
       .limit(2000);
   }
 
@@ -152,4 +175,15 @@ export class RemindersService {
       );
     return rows.map((r) => r.memberId);
   }
+}
+
+/**
+ * Tasks not yet reminded of this kind for their current due date (same dedupe key as notify()), so
+ * the sweep skips them in SQL instead of re-checking every task every 15 minutes.
+ */
+function notReminded(kind: string, prefix: string): SQL {
+  return sql`not exists (
+    select 1 from notifications n
+    where n.subject_id = ${s.tasks.id} and n.kind = ${kind}
+      and n.dedupe_key = ${prefix} || ':' || ${s.tasks.id}::text || ':' || ${s.tasks.dueOn}::text)`;
 }

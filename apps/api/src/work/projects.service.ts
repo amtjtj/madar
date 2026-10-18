@@ -126,7 +126,7 @@ export class ProjectsService {
     });
   }
 
-  /** Replaces the member list; people newly added get a `project.member_added` event. */
+  /** Replaces the member list and emits `project.member_added` / `project.member_removed`. */
   private async writeMembers(
     tx: Tx,
     ctx: TenantContext,
@@ -152,6 +152,16 @@ export class ProjectsService {
     const added = ids.filter((id) => !existing.has(id));
     if (added.length) {
       await emitEvent(tx, 'project.member_added', { projectId, memberIds: added }, ctx.memberId);
+    }
+    const kept = new Set(ids);
+    const removed = [...existing].filter((id) => !kept.has(id));
+    if (removed.length) {
+      await emitEvent(
+        tx,
+        'project.member_removed',
+        { projectId, memberIds: removed },
+        ctx.memberId,
+      );
     }
   }
 

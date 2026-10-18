@@ -1,7 +1,7 @@
 import { Inject, Logger } from '@nestjs/common';
 import { WebSocketGateway, WebSocketServer, type OnGatewayConnection } from '@nestjs/websockets';
 import { schema as s, withTenant, type DbHandle } from '@madar/db';
-import { REALTIME_PATH, requiresTwoFactor } from '@madar/shared';
+import { REALTIME_PATH, requiresTwoFactor, scopeFor } from '@madar/shared';
 import { fromNodeHeaders } from 'better-auth/node';
 import { eq, or } from 'drizzle-orm';
 import type { Server, Socket } from 'socket.io';
@@ -9,8 +9,10 @@ import type { Server, Socket } from 'socket.io';
 import type { Auth } from '../auth/auth.js';
 import { AUTH } from '../auth/auth.tokens.js';
 import { TenantContextService } from '../auth/tenant-context.service.js';
+import { ENV } from '../config/config.module.js';
+import type { Env } from '../config/env.js';
 import { DB_HANDLE } from '../database/tokens.js';
-import { departmentRoom, memberRoom, projectRoom } from './rooms.js';
+import { departmentRoom, everyoneRoom, memberRoom, projectRoom, readersRoom } from './rooms.js';
 
 /**
  * Realtime hints. A socket is accepted only with a valid session, an active membership in an
@@ -27,6 +29,7 @@ export class RealtimeGateway implements OnGatewayConnection {
     @Inject(AUTH) private readonly auth: Auth,
     @Inject(DB_HANDLE) private readonly handle: DbHandle,
     private readonly tenants: TenantContextService,
+    @Inject(ENV) private readonly env: Env,
   ) {}
 
   async handleConnection(client: Socket): Promise<void> {
@@ -44,6 +47,14 @@ export class RealtimeGateway implements OnGatewayConnection {
   }
 
   private async roomsFor(client: Socket): Promise<string[] | null> {
+    // Browsers send Origin: only our own web app may open a socket with the session cookie.
+    const origin = client.handshake.headers.origin;
+    const allowed = [
+      this.env.AUTH_BASE_URL,
+      ...this.env.AUTH_TRUSTED_ORIGINS,
+      ...this.env.API_CORS_ORIGINS,
+    ];
+    if (origin && !allowed.includes(origin)) return null;
     const result = await this.auth.api.getSession({
       headers: fromNodeHeaders(client.request.headers),
     });
@@ -83,6 +94,8 @@ export class RealtimeGateway implements OnGatewayConnection {
     const id = tenantId;
     return [
       memberRoom(id, member.memberId),
+      everyoneRoom(id),
+      ...(scopeFor(member.actor, 'task.read') === 'tenant' ? [readersRoom(id)] : []),
       ...member.actor.departments.map((d) => departmentRoom(id, d.id)),
       ...projects.map((p) => projectRoom(id, p.id)),
     ];

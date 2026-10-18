@@ -8,7 +8,7 @@ import type {
   NotificationPreferences,
   WorkCalendarDto,
 } from '@madar/shared';
-import { and, count, desc, eq, isNull, lt } from 'drizzle-orm';
+import { and, count, desc, eq, isNull, sql, type SQL } from 'drizzle-orm';
 
 import type { TenantContext } from '../common/context.js';
 import { notFound } from '../common/errors.js';
@@ -23,12 +23,23 @@ export class NotificationsService {
   list(ctx: TenantContext, query: ListNotificationsQuery): Promise<NotificationList> {
     return this.db.run(ctx, async (tx) => {
       const mine = eq(s.notifications.recipientId, ctx.memberId);
+      // Newest first by when it happened (events can be processed late); id breaks ties.
+      let cursor: SQL | undefined;
+      if (query.before) {
+        const [ref] = await tx
+          .select({ createdAt: s.notifications.createdAt })
+          .from(s.notifications)
+          .where(and(mine, eq(s.notifications.id, query.before)));
+        if (ref) {
+          cursor = sql`(${s.notifications.createdAt}, ${s.notifications.id}) < (${ref.createdAt}, ${query.before}::uuid)`;
+        }
+      }
       const rows = await tx
         .select({ n: s.notifications, actorName: s.members.displayName })
         .from(s.notifications)
         .leftJoin(s.members, eq(s.members.id, s.notifications.actorId))
-        .where(and(mine, query.before ? lt(s.notifications.id, query.before) : undefined))
-        .orderBy(desc(s.notifications.id))
+        .where(and(mine, cursor))
+        .orderBy(desc(s.notifications.createdAt), desc(s.notifications.id))
         .limit(query.limit);
       const [unread] = await tx
         .select({ n: count() })

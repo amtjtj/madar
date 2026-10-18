@@ -400,7 +400,7 @@ export const fa = {
       task_commented: '{actor} روی «{title}» نظر گذاشت',
       task_due_soon: 'سررسید «{title}» نزدیک است ({date})',
       task_overdue: 'سررسید «{title}» گذشته است ({date})',
-      task_overdue_escalation: '«{title}» از {assignee} {days} روز کاری از سررسیدش گذشته است',
+      task_overdue_escalation: '«{title}» (مسئول: {assignee}) {days} روز کاری از سررسیدش گذشته است',
       task_overdue_escalation_unassigned:
         '«{title}» {days} روز کاری از سررسیدش گذشته است و مسئول ندارد',
       project_member_added: '{actor} تو را به پروژه «{title}» اضافه کرد',
