@@ -67,7 +67,7 @@ function messageFor(data) {
 
 function urlFor(data) {
   if (data.count === 1 && data.subject && /^[0-9a-f-]{36}$/i.test(data.subject.id)) {
-    if (data.subject.type === 'report') return '/reports';
+    if (data.subject.type === 'report') return '/reports?report=' + data.subject.id;
     const base = { project: '/projects/', goal: '/goals/' }[data.subject.type] || '/tasks/';
     return base + data.subject.id;
   }

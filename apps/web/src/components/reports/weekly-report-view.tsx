@@ -302,14 +302,11 @@ export function WeeklyReportView({
                       >
                         {task.title}
                       </Link>
-                      <span className="text-xs text-ink-muted">
-                        {[
-                          task.assignee?.displayName ?? t('home.team.unassigned'),
-                          task.dueOn ? formatCalendarDate(task.dueOn) : null,
-                        ]
-                          .filter(Boolean)
-                          .join('، ')}
-                      </span>
+                      {task.dueOn && (
+                        <span className="text-xs text-ink-muted">
+                          {formatCalendarDate(task.dueOn)}
+                        </span>
+                      )}
                     </div>
                     <Badge tone={task.reason === 'overdue' ? 'danger' : 'warning'}>
                       {task.reason === 'overdue'

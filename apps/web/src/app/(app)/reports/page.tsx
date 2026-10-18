@@ -11,7 +11,7 @@ import { Button, Card, EmptyState, SelectField, Skeleton } from '@madar/ui';
 import { PageHeader } from '@/components/app-shell';
 import { WeeklyReportView } from '@/components/reports/weekly-report-view';
 import { useDepartments } from '@/hooks/queries';
-import { useReportWeeks, useWeeklyReport } from '@/hooks/reports';
+import { useReportRef, useReportWeeks, useWeeklyReport } from '@/hooks/reports';
 import { useMe } from '@/hooks/use-me';
 
 export default function ReportsPage() {
@@ -48,13 +48,33 @@ function Reports() {
       : undefined;
   const allowed = scope === 'company' ? seesCompany : Boolean(departmentId);
 
-  const { data: weeks } = useReportWeeks(scope, departmentId, allowed);
+  const {
+    data: weeks,
+    isPending: weeksPending,
+    isError: weeksError,
+  } = useReportWeeks(scope, departmentId, allowed);
   const week = search.get('week') ?? weeks?.[0];
   const {
     data: report,
-    isPending,
-    isError,
+    isPending: reportPending,
+    isError: reportError,
   } = useWeeklyReport(scope, departmentId, week, allowed && Boolean(week));
+  const isPending = weeksPending || (Boolean(week) && reportPending);
+  const isError = weeksError || reportError;
+
+  // A push notification only carries the report's id: turn it into scope and week.
+  const reportId = search.get('report');
+  const { data: ref, isError: refError } = useReportRef(reportId);
+  useEffect(() => {
+    if (!reportId || (!ref && !refError)) return;
+    const params = new URLSearchParams();
+    if (ref) {
+      params.set('scope', ref.scope);
+      if (ref.departmentId) params.set('departmentId', ref.departmentId);
+      params.set('week', ref.week);
+    }
+    router.replace(`/reports?${params.toString()}`, { scroll: false });
+  }, [reportId, ref, refError, router]);
 
   const go = (next: { scope?: ReportScope; departmentId?: string; week?: string }) => {
     const params = new URLSearchParams();
@@ -139,7 +159,7 @@ function Reports() {
             )}
           </div>
         )}
-        {!member || (allowed && isPending && !isError) ? (
+        {!member || reportId || (allowed && isPending && !isError) ? (
           <div className="flex flex-col gap-4" aria-busy>
             <Skeleton className="h-28 rounded-xl" />
             <Skeleton className="h-64 rounded-xl" />

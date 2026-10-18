@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { emitEvent, schema as s, type Tx } from '@madar/db';
 import {
   deliverAfter,
-  scopeFor,
   type NotificationKind,
   type NotificationSubject,
   type WorkCalendar,
@@ -11,7 +10,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 
 import { loadMemberInTx } from '../auth/tenant-context.service.js';
 import { visibleGoals } from '../goals/access.js';
-import { isDepartmentManager, visibleProjects, visibleTasks } from '../work/access.js';
+import { readsReport, visibleProjects, visibleTasks } from '../work/access.js';
 import { loadWorkCalendar } from './calendar.js';
 
 export interface NewNotification {
@@ -93,13 +92,7 @@ export class Notifier {
         .select({ scope: s.weeklyReports.scope, departmentId: s.weeklyReports.departmentId })
         .from(s.weeklyReports)
         .where(eq(s.weeklyReports.id, subjectId));
-      if (!report) return false;
-      const companyReader =
-        scopeFor(actor, 'task.read') === 'tenant' && scopeFor(actor, 'goal.read') === 'tenant';
-      return (
-        companyReader ||
-        (report.departmentId !== null && isDepartmentManager(actor, report.departmentId))
-      );
+      return report ? readsReport(actor, report.departmentId) : false;
     }
     if (subjectType === 'goal') {
       const [row] = await tx

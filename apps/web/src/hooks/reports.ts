@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import type { ReportScope, WeeklyReport } from '@madar/shared';
+import type { ReportRef, ReportScope, WeeklyReport } from '@madar/shared';
 
 import { api } from '@/lib/api';
 
@@ -35,6 +35,16 @@ export function useWeeklyReport(
         `/api/reports/weekly?${query(scope, departmentId)}${week ? `&week=${week}` : ''}`,
       ),
     enabled,
+    retry: false,
+  });
+}
+
+/** Resolves a stored report's id (from a push notification) to its scope and week. */
+export function useReportRef(id: string | null) {
+  return useQuery({
+    queryKey: reportKeys.ref(id ?? ''),
+    queryFn: () => api<ReportRef>(`/api/reports/weekly/${id}/ref`),
+    enabled: Boolean(id),
     retry: false,
   });
 }

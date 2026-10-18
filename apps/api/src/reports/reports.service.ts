@@ -3,6 +3,7 @@ import { schema as s, type Tx } from '@madar/db';
 import {
   calendarDateIn,
   weekStartOf,
+  type ReportRef,
   type ReportWeeksQuery,
   type WeeklyReport,
   type WeeklyReportQuery,
@@ -11,10 +12,9 @@ import { and, desc, eq, isNull } from 'drizzle-orm';
 
 import type { TenantContext } from '../common/context.js';
 import { ApiError, forbidden, notFound } from '../common/errors.js';
-import { DashboardService } from '../dashboard/dashboard.service.js';
 import { TenantDb } from '../database/tenant-db.service.js';
 import { loadWorkCalendar } from '../notifications/calendar.js';
-import { isDepartmentManager } from '../work/access.js';
+import { readsReport } from '../work/access.js';
 import { buildWeeklyReport } from './builder.js';
 
 /** Weekly reports: the company one for company-wide readers, a department's for its managers too. */
@@ -67,15 +67,26 @@ export class ReportsService {
     });
   }
 
+  /** The scope and week of a stored report, for links that only carry its id. */
+  ref(ctx: TenantContext, id: string): Promise<ReportRef> {
+    return this.db.run(ctx, async (tx) => {
+      const [row] = await tx
+        .select({
+          scope: s.weeklyReports.scope,
+          departmentId: s.weeklyReports.departmentId,
+          week: s.weeklyReports.weekStart,
+        })
+        .from(s.weeklyReports)
+        .where(eq(s.weeklyReports.id, id));
+      if (!row) throw notFound('Report');
+      if (!readsReport(ctx.actor, row.departmentId)) throw forbidden();
+      return row;
+    });
+  }
+
   private authorize(ctx: TenantContext, query: ReportWeeksQuery): void {
-    if (DashboardService.seesCompany(ctx)) return;
-    if (
-      query.scope === 'department' &&
-      query.departmentId &&
-      isDepartmentManager(ctx.actor, query.departmentId)
-    ) {
-      return;
-    }
+    const departmentId = query.scope === 'department' ? (query.departmentId ?? null) : null;
+    if (readsReport(ctx.actor, departmentId)) return;
     throw forbidden();
   }
 

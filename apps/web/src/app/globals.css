@@ -12,11 +12,11 @@
     @bottom-center {
       content: counter(page, persian);
       font-size: 9pt;
-      color: #6b7280;
+      color: var(--color-ink-muted);
     }
   }
   body {
-    background: white;
+    background: var(--color-canvas);
   }
   .print-avoid-break {
     break-inside: avoid;

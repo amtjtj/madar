@@ -6,7 +6,6 @@ import {
   elapsedShare,
   helpReasons,
   isDepartmentBehind,
-  scopeFor,
   weekStarts,
   type CompanyDashboard,
   type DepartmentDashboard,
@@ -21,7 +20,7 @@ import { TenantDb } from '../database/tenant-db.service.js';
 import { visibleGoals } from '../goals/access.js';
 import { ensurePeriods, listPeriods } from '../goals/periods.js';
 import { loadWorkCalendar } from '../notifications/calendar.js';
-import { isDepartmentManager, visibleTasks } from '../work/access.js';
+import { isDepartmentManager, readsCompany, visibleTasks } from '../work/access.js';
 import { atRiskProjects, viewerScope } from './at-risk.js';
 import { openTask, overdueTask, stuckOverdueBefore, stuckTask } from './conditions.js';
 
@@ -44,9 +43,7 @@ export class DashboardService {
 
   /** Tenant-wide readers of work and goals: owner, executives, oversight departments. */
   static seesCompany(ctx: TenantContext): boolean {
-    return (
-      scopeFor(ctx.actor, 'task.read') === 'tenant' && scopeFor(ctx.actor, 'goal.read') === 'tenant'
-    );
+    return readsCompany(ctx.actor);
   }
 
   company(ctx: TenantContext): Promise<CompanyDashboard> {

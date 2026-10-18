@@ -22,6 +22,16 @@ export function managesAll(actor: Actor): boolean {
   return scopeFor(actor, 'task.manage') === 'tenant';
 }
 
+/** Reads all work and goals: the company dashboard and every weekly report (ADR 0014, 0015). */
+export function readsCompany(actor: Actor): boolean {
+  return scopeFor(actor, 'task.read') === 'tenant' && scopeFor(actor, 'goal.read') === 'tenant';
+}
+
+/** Who may open a weekly report: company readers, and a department's own managers (ADR 0015). */
+export function readsReport(actor: Actor, departmentId: string | null): boolean {
+  return readsCompany(actor) || (departmentId !== null && isDepartmentManager(actor, departmentId));
+}
+
 function uuidList(ids: string[]): SQL {
   return sql.join(
     ids.map((id) => sql`${id}::uuid`),

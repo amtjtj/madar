@@ -45,4 +45,5 @@ export const reportKeys = {
     ['reports', 'weekly', scope, departmentId ?? null, week ?? null] as const,
   weeks: (scope: string, departmentId: string | undefined) =>
     ['reports', 'weeks', scope, departmentId ?? null] as const,
+  ref: (id: string) => ['reports', 'ref', id] as const,
 };

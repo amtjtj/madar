@@ -13,6 +13,7 @@ import {
   calendarDateOfJalali,
   DEFAULT_WORK_CALENDAR,
   weekStartOf,
+  weeklyReport,
   zonedInstant,
   type SystemRole,
 } from '@madar/shared';
@@ -333,35 +334,6 @@ async function main(): Promise<void> {
         .catch((error: unknown) => logger.warn(`link project ${projectKey}: ${String(error)}`));
     }
 
-    // Weekly reports for the last three finished weeks, as the worker would have stored them.
-    const thisWeek = weekStartOf(today);
-    const reportDepartments = SEED_DEPARTMENTS.map((d) => ({
-      id: departmentIds.get(d.key) ?? '',
-      name: d.name,
-    }));
-    for (let back = 3; back >= 1; back--) {
-      const weekStart = addDays(thisWeek, -7 * back);
-      const builtAt = zonedInstant(addDays(weekStart, 7), '09:30', 'Asia/Tehran');
-      await withTenant(handle.db, { tenantId }, async (tx) => {
-        for (const department of [null, ...reportDepartments]) {
-          const data = await buildWeeklyReport(tx, {
-            tenantId,
-            scope: department ? 'department' : 'company',
-            department,
-            weekStart,
-            now: builtAt,
-          });
-          await tx.insert(s.weeklyReports).values({
-            scope: data.scope,
-            departmentId: department?.id ?? null,
-            weekStart,
-            data: data as unknown as Record<string, unknown>,
-            createdAt: builtAt,
-          });
-        }
-      });
-    }
-
     // Work calendar (docs/pilot-assumptions.md §2): Thursday half day, fixed solar holidays.
     // Lunar holidays move every year; the owner adds them in «ساعت کاری».
     const solarHolidays = [
@@ -378,6 +350,43 @@ async function main(): Promise<void> {
       ...DEFAULT_WORK_CALENDAR,
       holidays: solarHolidays,
     });
+
+    // Weekly reports for the last three finished weeks, as the worker would have stored them.
+    const thisWeek = weekStartOf(today);
+    const reportDepartments = SEED_DEPARTMENTS.map((d) => ({
+      id: departmentIds.get(d.key) ?? '',
+      name: d.name,
+    }));
+    // The demo company has existed for months: its departments predate the reported weeks.
+    await withTenant(handle.db, { tenantId }, (tx) =>
+      tx
+        .update(s.departments)
+        .set({ createdAt: zonedInstant(addDays(thisWeek, -7 * 9), '09:00', 'Asia/Tehran') }),
+    );
+    for (let back = 3; back >= 1; back--) {
+      const weekStart = addDays(thisWeek, -7 * back);
+      const builtAt = zonedInstant(addDays(weekStart, 7), '09:30', 'Asia/Tehran');
+      await withTenant(handle.db, { tenantId }, async (tx) => {
+        for (const department of [null, ...reportDepartments]) {
+          const data = weeklyReport.parse(
+            await buildWeeklyReport(tx, {
+              tenantId,
+              scope: department ? 'department' : 'company',
+              department,
+              weekStart,
+              now: builtAt,
+            }),
+          );
+          await tx.insert(s.weeklyReports).values({
+            scope: data.scope,
+            departmentId: department?.id ?? null,
+            weekStart,
+            data: data as unknown as Record<string, unknown>,
+            createdAt: builtAt,
+          });
+        }
+      });
+    }
 
     const count = await withTenant(
       handle.db,

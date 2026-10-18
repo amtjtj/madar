@@ -48,7 +48,8 @@ export const weeklyReport = z.object({
       title: z.string(),
       level: z.enum(GOAL_LEVELS),
       progress: z.number(),
-      /** Change in this week, from its key results' check-ins (null without key results). */
+      /** Progress at the end of the week (or now) and its change over the week, rebuilt from
+       * check-ins with child goals blended in (null when nothing measures the goal). */
       change: z.number().nullable(),
       checkins: z.number().int(),
       status: z.enum(CHECKIN_STATUSES).nullable(),
@@ -88,11 +89,11 @@ export const weeklyReport = z.object({
       assignee: personRef.nullable(),
     }),
   ),
+  /** Department reports only; no names (the team dashboard shows owners to the manager). */
   stuck: z.array(
     z.object({
       id: z.uuid(),
       title: z.string(),
-      assignee: personRef.nullable(),
       dueOn: calendarDate.nullable(),
       reason: z.enum(['idle', 'overdue']),
     }),
@@ -110,3 +111,11 @@ export type WeeklyReportQuery = z.infer<typeof weeklyReportQuery>;
 
 export const reportWeeksQuery = weeklyReportQuery.omit({ week: true });
 export type ReportWeeksQuery = z.infer<typeof reportWeeksQuery>;
+
+/** Where a stored report lives (a push notification opens `/reports?report=<id>`). */
+export const reportRef = z.object({
+  scope: z.enum(REPORT_SCOPES),
+  departmentId: z.uuid().nullable(),
+  week: calendarDate,
+});
+export type ReportRef = z.infer<typeof reportRef>;

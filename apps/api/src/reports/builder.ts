@@ -7,6 +7,7 @@ import {
   isDepartmentBehind,
   keyResultProgress,
   weekEndOf,
+  worstStatus,
   zonedInstant,
   type CheckinStatus,
   type ReportScope,
@@ -21,7 +22,8 @@ import { loadWorkCalendar } from '../notifications/calendar.js';
 /**
  * Builds one weekly report (plan phase-1-step-8b §1). Everyone who may open a report sees the
  * same thing, so it uses a shared view: no private-project tasks, no personal goals, and no
- * per-person counts (names only next to finished work).
+ * per-person counts (names only next to finished work). A stored report describes the week as it
+ * stood at its end, even though it is built a little later (on the next first working day).
  */
 export interface ReportTarget {
   tenantId: string;
@@ -46,6 +48,9 @@ export async function buildWeeklyReport(tx: Tx, target: ReportTarget): Promise<W
   // «Overdue at the end of the week»: due on or before Friday (or before today while it runs).
   const overdueBefore = partial ? today : addDays(weekEnd, 1);
   const departmentId = target.department?.id ?? null;
+  // Open at the end of the window: a task finished after it still counts as open then.
+  const openAt = (end: Date) =>
+    sql`(${s.tasks.createdAt} < ${end} and (${openTask} or (${s.tasks.statusCategory} = 'done' and ${s.tasks.completedAt} >= ${end})))`;
 
   const scoped = and(
     isNull(s.tasks.deletedAt),
@@ -55,7 +60,8 @@ export async function buildWeeklyReport(tx: Tx, target: ReportTarget): Promise<W
   const counts = (start: Date, end: Date, dueBefore: string) => ({
     done: sql<number>`count(*) filter (where ${s.tasks.statusCategory} = 'done' and ${s.tasks.completedAt} >= ${start} and ${s.tasks.completedAt} < ${end})::int`,
     created: sql<number>`count(*) filter (where ${s.tasks.createdAt} >= ${start} and ${s.tasks.createdAt} < ${end})::int`,
-    overdue: sql<number>`count(*) filter (where ${openTask} and ${s.tasks.dueOn} < ${dueBefore})::int`,
+    overdue: sql<number>`count(*) filter (where ${openAt(end)} and ${s.tasks.dueOn} < ${dueBefore})::int`,
+    open: sql<number>`count(*) filter (where ${openAt(end)})::int`,
   });
 
   const [totals] = await tx
@@ -63,8 +69,13 @@ export async function buildWeeklyReport(tx: Tx, target: ReportTarget): Promise<W
     .from(s.tasks)
     .where(scoped);
   const previousStart = addDays(target.weekStart, -7);
+  const previousFrom = zonedInstant(previousStart, '00:00', timeZone);
+  // While the week runs, compare with the same stretch of last week, not all of it.
+  const previousEnd = partial
+    ? new Date(previousFrom.getTime() + (to.getTime() - from.getTime()))
+    : from;
   const [previousCounts] = await tx
-    .select(counts(zonedInstant(previousStart, '00:00', timeZone), from, target.weekStart))
+    .select(counts(previousFrom, previousEnd, target.weekStart))
     .from(s.tasks)
     .where(scoped);
   const [previousSnapshot] = await tx
@@ -91,25 +102,24 @@ export async function buildWeeklyReport(tx: Tx, target: ReportTarget): Promise<W
     .orderBy(desc(s.goalPeriods.startOn))
     .limit(1);
 
-  const goalRows = period
+  // Every active goal of the season is loaded for the rollup (a goal's progress blends its child
+  // goals, as in `recomputeGoalChain`), but only company and department goals are reported.
+  const seasonGoals = period
     ? await tx
         .select()
         .from(s.goals)
-        .where(
-          and(
-            eq(s.goals.periodId, period.id),
-            isNull(s.goals.archivedAt),
-            departmentId
-              ? and(eq(s.goals.level, 'department'), eq(s.goals.departmentId, departmentId))
-              : inArray(s.goals.level, ['company', 'department']),
-          ),
-        )
+        .where(and(eq(s.goals.periodId, period.id), isNull(s.goals.archivedAt)))
         .orderBy(
-          sql`case ${s.goals.level} when 'company' then 0 else 1 end`,
+          sql`case ${s.goals.level} when 'company' then 0 when 'department' then 1 else 2 end`,
           asc(s.goals.createdAt),
         )
     : [];
-  const goalIds = goalRows.map((g) => g.id);
+  const goalRows = seasonGoals.filter((g) =>
+    departmentId
+      ? g.level === 'department' && g.departmentId === departmentId
+      : g.level === 'company' || g.level === 'department',
+  );
+  const goalIds = seasonGoals.map((g) => g.id);
   const krRows = goalIds.length
     ? await tx
         .select()
@@ -117,6 +127,12 @@ export async function buildWeeklyReport(tx: Tx, target: ReportTarget): Promise<W
         .where(and(inArray(s.keyResults.goalId, goalIds), isNull(s.keyResults.archivedAt)))
         .orderBy(asc(s.keyResults.sortKey))
     : [];
+  // Grouped by goal, in the report's goal order.
+  krRows.sort(
+    (a, b) =>
+      seasonGoals.findIndex((g) => g.id === a.goalId) -
+      seasonGoals.findIndex((g) => g.id === b.goalId),
+  );
   const checkinRows = krRows.length
     ? await tx
         .select({
@@ -138,35 +154,47 @@ export async function buildWeeklyReport(tx: Tx, target: ReportTarget): Promise<W
         .orderBy(asc(s.keyResultCheckins.createdAt))
     : [];
   // Each key result's value at the start and end of the week (last check-in before each).
-  const valueAt = (kr: (typeof krRows)[number], before: Date) => {
-    const last = checkinRows.filter((c) => c.keyResultId === kr.id && c.createdAt < before).at(-1);
-    return last ? last.value : kr.startValue;
-  };
+  const lastCheckin = (krId: string, before: Date) =>
+    checkinRows.filter((c) => c.keyResultId === krId && c.createdAt < before).at(-1);
+  const valueAt = (kr: (typeof krRows)[number], before: Date) =>
+    lastCheckin(kr.id, before)?.value ?? kr.startValue;
+  // A goal's progress at a moment, rebuilt from check-ins the way `recomputeGoalChain` blends it.
+  const progressAt = (goalId: string, before: Date, depth = 0): number =>
+    goalProgress([
+      ...krRows
+        .filter((kr) => kr.goalId === goalId)
+        .map((kr) => ({
+          progress: keyResultProgress({ ...kr, currentValue: valueAt(kr, before) }),
+          weight: kr.weight,
+        })),
+      ...(depth < 5
+        ? seasonGoals
+            .filter((g) => g.parentId === goalId)
+            .map((g) => ({ progress: progressAt(g.id, before, depth + 1), weight: 1 }))
+        : []),
+    ]);
   const inWeek = (krId: string) =>
     checkinRows.filter((c) => c.keyResultId === krId && c.createdAt >= from && c.createdAt < to);
 
   const goals = goalRows.map((goal) => {
     const krs = krRows.filter((kr) => kr.goalId === goal.id);
-    const progressAt = (before: Date) =>
-      goalProgress(
-        krs.map((kr) => ({
-          progress: keyResultProgress({ ...kr, currentValue: valueAt(kr, before) }),
-          weight: kr.weight,
-        })),
-      );
+    const measured = krs.length > 0 || seasonGoals.some((g) => g.parentId === goal.id);
+    const progress = progressAt(goal.id, to);
     return {
       id: goal.id,
       title: goal.title,
       level: goal.level,
-      progress: goal.progress,
-      change: krs.length ? progressAt(to) - progressAt(from) : null,
+      progress,
+      change: measured ? progress - progressAt(goal.id, from) : null,
       checkins: krs.reduce((sum, kr) => sum + inWeek(kr.id).length, 0),
-      status: goal.status,
+      status: worstStatus(krs.map((kr) => lastCheckin(kr.id, to)?.status ?? null)),
     };
   });
 
+  // Only the reported goals' key results (personal goals feed the rollup, never the report).
+  const reported = new Set(goalRows.map((g) => g.id));
   const keyResults = krRows
-    .filter((kr) => inWeek(kr.id).length > 0)
+    .filter((kr) => reported.has(kr.goalId) && inWeek(kr.id).length > 0)
     .slice(0, 15)
     .map((kr) => {
       const week = inWeek(kr.id);
@@ -188,12 +216,11 @@ export async function buildWeeklyReport(tx: Tx, target: ReportTarget): Promise<W
     const list = await tx
       .select({ id: s.departments.id, name: s.departments.name })
       .from(s.departments)
-      .where(isNull(s.departments.archivedAt))
+      .where(and(isNull(s.departments.archivedAt), lt(s.departments.createdAt, to)))
       .orderBy(asc(s.departments.name));
     const perDepartment = await tx
       .select({
         departmentId: s.tasks.departmentId,
-        open: sql<number>`count(*) filter (where ${openTask})::int`,
         ...counts(from, to, overdueBefore),
       })
       .from(s.tasks)
@@ -205,7 +232,7 @@ export async function buildWeeklyReport(tx: Tx, target: ReportTarget): Promise<W
       const progress = mean(
         goalRows
           .filter((g) => g.level === 'department' && g.departmentId === d.id)
-          .map((g) => g.progress),
+          .map((g) => progressAt(g.id, to)),
       );
       return {
         ...d,
@@ -230,7 +257,8 @@ export async function buildWeeklyReport(tx: Tx, target: ReportTarget): Promise<W
         sql`${s.projects.visibility} <> 'private'`,
         departmentId ? eq(s.projects.departmentId, departmentId) : undefined,
       ),
-      tasks: notPrivateTask,
+      // A department report counts only that department's tasks, as its managers see them.
+      tasks: and(notPrivateTask, departmentId ? eq(s.tasks.departmentId, departmentId) : undefined),
     },
     today,
     timeZone,
@@ -270,8 +298,6 @@ export async function buildWeeklyReport(tx: Tx, target: ReportTarget): Promise<W
         id: s.tasks.id,
         title: s.tasks.title,
         dueOn: s.tasks.dueOn,
-        assigneeId: s.tasks.assigneeId,
-        assigneeName: assignee,
       })
       .from(s.tasks)
       .where(and(scoped, stuckTask(calendar, timeZone, today) as SQL))
@@ -282,8 +308,6 @@ export async function buildWeeklyReport(tx: Tx, target: ReportTarget): Promise<W
         id: r.id,
         title: r.title,
         dueOn: r.dueOn,
-        assignee:
-          r.assigneeId && r.assigneeName ? { id: r.assigneeId, displayName: r.assigneeName } : null,
         reason: r.dueOn && r.dueOn < threshold ? 'overdue' : 'idle',
       });
     }
