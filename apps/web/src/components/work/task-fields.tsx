@@ -10,11 +10,12 @@ import {
 } from '@madar/shared';
 import { Avatar, DatePicker, SelectField, useToast } from '@madar/ui';
 
+import { KeyResultSelect } from '@/components/goals/key-result-select';
 import { useMembers } from '@/hooks/queries';
 import { useProjects, useTodayDate, useUpdateTask } from '@/hooks/work';
 import { errorMessage } from '@/lib/errors';
 
-/** Side panel: status, priority, assignee, due date, weight and project. */
+/** Side panel: status, priority, assignee, due date, weight, project and key result. */
 export function TaskFields({ task }: { task: Task }) {
   const today = useTodayDate();
   const update = useUpdateTask();
@@ -99,6 +100,11 @@ export function TaskFields({ task }: { task: Task }) {
             : []),
           ...(projects ?? []).map((p) => ({ value: p.id, label: p.name })),
         ]}
+      />
+      <KeyResultSelect
+        value={task.keyResult}
+        disabled={disabled}
+        onChange={(keyResultId) => save({ keyResultId })}
       />
       <dl className="flex flex-col gap-3 border-t border-line pt-4 text-sm">
         <div className="flex items-center justify-between gap-3">

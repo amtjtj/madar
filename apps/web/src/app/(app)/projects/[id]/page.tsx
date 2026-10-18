@@ -26,6 +26,8 @@ import { NewTaskButton } from '@/components/work/new-task-button';
 import { TaskViews } from '@/components/work/task-views';
 import { useMembers } from '@/hooks/queries';
 import { useArchiveProject, useProject, useSetProjectMembers, useTodayDate } from '@/hooks/work';
+import { KeyResultSelect } from '@/components/goals/key-result-select';
+import { useLinkKeyResult } from '@/hooks/goals';
 import { errorMessage } from '@/lib/errors';
 
 export default function ProjectPage() {
@@ -101,9 +103,40 @@ export default function ProjectPage() {
         </CardContent>
       </Card>
 
+      {(project.can.edit || project.keyResult) && (
+        <div className="mb-6 max-w-md">
+          <ProjectKeyResult project={project} />
+        </div>
+      )}
+
       <h2 className="mb-3 text-lg font-bold text-ink">{t('projects.tasksTitle')}</h2>
       <TaskViews params={{ view: 'project', projectId: project.id }} showAssignee />
     </>
+  );
+}
+
+function ProjectKeyResult({ project }: { project: Project }) {
+  const link = useLinkKeyResult();
+  const { toast } = useToast();
+  return (
+    <KeyResultSelect
+      value={project.keyResult}
+      disabled={!project.can.edit || link.isPending}
+      onChange={(keyResultId) =>
+        link.mutate(
+          { kind: 'project', id: project.id, keyResultId },
+          {
+            onSuccess: () =>
+              toast({
+                tone: 'success',
+                title: t(keyResultId ? 'goals.link.saved' : 'goals.link.cleared'),
+                duration: 1500,
+              }),
+            onError: (error) => toast({ tone: 'error', title: errorMessage(error) }),
+          },
+        )
+      }
+    />
   );
 }
 
