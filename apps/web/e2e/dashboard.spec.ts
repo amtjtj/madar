@@ -51,6 +51,7 @@ test('the CEO lands on the company dashboard and drills into overdue work', asyn
   await expect(page.getByRole('heading', { name: 'بار کاری تیم' })).toBeVisible();
   // Switching tabs keeps that department.
   await page.getByRole('radio', { name: 'شرکت' }).click();
+  await expect(page).toHaveURL(/tab=company/);
   await page.getByRole('radio', { name: 'تیم من' }).click();
   await expect(page.getByRole('heading', { name: 'بار کاری تیم' })).toBeVisible();
   // People who might need help are for the team's own managers only.

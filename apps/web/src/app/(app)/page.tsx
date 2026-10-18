@@ -99,7 +99,8 @@ function Home() {
 
   const go = (next: HomeTab, department?: string) => {
     const params = new URLSearchParams({ tab: next });
-    if (next === 'team' && department) params.set('department', department);
+    // Kept on every tab: a company reader's «تیم من» tab exists only while a department is open.
+    if (department) params.set('department', department);
     router.replace(`/?${params.toString()}`, { scroll: false });
     try {
       localStorage.setItem(TAB_KEY, next);
