@@ -7,7 +7,13 @@ import 'reflect-metadata';
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { schema as s, withTenant, type DbHandle } from '@madar/db';
-import { addDays, calendarDateIn, type SystemRole } from '@madar/shared';
+import {
+  addDays,
+  calendarDateIn,
+  calendarDateOfJalali,
+  DEFAULT_WORK_CALENDAR,
+  type SystemRole,
+} from '@madar/shared';
 import { eq } from 'drizzle-orm';
 
 import { AppModule } from '../app.module.js';
@@ -19,6 +25,7 @@ import type { Env } from '../config/env.js';
 import { DB_HANDLE } from '../database/tokens.js';
 import { DepartmentsService } from '../departments/departments.service.js';
 import { MembersService } from '../members/members.service.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 import { TenantsService } from '../tenants/tenants.service.js';
 import { ProjectsService } from '../work/projects.service.js';
 import { TasksService } from '../work/tasks.service.js';
@@ -220,6 +227,23 @@ async function main(): Promise<void> {
       }
     }
 
+    // Work calendar (docs/pilot-assumptions.md §2): Thursday half day, fixed solar holidays.
+    // Lunar holidays move every year; the owner adds them in «ساعت کاری».
+    const solarHolidays = [
+      { jy: 1405, jm: 11, jd: 22 },
+      { jy: 1405, jm: 12, jd: 29 },
+      { jy: 1406, jm: 1, jd: 1 },
+      { jy: 1406, jm: 1, jd: 2 },
+      { jy: 1406, jm: 1, jd: 3 },
+      { jy: 1406, jm: 1, jd: 4 },
+      { jy: 1406, jm: 1, jd: 12 },
+      { jy: 1406, jm: 1, jd: 13 },
+    ].map(calendarDateOfJalali);
+    await app.get(NotificationsService).setWorkCalendar(ctx, {
+      ...DEFAULT_WORK_CALENDAR,
+      holidays: solarHolidays,
+    });
+
     const count = await withTenant(
       handle.db,
       { tenantId },
@@ -232,6 +256,7 @@ async function main(): Promise<void> {
       `Sign in as any seeded username (e.g. ${owner.username}, maryam.ahmadi, ali.rezaei) with SEED_PASSWORD.`,
     );
     say('Owner and admin accounts are asked to set up two-factor authentication at first sign-in.');
+    say('Notifications appear once the worker runs (pnpm dev starts it).');
   } finally {
     await app.close();
   }

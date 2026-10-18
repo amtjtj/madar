@@ -44,9 +44,13 @@ CLAUDE.md fixes the stack; this records the exact versions chosen when the monor
 | Web | qrcode | 1.5.4 | 2FA QR code rendered in the browser (no external service) |
 | Web | @dnd-kit/core / sortable / utilities | 6.3.1 / 10.0.0 / 3.2.2 | Board drag and drop: pointer, touch and keyboard (ADR 0010) |
 | API | fractional-indexing | 4.0.0 | Sort keys for board order (ADR 0010) |
+| Worker | bullmq / ioredis | 6.3.16 / 5.11.1 | Outbox relay queues and job schedulers; ioredis 5 is what BullMQ is tested with (ADR 0011) |
+| Realtime | socket.io / socket.io-client | 4.8.4 / 4.8.4 | Gateway at `/api/socket` (ADR 0011) |
+| Realtime | @nestjs/websockets / @nestjs/platform-socket.io | 12.1.3 / 12.1.3 | Nest gateway |
+| Realtime | @socket.io/redis-adapter / @socket.io/redis-emitter | 8.3.0 / 5.1.0 | Shared rooms across API instances; worker emits through Redis |
 | Claude Code MCP | @upstash/context7-mcp / @playwright/mcp | 4.4.2 / 0.0.83 | `.mcp.json` |
 
-BullMQ and Socket.IO are added in the step that first needs them and recorded here. "Framer Motion" is now published as `motion`. shadcn/ui is used as a pattern (Radix primitives + `cva` + tokens, components owned in `packages/ui`), not as a dependency.
+BullMQ and Socket.IO were added in phase 1, step 6. "Framer Motion" is now published as `motion`. shadcn/ui is used as a pattern (Radix primitives + `cva` + tokens, components owned in `packages/ui`), not as a dependency.
 
 ## Decisions taken during scaffolding
 - **No Nest CLI.** `@nestjs/cli` 12 requires Node ≥ 22.22.3 and adds webpack/schematics we do not need; the API builds with `tsc` and runs dev with `tsc --watch` + `node --watch` (via `concurrently`).

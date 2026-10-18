@@ -109,7 +109,8 @@ Requirements: Node 22.12+ (24 LTS recommended), pnpm 10 (`corepack enable`), Doc
 | Task | Command |
 |---|---|
 | First setup | `cp .env.example .env && pnpm install && pnpm db:up && pnpm db:migrate && pnpm db:seed` |
-| Dev (web :3000, api :4000) | `pnpm dev` |
+| Dev (web :3000, api :4000, worker) | `pnpm dev` |
+| Worker only (outbox relay, notifications, reminders, realtime fan-out) | `pnpm --filter @madar/api worker` |
 | Build everything | `pnpm build` |
 | Typecheck | `pnpm typecheck` |
 | Lint | `pnpm lint` |

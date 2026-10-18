@@ -9,3 +9,10 @@ Implementation rules for the NestJS API and the Drizzle schema. The root `CLAUDE
 - API errors carry codes only (`{ error: { code } }`); the web maps them to Persian in `apps/web/src/lib/errors.ts` and `errors.*` strings.
 - System-role grants are copied into each tenant at signup: adding a permission to `SYSTEM_ROLE_GRANTS` also needs a data migration for existing tenants (see `0004_grant_task_manage.sql`).
 - Work visibility (who sees which task/project) lives in `apps/api/src/work/access.ts` as SQL conditions; reuse them, never filter in memory (ADR 0010).
+
+## Events, worker and realtime (ADR 0011)
+- Emit domain events with `emitEvent(tx, …)` in the same transaction as the change. A new consumer implements `EventConsumer` and is registered in `events/events.module.ts`; it runs inside `withTenant(event.tenantId)` with its `processed_events` row, so it must do all its writes through the given `tx`.
+- Create notifications only through `Notifier.notify()` (skips the actor, checks visibility, muted kinds, quiet hours, dedupe). Each new kind needs `NOTIFICATION_KINDS`, a `notifications.kinds.*` and a `notificationSettings.kinds.*` string.
+- Realtime messages carry no data; add a hint name to `REALTIME_EVENTS` and let the web refetch. Rooms come from `realtime/rooms.ts` and are always built from the event's tenant; only the server joins sockets to rooms.
+- The worker reads across tenants only through the platform functions (`lock_unpublished_events`, `mark_events_published`, `list_active_tenants`).
+
