@@ -49,7 +49,7 @@ function CompanyDashboardView({ data }: { data: CompanyDashboard }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <TileLink href="/goals?view=company">
           <StatTile
             icon={<Target aria-hidden />}
@@ -230,7 +230,7 @@ function CompanyDashboardView({ data }: { data: CompanyDashboard }) {
 export function TileLink({ href, children }: { href: string; children: ReactNode }) {
   return (
     <Card interactive className="p-0">
-      <Link href={href} className="block p-5">
+      <Link href={href} className="block h-full p-3 sm:p-5">
         {children}
       </Link>
     </Card>
@@ -240,7 +240,7 @@ export function TileLink({ href, children }: { href: string; children: ReactNode
 export function DashboardSkeleton() {
   return (
     <div className="flex flex-col gap-6" aria-busy>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
         {[0, 1, 2].map((i) => (
           <Skeleton key={i} className="h-28 rounded-xl" />
         ))}

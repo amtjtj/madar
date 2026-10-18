@@ -44,12 +44,14 @@ export interface StatTileProps {
 export function StatTile({ label, value, hint, tone = 'neutral', icon, className }: StatTileProps) {
   return (
     <div className={cn('flex flex-col gap-1', className)}>
-      <span className="flex items-center gap-1.5 text-sm font-medium text-ink-muted [&_svg]:size-4">
+      <span className="flex items-start gap-1.5 text-xs font-medium text-ink-muted sm:text-sm [&_svg]:mt-0.5 [&_svg]:hidden [&_svg]:size-4 sm:[&_svg]:block">
         {icon}
         {label}
       </span>
-      <span className={cn('text-3xl font-black tabular-nums', TONE_TEXT[tone])}>{value}</span>
-      {hint && <span className="text-xs text-ink-subtle">{hint}</span>}
+      <span className={cn('text-2xl font-black tabular-nums sm:text-3xl', TONE_TEXT[tone])}>
+        {value}
+      </span>
+      {hint && <span className="hidden text-xs text-ink-subtle sm:block">{hint}</span>}
     </div>
   );
 }
@@ -264,8 +266,9 @@ export function ColumnChart({
           <span
             key={p.key}
             className={cn(
-              'flex-1 truncate text-center text-[0.65rem] text-ink-subtle',
-              i % 2 === 1 && i !== last && 'invisible sm:visible',
+              // Every other label on phones; the visible ones may overflow into the hidden ones.
+              'flex flex-1 justify-center text-[0.65rem] whitespace-nowrap text-ink-subtle',
+              i % 2 !== last % 2 && 'invisible sm:visible',
             )}
           >
             {p.label}

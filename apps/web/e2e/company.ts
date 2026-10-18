@@ -55,14 +55,19 @@ export async function setUpCompany(baseURL: string) {
     await owner.post('/api/departments', { data: { name: 'مارکتینگ' } }),
   );
 
-  const createMember = async (name: string, departmentId: string, deptRole: string) => {
+  const createMember = async (
+    name: string,
+    departmentId: string,
+    deptRole: string,
+    roles: string[] = ['member'],
+  ) => {
     const username = `m.${id}.${Math.random().toString(36).slice(2, 7)}`;
     const created = await ok<{ temporaryPassword: string; member: { id: string } }>(
       await owner.post('/api/members', {
         data: {
           displayName: name,
           username,
-          roles: ['member'],
+          roles,
           departments: [{ departmentId, deptRole, isPrimary: true }],
         },
       }),
@@ -84,7 +89,7 @@ export async function setUpCompany(baseURL: string) {
   const manager = await createMember('مریم احمدی', support.id, 'manager');
   const employee = await createMember('علی رضایی', support.id, 'member');
   const outsider = await createMember('شیوا کاظمی', marketing.id, 'member');
-  return { manager, employee, outsider };
+  return { owner, support, marketing, manager, employee, outsider, createMember };
 }
 
 export async function signIn(page: Page, username: string, firstName: string) {

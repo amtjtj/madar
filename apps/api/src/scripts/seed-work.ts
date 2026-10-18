@@ -256,7 +256,8 @@ export const SEED_TASKS: SeedTask[] = [
     by: 'amir.hosseini',
     assignee: 'negar.rezaei',
     project: 'kyc',
-    dueIn: 9,
+    // Late on purpose: the CEO's dashboard shows this project at risk.
+    dueIn: -2,
     weight: 4,
   },
   {
@@ -434,5 +435,37 @@ export const SEED_TASKS: SeedTask[] = [
     by: 'leila.sadeghi',
     assignee: 'leila.sadeghi',
     dueIn: 8,
+  },
+];
+
+/**
+ * Finished work from earlier weeks, so the dashboards' «done per week» trend has a history:
+ * per department, the head records routine tasks and the members finish them.
+ */
+export const SEED_HISTORY: Array<{ by: string; people: string[]; titles: string[] }> = [
+  {
+    by: 'maryam.ahmadi',
+    people: ['ali.rezaei', 'zahra.mohammadi', 'hossein.yousefi'],
+    titles: [
+      'پاسخ به تیکت‌های صف',
+      'پیگیری تراکنش ناموفق',
+      'تماس با مشتری',
+      'به‌روزرسانی پاسخ آماده',
+    ],
+  },
+  {
+    by: 'amir.hosseini',
+    people: ['negar.rezaei', 'behrad.mousavi', 'sahar.jafari', 'pouya.ghasemi', 'mahsa.abbasi'],
+    titles: ['رفع باگ', 'بازبینی کد', 'نوشتن تست', 'به‌روزرسانی وابستگی‌ها'],
+  },
+  {
+    by: 'elham.akbari',
+    people: ['arash.taheri', 'shiva.kazemi', 'milad.rahimi'],
+    titles: ['انتشار پست', 'طراحی بنر', 'گزارش کمپین'],
+  },
+  {
+    by: 'fatemeh.najafi',
+    people: ['niloufar.sharifi'],
+    titles: ['مصاحبه', 'به‌روزرسانی پرونده پرسنلی'],
   },
 ];

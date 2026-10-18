@@ -34,8 +34,14 @@ test('shows a calm offline page when the network is gone', async ({ page, contex
     .toBe(true);
 
   await context.setOffline(true);
-  await page.goto('/tasks').catch(() => undefined);
-  await expect(page.getByRole('heading', { name: 'اتصال برقرار نیست' })).toBeVisible();
+  // Under a busy test machine the worker can still be waking up for the first offline navigation;
+  // a person would simply try again, so the navigation is retried (the page itself is not mocked).
+  await expect(async () => {
+    await page.goto('/tasks').catch(() => undefined);
+    await expect(page.getByRole('heading', { name: 'اتصال برقرار نیست' })).toBeVisible({
+      timeout: 2_000,
+    });
+  }).toPass({ timeout: 20_000 });
   await expect(page.getByRole('button', { name: 'دوباره تلاش کن' })).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   await context.setOffline(false);

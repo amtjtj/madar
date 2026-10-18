@@ -34,7 +34,7 @@ import { TasksService } from '../work/tasks.service.js';
 import { TodayService } from '../work/today.service.js';
 import { SEED_COMPANY, SEED_DEPARTMENTS, SEED_PEOPLE } from './seed-data.js';
 import { SEED_GOALS, SEED_PROJECT_LINKS, SEED_TASK_LINKS } from './seed-goals.js';
-import { SEED_PROJECTS, SEED_TASKS } from './seed-work.js';
+import { SEED_HISTORY, SEED_PROJECTS, SEED_TASKS } from './seed-work.js';
 
 const logger = new Logger('Seed');
 /** Summary lines go straight to stdout (the Nest logger is limited to warnings while seeding). */
@@ -229,6 +229,31 @@ async function main(): Promise<void> {
             taskId: task.id,
           }),
         );
+      }
+    }
+
+    // History for the «done per week» trend: routine tasks finished over the past seven weeks.
+    for (const [d, dept] of SEED_HISTORY.entries()) {
+      const reporter = await as(dept.by);
+      for (let week = 1; week <= 7; week++) {
+        // A gently rising, slightly uneven curve (deterministic).
+        const count = 2 + ((week * 3 + d) % 4) + (7 - week);
+        for (let i = 0; i < count; i++) {
+          const assignee = dept.people[(i + week) % dept.people.length] ?? dept.by;
+          const created = await tasks.create(reporter, {
+            title: dept.titles[(i + week) % dept.titles.length] ?? '',
+            assigneeId: idOf(assignee),
+            statusKey: 'done',
+          });
+          taskCount++;
+          const finished = new Date(Date.now() - (week * 7 - (i % 5)) * 24 * 60 * 60_000);
+          await withTenant(handle.db, { tenantId }, (tx) =>
+            tx
+              .update(s.tasks)
+              .set({ completedAt: finished, createdAt: finished, updatedAt: finished })
+              .where(eq(s.tasks.id, created.id)),
+          );
+        }
       }
     }
 
