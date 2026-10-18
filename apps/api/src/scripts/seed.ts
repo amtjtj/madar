@@ -24,6 +24,8 @@ import { ENV } from '../config/config.module.js';
 import type { Env } from '../config/env.js';
 import { DB_HANDLE } from '../database/tokens.js';
 import { DepartmentsService } from '../departments/departments.service.js';
+import { GoalsService } from '../goals/goals.service.js';
+import { KeyResultsService } from '../goals/key-results.service.js';
 import { MembersService } from '../members/members.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { TenantsService } from '../tenants/tenants.service.js';
@@ -31,6 +33,7 @@ import { ProjectsService } from '../work/projects.service.js';
 import { TasksService } from '../work/tasks.service.js';
 import { TodayService } from '../work/today.service.js';
 import { SEED_COMPANY, SEED_DEPARTMENTS, SEED_PEOPLE } from './seed-data.js';
+import { SEED_GOALS, SEED_PROJECT_LINKS, SEED_TASK_LINKS } from './seed-goals.js';
 import { SEED_PROJECTS, SEED_TASKS } from './seed-work.js';
 
 const logger = new Logger('Seed');
@@ -188,6 +191,7 @@ async function main(): Promise<void> {
 
     const tasks = app.get(TasksService);
     const todayPlans = app.get(TodayService);
+    const taskRefs = new Map<string, { id: string; version: number; by: string }>();
     let taskCount = 0;
     for (const item of SEED_TASKS) {
       const reporter = await as(item.by);
@@ -202,6 +206,7 @@ async function main(): Promise<void> {
         statusKey: item.status,
       });
       taskCount++;
+      taskRefs.set(item.title, { id: task.id, version: task.version, by: item.by });
       for (const title of item.subtasks ?? []) {
         await tasks.create(reporter, {
           title,
@@ -227,6 +232,79 @@ async function main(): Promise<void> {
       }
     }
 
+    // Goals: the current season, each goal created by its owner, with check-in history.
+    const goalsService = app.get(GoalsService);
+    const keyResults = app.get(KeyResultsService);
+    const period = (await goalsService.periods(ctx)).find((p) => p.current);
+    if (!period) throw new Error('current goal period missing');
+    const goalIds = new Map<string, string>();
+    const krIds = new Map<string, string>();
+    for (const g of SEED_GOALS) {
+      const goal = await goalsService.create(await as(g.owner), {
+        periodId: period.id,
+        level: g.level,
+        departmentId: g.department ? departmentIds.get(g.department) : undefined,
+        parentId: g.parent ? goalIds.get(g.parent) : null,
+        title: g.title,
+        keyResults: g.keyResults.map((kr) => ({
+          title: kr.title,
+          kind: kr.kind,
+          startValue: kr.start,
+          targetValue: kr.target,
+          unit: kr.unit ?? null,
+          weight: kr.weight,
+        })),
+      });
+      goalIds.set(g.key, goal.id);
+      g.keyResults.forEach((kr, i) => {
+        const id = goal.keyResults[i]?.id;
+        if (id) krIds.set(kr.key, id);
+      });
+    }
+    for (const g of SEED_GOALS) {
+      for (const kr of g.keyResults) {
+        const id = krIds.get(kr.key);
+        const history = kr.checkins ?? [];
+        const last = history.at(-1);
+        if (!id || !last) continue;
+        // Earlier check-ins are back-dated history; the latest goes through the service.
+        await withTenant(handle.db, { tenantId }, async (tx) => {
+          for (const c of history.slice(0, -1)) {
+            await tx.insert(s.keyResultCheckins).values({
+              keyResultId: id,
+              value: c.value,
+              status: c.status,
+              note: c.note ?? null,
+              authorId: idOf(g.owner),
+              createdAt: new Date(Date.now() - c.daysAgo * 24 * 60 * 60_000),
+            });
+          }
+        });
+        await keyResults.checkIn(await as(g.owner), id, {
+          value: last.value,
+          status: last.status,
+          note: last.note ?? null,
+        });
+      }
+    }
+    for (const [title, krKey] of Object.entries(SEED_TASK_LINKS)) {
+      const task = taskRefs.get(title);
+      const keyResultId = krIds.get(krKey);
+      if (!task || !keyResultId) continue;
+      await tasks
+        .update(await as(task.by), task.id, { version: task.version, keyResultId })
+        .catch((error: unknown) => logger.warn(`link «${title}»: ${String(error)}`));
+    }
+    for (const [projectKey, krKey] of Object.entries(SEED_PROJECT_LINKS)) {
+      const project = SEED_PROJECTS.find((p) => p.key === projectKey);
+      const projectId = projectIds.get(projectKey);
+      const keyResultId = krIds.get(krKey);
+      if (!project || !projectId || !keyResultId) continue;
+      await projects
+        .update(await as(project.owner), projectId, { keyResultId })
+        .catch((error: unknown) => logger.warn(`link project ${projectKey}: ${String(error)}`));
+    }
+
     // Work calendar (docs/pilot-assumptions.md §2): Thursday half day, fixed solar holidays.
     // Lunar holidays move every year; the owner adds them in «ساعت کاری».
     const solarHolidays = [
@@ -250,7 +328,7 @@ async function main(): Promise<void> {
       async (tx) => (await tx.select({ id: s.members.id }).from(s.members)).length,
     );
     say(
-      `Seeded "${SEED_COMPANY.name}" (${SEED_COMPANY.slug}): ${SEED_DEPARTMENTS.length} departments, ${count} members, ${SEED_PROJECTS.length} projects, ${taskCount} tasks.`,
+      `Seeded "${SEED_COMPANY.name}" (${SEED_COMPANY.slug}): ${SEED_DEPARTMENTS.length} departments, ${count} members, ${SEED_PROJECTS.length} projects, ${taskCount} tasks, ${SEED_GOALS.length} goals.`,
     );
     say(
       `Sign in as any seeded username (e.g. ${owner.username}, maryam.ahmadi, ali.rezaei) with SEED_PASSWORD.`,
