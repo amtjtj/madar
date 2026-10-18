@@ -21,3 +21,4 @@ Template: Status · Date · Context · Decision · Alternatives considered · Co
 | 0013 | Goals (OKR) in three levels | Accepted |
 | 0014 | Role homes, dashboards and charts | Accepted |
 | 0015 | Weekly reports and PDF export | Accepted |
+| 0016 | Production deployment on an Iranian cloud server | Accepted |

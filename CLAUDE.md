@@ -125,6 +125,8 @@ Requirements: Node 22.12+ (24 LTS recommended), pnpm 10 (`corepack enable`), Doc
 | Seed the demo company «زرین‌مدار» (20 people, 5 projects, ~240 tasks with 8 weeks of history, 9 goals; password `SEED_PASSWORD`) | `pnpm db:seed` |
 | Install the licensed Abar Low fonts (git-ignored) | `pnpm fonts:install <dir-with-AbarLow-files>` |
 | Generate Web Push (VAPID) keys for `.env` (after a build) | `pnpm --filter @madar/api vapid:generate` |
+| Production: first settings / deploy or update / health (on the server; `docs/deploy.md`) | `scripts/deploy/init-env.sh <domain> <email> [--demo]` / `scripts/deploy/deploy.sh` / `scripts/deploy/status.sh` |
+| Production: backup now / restore / smoke-test a demo stack | `scripts/deploy/backup-now.sh` / `scripts/deploy/restore.sh <file>` / `scripts/deploy/smoke.sh [--restore]` |
 | One package only | `pnpm --filter @madar/<name> <script>` (e.g. `pnpm --filter @madar/api test`) |
 
 Notes:
@@ -134,3 +136,4 @@ Notes:
 - Without Docker, any local Postgres 16+ and Redis 7+ work; point `DATABASE_URL`/`REDIS_URL` at them.
 - If Playwright cannot download its browser, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to a local Chromium.
 - Markdown files are not formatted by Prettier (Persian tables); keep them tidy by hand.
+- Production (ADR 0016): `docker/compose.prod.yml` behind Caddy, images from `docker/*.Dockerfile`. A new environment variable the API reads also goes into the `x-app-env` block there, `.env.example` and `scripts/deploy/init-env.sh`. The demo script for the pilot meeting is `docs/demo-script.md`.
