@@ -26,6 +26,9 @@ import { recomputeGoalChain } from './rollup.js';
 type GoalRow = typeof s.goals.$inferSelect;
 type KeyResultRow = typeof s.keyResults.$inferSelect;
 
+export const archivedError = () =>
+  new ApiError(HttpStatus.CONFLICT, 'goal_archived', 'Goal or key result is archived');
+
 export const invalid = (message: string) =>
   new ApiError(HttpStatus.BAD_REQUEST, 'validation_failed', message);
 
@@ -135,6 +138,7 @@ export class GoalsService {
   update(ctx: TenantContext, id: string, input: UpdateGoalRequest): Promise<GoalDetail> {
     return this.db.run(ctx, async (tx) => {
       const goal = await this.requireEditable(tx, ctx, id);
+      if (goal.archivedAt) throw archivedError();
       if (input.ownerId && input.ownerId !== goal.ownerId) {
         await requireOwner(
           tx,
@@ -178,6 +182,15 @@ export class GoalsService {
     return this.db.run(ctx, async (tx) => {
       const goal = await this.requireEditable(tx, ctx, id);
       if (goal.archivedAt) return;
+      // Children would silently become roots: they are archived or moved first.
+      const [child] = await tx
+        .select({ id: s.goals.id })
+        .from(s.goals)
+        .where(and(eq(s.goals.parentId, id), isNull(s.goals.archivedAt)))
+        .limit(1);
+      if (child) {
+        throw new ApiError(HttpStatus.CONFLICT, 'goal_has_children', 'Goal has active children');
+      }
       await tx.update(s.goals).set({ archivedAt: new Date() }).where(eq(s.goals.id, id));
       if (goal.parentId) await recomputeGoalChain(tx, goal.parentId, ctx.memberId);
       await this.db.audit(tx, ctx, {
@@ -200,7 +213,9 @@ export class GoalsService {
     return goal;
   }
 
+  /** Visible, editable and locked for the rest of the transaction. */
   async requireEditable(tx: Tx, ctx: TenantContext, id: string): Promise<GoalRow> {
+    await tx.select({ id: s.goals.id }).from(s.goals).where(eq(s.goals.id, id)).for('update');
     const goal = await this.requireVisible(tx, ctx, id);
     if (!canEditGoal(ctx.actor, goal)) throw forbidden();
     return goal;
@@ -247,7 +262,13 @@ export class GoalsService {
       ? await tx
           .select({ id: s.projects.id, name: s.projects.name, keyResultId: s.projects.keyResultId })
           .from(s.projects)
-          .where(and(inArray(s.projects.keyResultId, krIds), visibleProjects(ctx.actor)))
+          .where(
+            and(
+              inArray(s.projects.keyResultId, krIds),
+              eq(s.projects.status, 'active'),
+              visibleProjects(ctx.actor),
+            ),
+          )
           .orderBy(asc(s.projects.name))
       : [];
     return {
@@ -293,6 +314,8 @@ export class GoalsService {
     level: GoalLevel,
     periodId: string,
   ): Promise<void> {
+    // Held until commit, so the parent cannot be archived under the new child.
+    await tx.select({ id: s.goals.id }).from(s.goals).where(eq(s.goals.id, parentId)).for('share');
     const parent = await this.requireVisible(tx, ctx, parentId);
     if (
       parent.archivedAt ||

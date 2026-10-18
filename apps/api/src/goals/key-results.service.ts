@@ -10,7 +10,7 @@ import {
   type NewKeyResultRequest,
   type UpdateKeyResultRequest,
 } from '@madar/shared';
-import { and, asc, desc, eq, gte, ilike, isNull, or } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, ilike, isNull, or, sql } from 'drizzle-orm';
 import { generateKeyBetween } from 'fractional-indexing';
 
 import type { TenantContext } from '../common/context.js';
@@ -18,10 +18,14 @@ import { forbidden, notFound } from '../common/errors.js';
 import { TenantDb } from '../database/tenant-db.service.js';
 import { canEditGoal, visibleGoals } from './access.js';
 import { ensurePeriods, tenantToday } from './periods.js';
-import { GoalsService, insertKeyResult, invalid, toKeyResult } from './goals.service.js';
+import {
+  archivedError,
+  GoalsService,
+  insertKeyResult,
+  invalid,
+  toKeyResult,
+} from './goals.service.js';
 import { recomputeGoalChain } from './rollup.js';
-
-type KeyResultRow = typeof s.keyResults.$inferSelect;
 
 @Injectable()
 export class KeyResultsService {
@@ -33,7 +37,7 @@ export class KeyResultsService {
   create(ctx: TenantContext, goalId: string, input: NewKeyResultRequest): Promise<KeyResult> {
     return this.db.run(ctx, async (tx) => {
       const goal = await this.goals.requireEditable(tx, ctx, goalId);
-      if (goal.archivedAt) throw invalid('Goal is archived');
+      if (goal.archivedAt) throw archivedError();
       const [last] = await tx
         .select({ sortKey: s.keyResults.sortKey })
         .from(s.keyResults)
@@ -47,13 +51,21 @@ export class KeyResultsService {
         generateKeyBetween(last?.sortKey ?? null, null),
       );
       await recomputeGoalChain(tx, goalId, ctx.memberId);
+      if (goal.level === 'company') {
+        await this.db.audit(tx, ctx, {
+          action: 'key_result.created',
+          subjectType: 'key_result',
+          subjectId: row.id,
+          after: { goalId, title: row.title, kind: row.kind, targetValue: row.targetValue },
+        });
+      }
       return toKeyResult(row, { tasks: [], projects: 0 });
     });
   }
 
   update(ctx: TenantContext, id: string, input: UpdateKeyResultRequest): Promise<KeyResult> {
     return this.db.run(ctx, async (tx) => {
-      const kr = await this.requireEditable(tx, ctx, id);
+      const { kr, goal } = await this.requireEditable(tx, ctx, id);
       const range =
         input.startValue !== undefined || input.targetValue !== undefined
           ? keyResultRange({
@@ -77,22 +89,37 @@ export class KeyResultsService {
         .returning();
       await recomputeGoalChain(tx, kr.goalId, ctx.memberId);
       if (!row) throw notFound('Key result');
+      if (goal.level === 'company') {
+        await this.db.audit(tx, ctx, {
+          action: 'key_result.updated',
+          subjectType: 'key_result',
+          subjectId: id,
+          before: { title: kr.title, startValue: kr.startValue, targetValue: kr.targetValue },
+          after: input,
+        });
+      }
       return toKeyResult(row, { tasks: [], projects: 0 });
     });
   }
 
   archive(ctx: TenantContext, id: string): Promise<void> {
     return this.db.run(ctx, async (tx) => {
-      const kr = await this.requireEditable(tx, ctx, id);
+      const { kr } = await this.requireEditable(tx, ctx, id);
       await tx.update(s.keyResults).set({ archivedAt: new Date() }).where(eq(s.keyResults.id, id));
       await recomputeGoalChain(tx, kr.goalId, ctx.memberId);
+      await this.db.audit(tx, ctx, {
+        action: 'key_result.archived',
+        subjectType: 'key_result',
+        subjectId: id,
+        before: { goalId: kr.goalId, title: kr.title },
+      });
     });
   }
 
   /** Records progress: value, status and note; the goal chain is recomputed in the same transaction. */
   checkIn(ctx: TenantContext, id: string, input: CreateCheckinRequest): Promise<Checkin> {
     return this.db.run(ctx, async (tx) => {
-      const kr = await this.requireEditable(tx, ctx, id);
+      const { kr } = await this.requireEditable(tx, ctx, id);
       if (kr.kind === 'boolean' && input.value !== 0 && input.value !== 1) {
         throw invalid('A done/not done key result takes 0 or 1');
       }
@@ -169,11 +196,21 @@ export class KeyResultsService {
             visibleGoals(ctx.actor),
             // Current and future seasons only.
             gte(s.goalPeriods.endOn, today),
-            q ? or(ilike(s.keyResults.title, `%${q}%`), ilike(s.goals.title, `%${q}%`)) : undefined,
+            q
+              ? or(
+                  ilike(s.keyResults.title, `%${escapeLike(q)}%`),
+                  ilike(s.goals.title, `%${escapeLike(q)}%`),
+                )
+              : undefined,
           ),
         )
-        .orderBy(asc(s.goals.title), asc(s.keyResults.sortKey))
-        .limit(50);
+        // Most relevant first: my goals, then my departments', then the rest.
+        .orderBy(
+          sql`case when ${s.goals.ownerId} = ${ctx.memberId} then 0 when ${s.goals.departmentId} in (select dm.department_id from department_memberships dm where dm.member_id = ${ctx.memberId}) then 1 else 2 end`,
+          asc(s.goals.title),
+          asc(s.keyResults.sortKey),
+        )
+        .limit(200);
       return rows.map((r) => ({
         id: r.id,
         title: r.title,
@@ -193,11 +230,20 @@ export class KeyResultsService {
     return row;
   }
 
-  private async requireEditable(tx: Tx, ctx: TenantContext, id: string): Promise<KeyResultRow> {
-    const { kr, goal } = await this.requireVisible(tx, ctx, id);
-    if (!canEditGoal(ctx.actor, goal)) throw forbidden();
-    if (kr.archivedAt || goal.archivedAt) throw invalid('Archived');
-    return kr;
+  /**
+   * Visible, editable and locked: concurrent check-ins and edits of one key result run one after
+   * the other, so progress always matches the current value.
+   */
+  private async requireEditable(tx: Tx, ctx: TenantContext, id: string) {
+    await tx
+      .select({ id: s.keyResults.id })
+      .from(s.keyResults)
+      .where(eq(s.keyResults.id, id))
+      .for('update');
+    const row = await this.requireVisible(tx, ctx, id);
+    if (!canEditGoal(ctx.actor, row.goal)) throw forbidden();
+    if (row.kr.archivedAt || row.goal.archivedAt) throw archivedError();
+    return row;
   }
 
   private async toCheckin(tx: Tx, row: typeof s.keyResultCheckins.$inferSelect): Promise<Checkin> {
@@ -222,4 +268,9 @@ function serializeCheckin(
     author: { id: row.authorId, displayName: authorName },
     createdAt: row.createdAt.toISOString(),
   };
+}
+
+/** `%` and `_` typed by a person are literal characters, not wildcards. */
+function escapeLike(text: string): string {
+  return text.replace(/[\\%_]/g, (c) => `\\${c}`);
 }

@@ -13,6 +13,7 @@ import type {
   NewKeyResultRequest,
   UpdateGoalRequest,
 } from '@madar/shared';
+import { keyResultProgress } from '@madar/shared';
 
 import { api } from '@/lib/api';
 
@@ -117,7 +118,14 @@ export function useCheckIn(goalId: string) {
           ? {
               ...goal,
               keyResults: goal.keyResults.map((kr) =>
-                kr.id === keyResultId ? { ...kr, currentValue: value, status } : kr,
+                kr.id === keyResultId
+                  ? {
+                      ...kr,
+                      currentValue: value,
+                      status,
+                      progress: keyResultProgress({ ...kr, currentValue: value }),
+                    }
+                  : kr,
               ),
             }
           : goal,

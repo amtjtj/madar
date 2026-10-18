@@ -19,6 +19,8 @@ const API_CODES = new Set([
   'no_department',
   'push_endpoint_not_allowed',
   'push_disabled',
+  'goal_archived',
+  'goal_has_children',
 ]);
 
 /** Persian message for any error thrown by `api()` or the auth helpers. */

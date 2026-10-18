@@ -19,11 +19,13 @@ export async function recomputeGoalChain(
         id: s.goals.id,
         parentId: s.goals.parentId,
         completedAt: s.goals.completedAt,
+        archivedAt: s.goals.archivedAt,
       })
       .from(s.goals)
       .where(eq(s.goals.id, current))
       .for('update');
-    if (!goal) return;
+    // An archived goal is out of the tree: it neither changes nor completes.
+    if (!goal || goal.archivedAt) return;
     const keyResults = await tx
       .select({
         progress: s.keyResults.progress,

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatNumber, formatPercent, toLatinDigits, toPersianDigits } from './digits.js';
+import {
+  formatNumber,
+  formatPercent,
+  parseDecimal,
+  toLatinDigits,
+  toPersianDigits,
+} from './digits.js';
 
 describe('digits', () => {
   it('converts Latin digits to Persian', () => {
@@ -19,5 +25,15 @@ describe('digits', () => {
   it('formats numbers and percentages in Persian', () => {
     expect(formatNumber(1234567)).toBe('۱٬۲۳۴٬۵۶۷');
     expect(formatPercent(0.72)).toBe('۷۲٪');
+  });
+});
+
+describe('parseDecimal', () => {
+  it('reads Persian and Latin input', () => {
+    expect(parseDecimal('۱۲٬۵۰۰')).toBe(12_500);
+    expect(parseDecimal('۳٫۲')).toBe(3.2);
+    expect(parseDecimal(' 40 ')).toBe(40);
+    expect(parseDecimal('')).toBeUndefined();
+    expect(parseDecimal('abc')).toBeNaN();
   });
 });

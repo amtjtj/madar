@@ -8,7 +8,7 @@ import { t } from '@madar/i18n';
 import {
   keyResultRange,
   PARENT_LEVELS,
-  toLatinDigits,
+  parseDecimal,
   formatNumber,
   type GoalLevel,
   type KeyResultKind,
@@ -29,10 +29,7 @@ interface KrDraft {
   unit: string;
 }
 
-const parseNumber = (value: string) => {
-  const normalized = toLatinDigits(value).replace(/[٬,]/g, '').replace('٫', '.').trim();
-  return normalized === '' ? undefined : Number(normalized);
-};
+const parseNumber = parseDecimal;
 
 let nextKey = 1;
 const emptyKr = (): KrDraft => ({

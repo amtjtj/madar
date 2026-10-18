@@ -23,3 +23,14 @@ export function formatNumber(value: number, options?: Intl.NumberFormatOptions):
 export function formatPercent(ratio: number, maximumFractionDigits = 0): string {
   return new Intl.NumberFormat('fa-IR', { style: 'percent', maximumFractionDigits }).format(ratio);
 }
+
+/**
+ * A decimal typed by a person (Persian or Latin digits, Persian or Latin separators) as a number;
+ * undefined when empty, NaN when it is not a number.
+ */
+export function parseDecimal(input: string): number | undefined {
+  const normalized = toLatinDigits(input)
+    .replace(/[٬,\s]/g, '')
+    .replace('٫', '.');
+  return normalized === '' ? undefined : Number(normalized);
+}

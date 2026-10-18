@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 
 import { t } from '@madar/i18n';
-import { keyResultRange, toLatinDigits, type GoalDetail, type KeyResultKind } from '@madar/shared';
+import { keyResultRange, parseDecimal, type GoalDetail, type KeyResultKind } from '@madar/shared';
 import {
   Button,
   Card,
@@ -183,10 +183,7 @@ function AddKeyResult({ goalId }: { goalId: string }) {
   const [start, setStart] = useState('');
   const [target, setTarget] = useState('');
   const [unit, setUnit] = useState('');
-  const num = (v: string) => {
-    const n = toLatinDigits(v).replace(/[٬,]/g, '').replace('٫', '.').trim();
-    return n === '' ? undefined : Number(n);
-  };
+  const num = parseDecimal;
   const body = {
     title: title.trim(),
     kind,
@@ -229,7 +226,7 @@ function AddKeyResult({ goalId }: { goalId: string }) {
     >
       <form onSubmit={submit} className="flex flex-col gap-4">
         <TextField
-          label={t('goals.link.label')}
+          label={t('goals.form.krName')}
           placeholder={t('goals.form.krTitlePlaceholder')}
           value={title}
           onChange={(e) => setTitle(e.target.value)}

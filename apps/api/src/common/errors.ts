@@ -25,6 +25,8 @@ export type ErrorCode =
   | 'no_department'
   | 'push_endpoint_not_allowed'
   | 'push_disabled'
+  | 'goal_archived'
+  | 'goal_has_children'
   | 'conflict';
 
 export class ApiError extends HttpException {

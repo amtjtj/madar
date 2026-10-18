@@ -177,6 +177,32 @@ describe.skipIf(!hasDatabase)('goals', () => {
     expect((await colleague.c.get(`/api/goals/${personal.id}`)).status).toBe(404);
   });
 
+  it('never leaks a personal goal to a peer through other paths', async () => {
+    // Department detail: child count, children and options hide the personal goal from a colleague.
+    const forColleague: GoalDetail = (await colleague.c.get(`/api/goals/${department.id}`)).body;
+    expect(forColleague.children.map((g) => g.id)).not.toContain(personal.id);
+    expect(forColleague.childCount).toBe(0);
+    const forHead: GoalDetail = (await head.c.get(`/api/goals/${department.id}`)).body;
+    expect(forHead.childCount).toBe(1);
+    const options = (await colleague.c.get('/api/key-results')).body as { id: string }[];
+    expect(options.map((o) => o.id)).not.toContain(personal.keyResults[0]?.id);
+    // A task the colleague can see, linked to the personal key result, shows no link to them.
+    const task = (await agent.c.post('/api/tasks', { title: 'کار مشترک دپارتمان' })).body;
+    const linked = await agent.c.patch(`/api/tasks/${task.id}`, {
+      version: task.version,
+      keyResultId: personal.keyResults[0]?.id,
+    });
+    expect(linked.body.keyResult?.id).toBe(personal.keyResults[0]?.id);
+    const seen = (await colleague.c.get(`/api/tasks/${task.id}`)).body;
+    expect(seen.keyResult).toBeNull();
+    // And nobody but its editors archives it.
+    expect((await colleague.c.post(`/api/goals/${personal.id}/archive`)).status).toBe(404);
+    expect(
+      (await marketer.c.post(`/api/key-results/${department.keyResults[0]?.id}/archive`)).status,
+    ).toBe(404);
+    expect((await colleague.c.post(`/api/goals/${department.id}/archive`)).status).toBe(403);
+  });
+
   it('rolls check-ins up the chain to the company goal', async () => {
     const [time, chat] = department.keyResults;
     // 24 h → 14 h is half way on a decreasing target; the colleague may not check in.
@@ -261,6 +287,42 @@ describe.skipIf(!hasDatabase)('goals', () => {
     const after: GoalDetail = (await ceo.c.get(`/api/goals/${company.id}`)).body;
     expect(after.progress).toBeLessThan(before.progress);
     expect(after.children.map((g) => g.id)).not.toContain(child.id);
+  });
+
+  it('keeps archived goals out of the tree and unchanged', async () => {
+    const parent = (
+      await create(head.c, { level: 'department', departmentId: support.id, title: 'والد موقت' })
+    ).body as GoalDetail;
+    const child = (
+      await create(agent.c, {
+        level: 'individual',
+        departmentId: support.id,
+        parentId: parent.id,
+        title: 'فرزند',
+        keyResults: [{ title: 'تمام', kind: 'boolean' }],
+      })
+    ).body as GoalDetail;
+    // A goal with active children cannot be archived.
+    const blocked = await head.c.post(`/api/goals/${parent.id}/archive`);
+    expect(blocked.status).toBe(409);
+    expect(blocked.body.error.code).toBe('goal_has_children');
+    expect((await agent.c.post(`/api/goals/${child.id}/archive`)).status).toBe(204);
+    expect((await head.c.post(`/api/goals/${parent.id}/archive`)).status).toBe(204);
+    // Archived: no edits, no key results, no check-ins.
+    const edit = await head.c.patch(`/api/goals/${parent.id}`, { title: 'x' });
+    expect(edit.body.error.code).toBe('goal_archived');
+    expect(
+      (
+        await agent.c.post(`/api/key-results/${child.keyResults[0]?.id}/check-ins`, {
+          value: 1,
+          status: 'on_track',
+        })
+      ).status,
+    ).toBe(409);
+    const audit = await withTenant(handle.db, { tenantId }, (tx) =>
+      tx.select().from(s.auditLogs).where(eq(s.auditLogs.subjectId, parent.id)),
+    );
+    expect(audit.map((a) => a.action)).toContain('goal.archived');
   });
 
   it('links tasks to key results the editor can see, and shows them under the goal', async () => {

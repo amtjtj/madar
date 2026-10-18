@@ -6,7 +6,7 @@ import { t } from '@madar/i18n';
 import {
   CHECKIN_STATUSES,
   formatNumber,
-  toLatinDigits,
+  parseDecimal,
   type CheckinStatus,
   type KeyResult,
 } from '@madar/shared';
@@ -42,12 +42,7 @@ export function CheckinSheet({ goalId, kr }: { goalId: string; kr: KeyResult }) 
     setOpen(next);
   };
 
-  const parsed =
-    kr.kind === 'boolean'
-      ? done
-        ? 1
-        : 0
-      : Number(toLatinDigits(value).replace(/[٬,]/g, '').replace('٫', '.').trim() || NaN);
+  const parsed = kr.kind === 'boolean' ? (done ? 1 : 0) : (parseDecimal(value) ?? NaN);
   const valid =
     Number.isFinite(parsed) && (kr.kind !== 'percent' || (parsed >= 0 && parsed <= 100));
 
