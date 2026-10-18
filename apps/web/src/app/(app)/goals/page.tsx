@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Suspense, useState } from 'react';
 
 import { t } from '@madar/i18n';
 import { Card, EmptyState, SelectField, Skeleton } from '@madar/ui';
@@ -17,8 +18,19 @@ const VIEWS: GoalView[] = ['mine', 'department', 'company'];
 const DEFAULT_LEVEL = { mine: 'individual', department: 'department', company: 'company' } as const;
 
 export default function GoalsPage() {
+  return (
+    <Suspense>
+      <GoalsScreen />
+    </Suspense>
+  );
+}
+
+function GoalsScreen() {
+  const requested = useSearchParams().get('view') as GoalView | null;
   const { data: periods } = useGoalPeriods();
-  const [view, setView] = useState<GoalView>('mine');
+  const [view, setView] = useState<GoalView>(
+    requested && VIEWS.includes(requested) ? requested : 'mine',
+  );
   const [chosenPeriod, setChosenPeriod] = useState<string>();
   const periodId = chosenPeriod ?? periods?.find((p) => p.current)?.id;
   const { data: goals, isPending } = useGoals(view, periodId);

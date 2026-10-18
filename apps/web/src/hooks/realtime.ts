@@ -5,7 +5,7 @@ import { REALTIME_EVENTS, REALTIME_PATH } from '@madar/shared';
 import { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 
-import { notificationKeys, workKeys } from './keys';
+import { dashboardKeys, notificationKeys, workKeys } from './keys';
 
 /**
  * Live updates: the server sends content-free hints and the matching queries refetch through
@@ -29,6 +29,7 @@ export function useRealtime(enabled: boolean, tenantId?: string): boolean {
           void client.invalidateQueries({ queryKey: workKeys.allTasks });
           void client.invalidateQueries({ queryKey: ['task'] });
           void client.invalidateQueries({ queryKey: workKeys.projects });
+          void client.invalidateQueries({ queryKey: dashboardKeys.all });
         }
         if (pending.has('today')) void client.invalidateQueries({ queryKey: workKeys.today });
         if (pending.has('notifications')) {

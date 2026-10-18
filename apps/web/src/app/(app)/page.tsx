@@ -2,7 +2,8 @@
 
 import { ArrowLeft, Check, Plus, Sparkles, X } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useState } from 'react';
 
 import { t } from '@madar/i18n';
 import {
@@ -26,19 +27,86 @@ import {
 } from '@madar/ui';
 
 import { PageHeader } from '@/components/app-shell';
+import { GoalTag } from '@/components/goals/goal-tag';
+import { CompanyView } from '@/components/home/company-view';
+import { MyGoalsCard } from '@/components/home/my-goals-card';
+import { TeamView } from '@/components/home/team-view';
 import { InstallCard } from '@/components/pwa/install';
 import { NewTaskButton } from '@/components/work/new-task-button';
+import { Segmented } from '@/components/work/task-views';
 import { QuickAdd } from '@/components/work/quick-add';
 import { useCan, useDepartments, useMembers } from '@/hooks/queries';
 import { useMe } from '@/hooks/use-me';
 import { isDraft, useAddToToday, useRemoveFromToday, useToday, useToggleDone } from '@/hooks/work';
 import { errorMessage } from '@/lib/errors';
 
-export default function TodayPage() {
+type HomeTab = 'today' | 'team' | 'company';
+const TAB_KEY = 'madar.home.tab';
+
+export default function HomePage() {
+  return (
+    <Suspense>
+      <Home />
+    </Suspense>
+  );
+}
+
+/**
+ * One home per role (plan phase-1-step-8): executives land on «شرکت», department managers on
+ * «تیم من», everyone else on «امروز». The last choice is remembered on this device.
+ */
+function Home() {
+  const search = useSearchParams();
+  const router = useRouter();
   const { data: me } = useMe();
   const can = useCan();
-  const { data: today, isPending } = useToday();
+  const { data: departments } = useDepartments();
+  const { data: today } = useToday();
   const firstName = (me?.member?.displayName ?? '').split(' ')[0] ?? '';
+
+  const member = me?.member;
+  const seesCompany =
+    member?.permissions['task.read'] === 'tenant' && member?.permissions['goal.read'] === 'tenant';
+  const managed = (member?.departments ?? [])
+    .filter((d) => d.deptRole === 'head' || d.deptRole === 'manager')
+    .map((d) => d.id);
+  // Company readers can open any department's team view from the company dashboard.
+  const teamDepartments = (departments ?? []).filter(
+    (d) => managed.includes(d.id) || (seesCompany && d.id === search.get('department')),
+  );
+  const tabs: HomeTab[] = [
+    'today',
+    ...(teamDepartments.length || managed.length ? (['team'] as const) : []),
+    ...(seesCompany ? (['company'] as const) : []),
+  ];
+  const fallback: HomeTab = seesCompany ? 'company' : managed.length ? 'team' : 'today';
+  const [chosen, setChosen] = useState<HomeTab | null>(() => {
+    const fromUrl = search.get('tab') as HomeTab | null;
+    if (fromUrl) return fromUrl;
+    try {
+      return (localStorage.getItem(TAB_KEY) as HomeTab | null) ?? null;
+    } catch {
+      return null;
+    }
+  });
+  const tab = chosen && tabs.includes(chosen) ? chosen : fallback;
+  const [teamDepartment, setTeamDepartment] = useState<string | undefined>(
+    search.get('department') ?? undefined,
+  );
+  const departmentId =
+    teamDepartment && teamDepartments.some((d) => d.id === teamDepartment)
+      ? teamDepartment
+      : teamDepartments[0]?.id;
+
+  const choose = (next: HomeTab) => {
+    setChosen(next);
+    if (search.get('tab')) router.replace('/');
+    try {
+      localStorage.setItem(TAB_KEY, next);
+    } catch {
+      // Remembering the tab is a convenience only.
+    }
+  };
 
   return (
     <>
@@ -54,8 +122,40 @@ export default function TodayPage() {
       <div className="flex flex-col gap-6 pb-20 md:pb-0">
         {can('department.manage') && can('member.create') && <SetupChecklist />}
         <InstallCard />
-        {isPending || !today ? <TodaySkeleton /> : <TodayPlan today={today} />}
+        {member && tabs.length > 1 && (
+          <div className="overflow-x-auto">
+            <Segmented
+              label={t('home.tabs.label')}
+              value={tab}
+              onChange={choose}
+              options={tabs.map((value) => ({ value, label: t(`home.tabs.${value}`) }))}
+            />
+          </div>
+        )}
+        {!member ? (
+          <TodaySkeleton />
+        ) : tab === 'company' ? (
+          <CompanyView />
+        ) : tab === 'team' ? (
+          <TeamView
+            departments={teamDepartments}
+            departmentId={departmentId}
+            onDepartmentChange={setTeamDepartment}
+          />
+        ) : (
+          <TodayTab />
+        )}
       </div>
+    </>
+  );
+}
+
+function TodayTab() {
+  const { data: today, isPending } = useToday();
+  return (
+    <>
+      {isPending || !today ? <TodaySkeleton /> : <TodayPlan today={today} />}
+      <MyGoalsCard />
     </>
   );
 }
@@ -133,6 +233,7 @@ function TodayPlan({ today }: { today: Today }) {
                   projectName={task.project?.name}
                   subtasks={task.subtasks}
                   commentCount={task.commentCount}
+                  tag={task.keyResult ? <GoalTag keyResult={task.keyResult} /> : undefined}
                   action={
                     isDraft(task) ? null : (
                       <button

@@ -32,3 +32,9 @@ export const goalKeys = {
   checkins: (keyResultId: string) => ['goals', 'checkins', keyResultId] as const,
   options: (q: string) => ['goals', 'kr-options', q] as const,
 };
+
+export const dashboardKeys = {
+  all: ['dashboard'] as const,
+  company: ['dashboard', 'company'] as const,
+  department: (id: string) => ['dashboard', 'department', id] as const,
+};

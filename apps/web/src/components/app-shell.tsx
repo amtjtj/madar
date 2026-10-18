@@ -17,7 +17,6 @@ import {
   Users,
   WifiOff,
 } from 'lucide-react';
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
 
@@ -29,7 +28,6 @@ import {
   OrbitIllustration,
   Sidebar,
   ThemeToggle,
-  type LinkComponent,
   type NavItem,
 } from '@madar/ui';
 
@@ -44,11 +42,7 @@ import { useMe } from '@/hooks/use-me';
 import { auth } from '@/lib/auth';
 import { removeDevicePush } from '@/lib/pwa';
 
-const NextLink: LinkComponent = ({ href, children, ...props }) => (
-  <Link href={href} {...props}>
-    {children}
-  </Link>
-);
+import { NextLink } from './next-link';
 
 function roleLabel(roles: string[]): string {
   const order = ['owner', 'admin', 'executive', 'hr_manager', 'member'] as const;

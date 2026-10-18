@@ -32,6 +32,7 @@ import { t } from '@madar/i18n';
 import type { StatusCategory, Task } from '@madar/shared';
 import { BoardColumn, TaskCard, useToast } from '@madar/ui';
 
+import { GoalTag } from '@/components/goals/goal-tag';
 import { useMoveTask } from '@/hooks/work';
 import { errorMessage } from '@/lib/errors';
 
@@ -333,6 +334,7 @@ function SortableTask({
       subtasks={task.subtasks}
       commentCount={task.commentCount}
       assigneeName={task.assignee?.displayName}
+      tag={task.keyResult ? <GoalTag keyResult={task.keyResult} /> : undefined}
       compact
     />
   );

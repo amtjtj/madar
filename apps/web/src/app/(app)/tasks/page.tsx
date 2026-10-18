@@ -36,9 +36,10 @@ function TasksScreen() {
   const requested = search.get('view') as Tab | null;
   const [tab, setTab] = useState<Tab>(requested && TABS.includes(requested) ? requested : 'mine');
   const departmentId = search.get('departmentId') ?? undefined;
+  const assigneeId = search.get('assigneeId') ?? undefined;
   const due = search.get('due') === 'overdue' ? ('overdue' as const) : undefined;
   const stuck = search.get('stuck') === 'true' ? true : undefined;
-  const drillDown = Boolean(due || stuck || departmentId);
+  const drillDown = Boolean(due || stuck || departmentId || assigneeId);
   const departmentName = departments?.find((d) => d.id === departmentId)?.name;
   const hasDepartment = (me?.member?.departments.length ?? 0) > 0;
   // Oversight and company-wide readers also get «همه».
@@ -72,7 +73,7 @@ function TasksScreen() {
         </div>
       )}
       <TaskViews
-        params={{ view: tab, departmentId, due, stuck }}
+        params={{ view: tab, departmentId, assigneeId, due, stuck }}
         showAssignee={tab !== 'mine'}
         emptyDescription={tab === 'mine' ? t('tasks.emptyMine') : undefined}
         toolbar={
