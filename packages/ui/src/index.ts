@@ -65,3 +65,15 @@ export { BoardColumn, type BoardColumnProps } from './components/board-column.js
 export { dueTone, priorityTone, statusDot } from './components/task-meta.js';
 export { Popover, type PopoverProps } from './components/popover.js';
 export { NotificationBell, type NotificationBellProps } from './components/notification-bell.js';
+export {
+  BarList,
+  ColumnChart,
+  StackedBarList,
+  StatTile,
+  type BarListItem,
+  type BarListProps,
+  type ColumnChartProps,
+  type StackedBarListProps,
+  type StackedSeries,
+  type StatTileProps,
+} from './components/charts.js';

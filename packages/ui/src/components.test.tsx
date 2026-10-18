@@ -126,3 +126,38 @@ describe('TaskCard', () => {
     expect(onDoneChange).toHaveBeenCalledWith(true);
   });
 });
+
+describe('charts', () => {
+  it('shows Persian digits and keeps a table for screen readers', async () => {
+    const { BarList } = await import('./components/charts.js');
+    render(
+      <BarList
+        title="کارهای گذشته از سررسید"
+        items={[
+          { key: 'a', label: 'پشتیبانی', value: 7, href: '/tasks?due=overdue' },
+          { key: 'b', label: 'فنی', value: 0 },
+        ]}
+      />,
+    );
+    expect(screen.getByRole('table', { name: 'کارهای گذشته از سررسید' })).toBeTruthy();
+    expect(screen.getAllByText('۷').length).toBeGreaterThan(0);
+    expect(screen.getByRole('rowheader', { name: 'پشتیبانی' })).toBeTruthy();
+  });
+
+  it('labels the latest column and shows a tooltip on focus', async () => {
+    const { ColumnChart } = await import('./components/charts.js');
+    const { container } = render(
+      <ColumnChart
+        title="انجام‌شده در هفته"
+        points={[
+          { key: '1', label: 'هفته ۱', value: 3 },
+          { key: '2', label: 'هفته ۲', value: 12 },
+        ]}
+      />,
+    );
+    expect(screen.getAllByText('۱۲').length).toBeGreaterThan(0);
+    const first = container.querySelector('[tabindex="0"]') as HTMLElement;
+    fireEvent.focus(first);
+    expect(screen.getByText('هفته ۱: ۳')).toBeTruthy();
+  });
+});

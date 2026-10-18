@@ -62,6 +62,9 @@
   --success-ink: oklch(40% 0.1 152);
 
   --info: oklch(57% 0.15 255);
+  /* Chart series (validated for colorblind separation and contrast, ADR 0014) */
+  --chart-1: oklch(55% 0.135 163);
+  --chart-2: oklch(57% 0.15 255);
   --info-soft: oklch(95.5% 0.03 255);
   --info-ink: oklch(43% 0.13 258);
 
@@ -119,6 +122,8 @@
   --success-ink: oklch(86% 0.1 152);
 
   --info: oklch(70% 0.13 255);
+  --chart-1: oklch(64% 0.14 163);
+  --chart-2: oklch(63% 0.14 255);
   --info-soft: oklch(30% 0.06 258);
   --info-ink: oklch(85% 0.08 258);
 
@@ -167,6 +172,8 @@
     --success-soft: oklch(30% 0.055 152);
     --success-ink: oklch(86% 0.1 152);
     --info: oklch(70% 0.13 255);
+    --chart-1: oklch(64% 0.14 163);
+    --chart-2: oklch(63% 0.14 255);
     --info-soft: oklch(30% 0.06 258);
     --info-ink: oklch(85% 0.08 258);
     --focus: oklch(74% 0.14 163);
@@ -217,6 +224,8 @@
   --color-success-soft: var(--success-soft);
   --color-success-ink: var(--success-ink);
   --color-info: var(--info);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
   --color-info-soft: var(--info-soft);
   --color-info-ink: var(--info-ink);
   --color-focus: var(--focus);

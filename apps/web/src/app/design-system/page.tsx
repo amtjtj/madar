@@ -16,6 +16,7 @@ import {
   Avatar,
   AvatarGroup,
   Badge,
+  BarList,
   Button,
   Card,
   CardContent,
@@ -23,11 +24,14 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
+  ColumnChart,
   EmptyState,
   ProgressBar,
   ProgressRing,
   Skeleton,
   SkeletonText,
+  StackedBarList,
+  StatTile,
   TextField,
   ThemeToggle,
   cn,
@@ -414,6 +418,52 @@ export default function DesignSystemPage() {
         </Section>
 
         {/* ---------- Navigation ---------- */}
+        <Section id="charts" title={t('designSystem.sections.charts')}>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Panel>
+              <StatTile
+                label={t('designSystem.charts.stat')}
+                value={formatPercent(0.42)}
+                hint={t('designSystem.charts.statHint')}
+              />
+            </Panel>
+            <Panel>
+              <BarList
+                title={t('designSystem.charts.overdue')}
+                tone="danger"
+                items={[
+                  { key: '1', label: t('designSystem.charts.dept1'), value: 7 },
+                  { key: '2', label: t('designSystem.charts.dept2'), value: 3 },
+                  { key: '3', label: t('designSystem.charts.dept3'), value: 0 },
+                ]}
+              />
+            </Panel>
+            <Panel>
+              <ColumnChart
+                title={t('designSystem.charts.weekly')}
+                points={[12, 18, 15, 22, 19, 25, 21, 28].map((value, i) => ({
+                  key: String(i),
+                  label: t('designSystem.charts.week', { n: formatNumber(i + 1) }),
+                  value,
+                }))}
+              />
+            </Panel>
+            <Panel>
+              <StackedBarList
+                title={t('designSystem.charts.workload')}
+                series={[
+                  { key: 'todo', label: t('designSystem.charts.todo'), fill: 'bg-chart-2' },
+                  { key: 'doing', label: t('designSystem.charts.inProgress'), fill: 'bg-chart-1' },
+                ]}
+                rows={[
+                  { key: '1', label: t('designSystem.charts.person1'), values: [4, 2] },
+                  { key: '2', label: t('designSystem.charts.person2'), values: [2, 3] },
+                ]}
+              />
+            </Panel>
+          </div>
+        </Section>
+
         <Section id="navigation" title={t('designSystem.sections.navigation')}>
           <NavigationDemo />
         </Section>
