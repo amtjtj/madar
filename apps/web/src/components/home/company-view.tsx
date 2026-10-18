@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertTriangle, FolderKanban, Target, TimerOff } from 'lucide-react';
+import { AlertTriangle, FileText, FolderKanban, Target, TimerOff } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
@@ -49,6 +49,7 @@ function CompanyDashboardView({ data }: { data: CompanyDashboard }) {
 
   return (
     <div className="flex flex-col gap-6">
+      <ReportLink href="/reports?scope=company" />
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <TileLink href="/goals?view=company">
           <StatTile
@@ -228,6 +229,19 @@ function CompanyDashboardView({ data }: { data: CompanyDashboard }) {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/** «Weekly report» shortcut above a dashboard. */
+export function ReportLink({ href }: { href: string }) {
+  return (
+    <Link
+      href={href}
+      className="-mb-3 inline-flex items-center gap-1.5 self-end text-sm font-semibold text-primary-ink hover:underline [&_svg]:size-4"
+    >
+      <FileText aria-hidden />
+      {t('reports.open')}
+    </Link>
   );
 }
 

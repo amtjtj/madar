@@ -38,3 +38,11 @@ export const dashboardKeys = {
   company: ['dashboard', 'company'] as const,
   department: (id: string) => ['dashboard', 'department', id] as const,
 };
+
+export const reportKeys = {
+  all: ['reports'] as const,
+  weekly: (scope: string, departmentId: string | undefined, week: string | undefined) =>
+    ['reports', 'weekly', scope, departmentId ?? null, week ?? null] as const,
+  weeks: (scope: string, departmentId: string | undefined) =>
+    ['reports', 'weeks', scope, departmentId ?? null] as const,
+};

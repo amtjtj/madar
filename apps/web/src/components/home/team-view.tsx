@@ -23,7 +23,7 @@ import {
 
 import { useDepartmentDashboard } from '@/hooks/dashboard';
 
-import { DashboardSkeleton, TileLink } from './company-view';
+import { DashboardSkeleton, ReportLink, TileLink } from './company-view';
 import { GoalRows } from './goal-rows';
 
 /** «What is my team working on, and who might need a hand?» */
@@ -61,6 +61,7 @@ function TeamDashboardView({ data }: { data: DepartmentDashboard }) {
   const { headline } = data;
   return (
     <div className="flex flex-col gap-6">
+      <ReportLink href={`/reports?scope=department&departmentId=${id}`} />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <TileLink href={tasks('')}>
           <StatTile

@@ -9,6 +9,7 @@ import {
   Clock,
   FolderKanban,
   House,
+  FileText,
   ListTodo,
   LogOut,
   Network,
@@ -125,7 +126,27 @@ export function AppShell({ children }: { children: ReactNode }) {
     },
   ];
   const orgItems = useOrgNavItems();
-  const items = [...workItems, ...orgItems];
+  // Weekly reports: company-wide readers and department managers (sidebar only; the phone tab
+  // bar is full, and phones reach reports from the home dashboards and notifications).
+  const member = me?.member;
+  const readsReports =
+    (member?.permissions['task.read'] === 'tenant' &&
+      member?.permissions['goal.read'] === 'tenant') ||
+    (member?.departments ?? []).some((d) => d.deptRole === 'head' || d.deptRole === 'manager');
+  const items = [
+    ...workItems,
+    ...(readsReports
+      ? [
+          {
+            key: '/reports',
+            label: t('reports.nav'),
+            href: '/reports',
+            icon: <FileText aria-hidden />,
+          },
+        ]
+      : []),
+    ...orgItems,
+  ];
   // The mobile tab bar has room for five: the organization screens share one «سازمان» hub.
   const bottomItems: NavItem[] = [
     ...workItems,
@@ -223,26 +244,28 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-dvh">
-      <Sidebar
-        items={items}
-        activeKey={activeKey}
-        link={NextLink}
-        brand={
-          <div className="flex items-center justify-between gap-2">
-            {brand}
-            <NotificationPopover />
-          </div>
-        }
-        footer={
-          <div className="flex flex-col gap-3">
-            {offline}
-            {userMenu}
-            <ThemeToggle className="self-start" />
-          </div>
-        }
-      />
+      <div className="contents print:hidden">
+        <Sidebar
+          items={items}
+          activeKey={activeKey}
+          link={NextLink}
+          brand={
+            <div className="flex items-center justify-between gap-2">
+              {brand}
+              <NotificationPopover />
+            </div>
+          }
+          footer={
+            <div className="flex flex-col gap-3">
+              {offline}
+              {userMenu}
+              <ThemeToggle className="self-start" />
+            </div>
+          }
+        />
+      </div>
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex items-center justify-between border-b border-line bg-canvas/90 px-4 py-2 backdrop-blur md:hidden">
+        <header className="sticky top-0 z-30 flex print:hidden items-center justify-between border-b border-line bg-canvas/90 px-4 py-2 backdrop-blur md:hidden">
           {brand}
           <div className="flex items-center gap-1">
             {offline}
@@ -250,11 +273,13 @@ export function AppShell({ children }: { children: ReactNode }) {
             {userMenu}
           </div>
         </header>
-        <main className="mx-auto w-full max-w-5xl flex-1 px-4 pt-6 pb-28 md:px-8 md:pt-10 md:pb-12">
+        <main className="mx-auto w-full max-w-5xl flex-1 px-4 pt-6 pb-28 md:px-8 md:pt-10 md:pb-12 print:max-w-none print:p-0">
           {children}
         </main>
       </div>
-      <BottomNav items={bottomItems} activeKey={bottomActiveKey} link={NextLink} />
+      <div className="contents print:hidden">
+        <BottomNav items={bottomItems} activeKey={bottomActiveKey} link={NextLink} />
+      </div>
     </div>
   );
 }
