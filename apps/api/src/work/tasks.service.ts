@@ -20,8 +20,10 @@ import { generateKeyBetween } from 'fractional-indexing';
 
 import type { TenantContext } from '../common/context.js';
 import { ApiError, forbidden, notFound } from '../common/errors.js';
+import { overdueTask, stuckTask } from '../dashboard/conditions.js';
 import { TenantDb } from '../database/tenant-db.service.js';
 import { keyResultRefs, requireLinkableKeyResult } from '../goals/links.js';
+import { loadWorkCalendar } from '../notifications/calendar.js';
 import {
   canCreateIn,
   canDeleteTask,
@@ -63,6 +65,7 @@ export class TasksService {
     return this.db.run(ctx, async (tx) => {
       const filters: SQL[] = [isNull(s.tasks.deletedAt), visibleTasks(ctx.actor)];
       const me = ctx.memberId;
+      const drillDown = query.due === 'overdue' || query.stuck === true;
       switch (query.view) {
         case 'mine':
           filters.push(eq(s.tasks.assigneeId, me));
@@ -73,7 +76,7 @@ export class TasksService {
             : ctx.actor.departments.map((d) => d.id);
           if (departmentIds.length === 0) return [];
           filters.push(inArray(s.tasks.departmentId, departmentIds));
-          if (!query.parentId) filters.push(isNull(s.tasks.parentId));
+          if (!query.parentId && !drillDown) filters.push(isNull(s.tasks.parentId));
           break;
         }
         case 'project':
@@ -82,7 +85,14 @@ export class TasksService {
           if (!query.parentId) filters.push(isNull(s.tasks.parentId));
           break;
         case 'visible':
+          if (query.departmentId) filters.push(eq(s.tasks.departmentId, query.departmentId));
           break;
+      }
+      if (drillDown) {
+        const { calendar, timeZone } = await loadWorkCalendar(tx, ctx.tenantId);
+        const today = calendarDateIn(new Date(), timeZone);
+        if (query.due === 'overdue') filters.push(overdueTask(today));
+        if (query.stuck) filters.push(stuckTask(calendar, timeZone, today));
       }
       if (query.parentId) filters.push(eq(s.tasks.parentId, query.parentId));
       if (query.assigneeId) filters.push(eq(s.tasks.assigneeId, query.assigneeId));

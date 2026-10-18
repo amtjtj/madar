@@ -1,17 +1,20 @@
 import { Injectable } from '@nestjs/common';
 import { emitEvent, schema as s, type Tx } from '@madar/db';
-import type {
-  CreateProjectRequest,
-  Project,
-  SetProjectMembersRequest,
-  UpdateProjectRequest,
+import {
+  calendarDateIn,
+  type CreateProjectRequest,
+  type Project,
+  type SetProjectMembersRequest,
+  type UpdateProjectRequest,
 } from '@madar/shared';
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import type { TenantContext } from '../common/context.js';
 import { forbidden, notFound } from '../common/errors.js';
+import { atRiskProjects } from '../dashboard/at-risk.js';
 import { TenantDb } from '../database/tenant-db.service.js';
 import { keyResultRefs, requireLinkableKeyResult } from '../goals/links.js';
+import { loadWorkCalendar } from '../notifications/calendar.js';
 import { canCreateIn, canEditProject, visibleProjects } from './access.js';
 
 type ProjectRow = typeof s.projects.$inferSelect;
@@ -32,6 +35,19 @@ export class ProjectsService {
           ),
         )
         .orderBy(asc(s.projects.name));
+      return this.hydrate(
+        tx,
+        ctx,
+        rows.map((r) => r.id),
+      );
+    });
+  }
+
+  /** Projects at risk (dashboard drill-down): the same rule and rows as the dashboard card. */
+  atRisk(ctx: TenantContext): Promise<Project[]> {
+    return this.db.run(ctx, async (tx) => {
+      const { timeZone } = await loadWorkCalendar(tx, ctx.tenantId);
+      const rows = await atRiskProjects(tx, ctx.actor, calendarDateIn(new Date(), timeZone));
       return this.hydrate(
         tx,
         ctx,

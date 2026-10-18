@@ -5,6 +5,7 @@ import { AuthGuard } from './auth/auth.guard.js';
 import { AuthModule } from './auth/auth.module.js';
 import { ConfigModule } from './config/config.module.js';
 import { DatabaseModule } from './database/database.module.js';
+import { DashboardModule } from './dashboard/dashboard.module.js';
 import { DepartmentsModule } from './departments/departments.module.js';
 import { GoalsModule } from './goals/goals.module.js';
 import { HealthModule } from './health/health.module.js';
@@ -28,6 +29,7 @@ import { WorkModule } from './work/work.module.js';
     MembersModule,
     WorkModule,
     GoalsModule,
+    DashboardModule,
     NotificationsModule,
     PushModule,
     RealtimeModule,

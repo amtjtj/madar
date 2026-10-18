@@ -116,6 +116,12 @@ export const listTasksQuery = z.object({
   assigneeId: z.uuid().optional(),
   status: z.enum(['open', 'done', 'all']).default('open'),
   q: z.string().trim().max(80).optional(),
+  /** Dashboard drill-downs: the same rows the card counted (subtasks included). */
+  due: z.enum(['overdue']).optional(),
+  stuck: z
+    .enum(['true', 'false'])
+    .transform((v) => v === 'true')
+    .optional(),
   limit: z.coerce.number().int().min(1).max(500).default(200),
 });
 export type ListTasksQuery = z.infer<typeof listTasksQuery>;

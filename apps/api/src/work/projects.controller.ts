@@ -33,8 +33,11 @@ export class ProjectsController {
   list(
     @Tenant() ctx: TenantContext,
     @Query('includeArchived') includeArchived?: string,
+    @Query('risk') risk?: string,
   ): Promise<Project[]> {
-    return this.projects.list(ctx, includeArchived === 'true');
+    return risk === 'true'
+      ? this.projects.atRisk(ctx)
+      : this.projects.list(ctx, includeArchived === 'true');
   }
 
   @Post()
