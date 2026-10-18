@@ -8,6 +8,7 @@ import {
   PERSIAN_WEEKDAYS,
   formatCalendarDate,
   formatNumber,
+  toPersianDigits,
   type DayHours,
   type WorkCalendarDto,
 } from '@madar/shared';
@@ -20,7 +21,6 @@ import {
   EmptyState,
   SelectField,
   Skeleton,
-  TextField,
   useToast,
 } from '@madar/ui';
 
@@ -31,6 +31,13 @@ import { useTodayDate } from '@/hooks/work';
 import { errorMessage } from '@/lib/errors';
 
 const DEFAULT_DAY = { start: '09:00', end: '18:00' };
+
+/** Half-hour steps from 06:00 to 23:30, shown with Persian digits. */
+const TIME_OPTIONS = Array.from({ length: 36 }, (_, i) => {
+  const minutes = 6 * 60 + i * 30;
+  const value = `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${minutes % 60 ? '30' : '00'}`;
+  return { value, label: toPersianDigits(value) };
+});
 
 export default function WorkCalendarPage() {
   const can = useCan();
@@ -81,7 +88,10 @@ function CalendarForm({ initial }: { initial: WorkCalendarDto }) {
           <h2 className="mb-2 text-lg font-bold text-ink">{t('workCalendar.weekTitle')}</h2>
           <ul className="flex flex-col divide-y divide-line">
             {calendar.weeklyHours.map((day, i) => (
-              <li key={PERSIAN_WEEKDAYS[i]} className="flex flex-wrap items-center gap-3 py-3">
+              <li
+                key={PERSIAN_WEEKDAYS[i]}
+                className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3"
+              >
                 <span className="w-24 font-semibold text-ink">{PERSIAN_WEEKDAYS[i]}</span>
                 <CheckboxField
                   label={t('workCalendar.workingDay')}
@@ -89,25 +99,18 @@ function CalendarForm({ initial }: { initial: WorkCalendarDto }) {
                   onChange={(e) => setDay(i, e.target.checked ? DEFAULT_DAY : null)}
                 />
                 {day ? (
-                  <div className="flex items-center gap-2">
-                    <TextField
-                      type="time"
-                      dir="ltr"
+                  <div className="grid w-full grid-cols-2 gap-3 sm:w-auto sm:min-w-80">
+                    <SelectField
                       label={t('workCalendar.from')}
-                      hideLabel
                       value={day.start}
                       onChange={(e) => setDay(i, { ...day, start: e.target.value })}
-                      className="w-32"
+                      options={TIME_OPTIONS}
                     />
-                    <span className="text-ink-muted">{t('workCalendar.to')}</span>
-                    <TextField
-                      type="time"
-                      dir="ltr"
+                    <SelectField
                       label={t('workCalendar.to')}
-                      hideLabel
                       value={day.end}
                       onChange={(e) => setDay(i, { ...day, end: e.target.value })}
-                      className="w-32"
+                      options={TIME_OPTIONS}
                       error={day.start >= day.end ? t('workCalendar.invalidHours') : undefined}
                     />
                   </div>
