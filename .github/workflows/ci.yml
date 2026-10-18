@@ -17,6 +17,9 @@ env:
   WORKER_DATABASE_URL: postgres://madar_worker:madar_worker_ci_password@localhost:5432/madar
   REDIS_URL: redis://localhost:6379
   AUTH_SECRET: ci-only-auth-secret-not-for-production-use
+  # CI-only Web Push key pair (never used anywhere else)
+  VAPID_PUBLIC_KEY: BLji1C_nC2joUs9pVMay1Y1Ur5fwUaOj0bG2kZ2OiOKWPOLN7rEVeDQDRuot7SbA13nVJb6W7Lq9443GWwykDHA
+  VAPID_PRIVATE_KEY: NllAo0kzFXa44kMqSomruq2D_RuObqQ2LMhUO-7LRYo
 
 jobs:
   check:

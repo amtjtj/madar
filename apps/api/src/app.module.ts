@@ -10,6 +10,7 @@ import { HealthModule } from './health/health.module.js';
 import { MeModule } from './me/me.module.js';
 import { MembersModule } from './members/members.module.js';
 import { NotificationsModule } from './notifications/notifications-http.module.js';
+import { PushModule } from './push/push-http.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
 import { TenantsModule } from './tenants/tenants.module.js';
 import { WorkModule } from './work/work.module.js';
@@ -26,6 +27,7 @@ import { WorkModule } from './work/work.module.js';
     MembersModule,
     WorkModule,
     NotificationsModule,
+    PushModule,
     RealtimeModule,
   ],
   providers: [{ provide: APP_GUARD, useExisting: AuthGuard }],

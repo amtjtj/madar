@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "seed": "node --enable-source-maps dist/scripts/seed.js"
+    "seed": "node --enable-source-maps dist/scripts/seed.js",
+    "vapid:generate": "node dist/scripts/vapid.js"
   },
   "dependencies": {
     "@madar/db": "workspace:*",
@@ -31,6 +32,7 @@
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
     "socket.io": "4.8.4",
+    "web-push": "3.6.7",
     "zod": "4.6.7"
   },
   "devDependencies": {
@@ -40,6 +42,7 @@
     "@types/express": "5.0.6",
     "@types/node": "22.20.5",
     "@types/supertest": "7.2.1",
+    "@types/web-push": "3.6.4",
     "concurrently": "10.0.6",
     "eslint": "9.39.5",
     "socket.io-client": "4.8.4",

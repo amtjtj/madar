@@ -58,8 +58,13 @@ export class Notifier {
       .onConflictDoNothing()
       .returning({ id: s.notifications.id });
     if (!row) return false;
-    // Realtime: tell the recipient's sessions (content-free; ADR 0011).
-    await emitEvent(tx, 'notification.created', { recipientId: input.recipientId }, input.actorId);
+    // Realtime and device push (content-free; ADR 0011).
+    await emitEvent(
+      tx,
+      'notification.created',
+      { recipientId: input.recipientId, notificationId: row.id },
+      input.actorId,
+    );
     return true;
   }
 

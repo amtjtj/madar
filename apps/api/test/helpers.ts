@@ -22,13 +22,20 @@ function loadEnvSafe(): Env | null {
   }
 }
 
-/** The full API (real database, real Better Auth) for integration tests. */
-export async function createTestApp(overrides: Partial<Env> = {}) {
+/**
+ * The full API (real database, real Better Auth) for integration tests. `providers` replaces
+ * providers by token (e.g. a fake push sender).
+ */
+export async function createTestApp(
+  overrides: Partial<Env> = {},
+  providers: [token: symbol, value: unknown][] = [],
+) {
   const env = { ...loadEnv(), ...overrides };
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+  let builder = Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(ENV)
-    .useValue(env)
-    .compile();
+    .useValue(env);
+  for (const [token, value] of providers) builder = builder.overrideProvider(token).useValue(value);
+  const moduleRef = await builder.compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>({
     bodyParser: false,
     logger: process.env.TEST_LOG ? ['error'] : false,

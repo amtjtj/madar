@@ -40,6 +40,15 @@ const envSchema = z.object({
   QUEUE_PREFIX: z.string().default('madar'),
   /** How often the worker polls the outbox when it is empty (ms). */
   RELAY_INTERVAL_MS: z.coerce.number().int().min(50).default(500),
+  /** Web Push (VAPID) keys; without them device notifications are off. `pnpm --filter @madar/api vapid:generate`. */
+  VAPID_PUBLIC_KEY: z.string().default(''),
+  VAPID_PRIVATE_KEY: z.string().default(''),
+  /** Contact for push services (mailto: or https:); defaults to the public origin. */
+  VAPID_SUBJECT: z.string().default(''),
+  /** Outbound HTTP(S) proxy for push services, if the server needs one to reach them. */
+  PUSH_PROXY_URL: z.string().default(''),
+  /** Notifications within this window go out as one push (ms). */
+  PUSH_BATCH_MS: z.coerce.number().int().min(0).default(10_000),
   /** Required to register a company in production; empty means signup is open (development). */
   TENANT_SIGNUP_CODE: z.string().default(''),
 });

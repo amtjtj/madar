@@ -3,6 +3,9 @@ import type { Redis } from 'ioredis';
 
 import { NotificationsConsumer } from '../notifications/notifications.consumer.js';
 import { NotificationsCoreModule } from '../notifications/notifications.module.js';
+import { PushDeliveries } from '../push/push-deliveries.service.js';
+import { pushSenderProvider } from '../push/push-sender.js';
+import { PushConsumer } from '../push/push.consumer.js';
 import { RealtimeConsumer } from '../realtime/realtime.consumer.js';
 import { ConsumerRunner } from './consumer-runner.service.js';
 import { EVENT_CONSUMERS, REDIS, type EventConsumer } from './consumer.js';
@@ -17,15 +20,18 @@ import { SchedulerService } from './scheduler.service.js';
     redisProvider,
     {
       provide: EVENT_CONSUMERS,
-      inject: [NotificationsConsumer, RealtimeConsumer],
+      inject: [NotificationsConsumer, RealtimeConsumer, PushConsumer],
       useFactory: (...consumers: EventConsumer[]) => consumers,
     },
     RealtimeConsumer,
+    pushSenderProvider,
+    PushDeliveries,
+    PushConsumer,
     RelayService,
     ConsumerRunner,
     SchedulerService,
   ],
-  exports: [RelayService, ConsumerRunner, SchedulerService, REDIS],
+  exports: [RelayService, ConsumerRunner, SchedulerService, PushDeliveries, REDIS],
 })
 export class EventsModule implements OnApplicationShutdown {
   constructor(@Inject(REDIS) private readonly redis: Redis) {}
