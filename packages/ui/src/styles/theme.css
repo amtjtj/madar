@@ -277,6 +277,7 @@
   --animate-sheet-out: sheet-out 180ms ease-in forwards;
   --animate-toast-in: toast-in 260ms var(--ease-spring);
   --animate-toast-out: fade-out 160ms ease-in forwards;
+  --animate-pop-in: pop-in 240ms var(--ease-spring);
 
   @keyframes shimmer {
     0% {
@@ -288,6 +289,12 @@
   }
   @keyframes fade-in {
     from {
+      opacity: 0;
+    }
+  }
+  @keyframes pop-in {
+    from {
+      transform: scale(0.4);
       opacity: 0;
     }
   }

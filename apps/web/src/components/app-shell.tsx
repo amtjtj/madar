@@ -2,8 +2,10 @@
 
 import { useQueryClient } from '@tanstack/react-query';
 import {
+  BellRing,
   Building2,
   ChartNetwork,
+  Clock,
   FolderKanban,
   House,
   ListTodo,
@@ -11,6 +13,7 @@ import {
   Network,
   ScrollText,
   Users,
+  WifiOff,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -28,7 +31,12 @@ import {
   type NavItem,
 } from '@madar/ui';
 
+import {
+  NotificationLink,
+  NotificationPopover,
+} from '@/components/notifications/notification-bell';
 import { useCan } from '@/hooks/queries';
+import { useRealtime } from '@/hooks/realtime';
 import { useMe } from '@/hooks/use-me';
 import { auth } from '@/lib/auth';
 
@@ -88,6 +96,16 @@ export function useOrgNavItems(): NavItem[] {
           },
         ]
       : []),
+    ...(can('tenant.manage')
+      ? [
+          {
+            key: '/org/work-calendar',
+            label: t('workCalendar.short'),
+            href: '/org/work-calendar',
+            icon: <Clock aria-hidden />,
+          },
+        ]
+      : []),
   ];
 }
 
@@ -131,6 +149,17 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   const name = me?.member?.displayName ?? me?.user.name ?? '';
+  const online = useRealtime(Boolean(me?.member));
+  const offline = !online && (
+    <span
+      role="status"
+      title={t('notifications.offline')}
+      className="inline-flex items-center gap-1 rounded-full bg-warning-soft px-2 py-0.5 text-xs font-semibold text-warning-ink"
+    >
+      <WifiOff aria-hidden className="size-3.5" />
+      <span className="sr-only md:not-sr-only">{t('notifications.offline')}</span>
+    </span>
+  );
   const brand = (
     <div className="flex items-center gap-2">
       <OrbitIllustration className="h-9" />
@@ -159,6 +188,12 @@ export function AppShell({ children }: { children: ReactNode }) {
       }
       items={[
         {
+          key: 'notification-settings',
+          label: t('notifications.settings'),
+          icon: <BellRing aria-hidden />,
+          onSelect: () => router.push('/settings/notifications'),
+        },
+        {
           key: 'sign-out',
           label: t('auth.signOut'),
           icon: <LogOut aria-hidden />,
@@ -175,9 +210,15 @@ export function AppShell({ children }: { children: ReactNode }) {
         items={items}
         activeKey={activeKey}
         link={NextLink}
-        brand={brand}
+        brand={
+          <div className="flex items-center justify-between gap-2">
+            {brand}
+            <NotificationPopover />
+          </div>
+        }
         footer={
           <div className="flex flex-col gap-3">
+            {offline}
             {userMenu}
             <ThemeToggle className="self-start" />
           </div>
@@ -186,7 +227,11 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex items-center justify-between border-b border-line bg-canvas/90 px-4 py-2 backdrop-blur md:hidden">
           {brand}
-          {userMenu}
+          <div className="flex items-center gap-1">
+            {offline}
+            <NotificationLink />
+            {userMenu}
+          </div>
         </header>
         <main className="mx-auto w-full max-w-5xl flex-1 px-4 pt-6 pb-28 md:px-8 md:pt-10 md:pb-12">
           {children}

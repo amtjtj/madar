@@ -17,7 +17,8 @@ import { departmentRoom, memberRoom, projectRoom } from './rooms.js';
  * active (or read-only) tenant and no pending security step; the server then puts it in its own
  * member, department and project rooms. Clients cannot join rooms and send nothing.
  */
-@WebSocketGateway({ path: REALTIME_PATH, serveClient: false })
+// No trailing slash: the web proxy (Next rewrites) normalizes it away.
+@WebSocketGateway({ path: REALTIME_PATH, serveClient: false, addTrailingSlash: false })
 export class RealtimeGateway implements OnGatewayConnection {
   private readonly logger = new Logger('Realtime');
   @WebSocketServer() server!: Server;

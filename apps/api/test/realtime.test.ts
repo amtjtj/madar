@@ -47,6 +47,7 @@ describe.skipIf(!hasDatabase)('realtime (Socket.IO)', () => {
   function connect(cookie?: string): Promise<Live> {
     const socket = io(url, {
       path: REALTIME_PATH,
+      addTrailingSlash: false,
       transports: ['websocket'],
       forceNew: true,
       reconnection: false,

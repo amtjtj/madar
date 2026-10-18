@@ -63,3 +63,5 @@ export {
 } from './components/task-card.js';
 export { BoardColumn, type BoardColumnProps } from './components/board-column.js';
 export { dueTone, priorityTone, statusDot } from './components/task-meta.js';
+export { Popover, type PopoverProps } from './components/popover.js';
+export { NotificationBell, type NotificationBellProps } from './components/notification-bell.js';
