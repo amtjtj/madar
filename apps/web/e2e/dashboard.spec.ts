@@ -35,15 +35,23 @@ test('the CEO lands on the company dashboard and drills into overdue work', asyn
   const tile = page.getByRole('link', { name: /کارهای گذشته از سررسید/ });
   await expect(tile).toContainText('۲');
   expect(Date.now() - started).toBeLessThan(10_000);
-  await expect(page.getByRole('link', { name: /پشتیبانی/ }).first()).toBeVisible();
-
   await tile.click();
   await expect(page).toHaveURL(/due=overdue/);
   await expect(page.getByText('گذشته از سررسید').first()).toBeVisible();
   await expect(page.getByRole('button', { name: /کار معوق/ })).toHaveCount(2);
 
-  // From the department row to that team's dashboard.
-  await page.goto(`/?tab=team&department=${support.id}`);
+  // From the department row to that team's dashboard (a click, not a typed address).
+  await page.goto('/');
+  await page
+    .getByRole('link', { name: /^پشتیبانی/ })
+    .first()
+    .click();
+  await expect(page).toHaveURL(new RegExp(`department=${support.id}`));
+  await expect(page.getByRole('radio', { name: 'تیم من' })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByRole('heading', { name: 'بار کاری تیم' })).toBeVisible();
+  // Switching tabs keeps that department.
+  await page.getByRole('radio', { name: 'شرکت' }).click();
+  await page.getByRole('radio', { name: 'تیم من' }).click();
   await expect(page.getByRole('heading', { name: 'بار کاری تیم' })).toBeVisible();
   // People who might need help are for the team's own managers only.
   await expect(page.getByRole('heading', { name: 'شاید کمک لازم داشته باشند' })).toHaveCount(0);

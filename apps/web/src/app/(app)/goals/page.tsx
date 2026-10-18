@@ -26,14 +26,20 @@ export default function GoalsPage() {
 }
 
 function GoalsScreen() {
-  const requested = useSearchParams().get('view') as GoalView | null;
+  const search = useSearchParams();
+  const requested = search.get('view') as GoalView | null;
+  const departmentId = search.get('departmentId') ?? undefined;
   const { data: periods } = useGoalPeriods();
   const [view, setView] = useState<GoalView>(
     requested && VIEWS.includes(requested) ? requested : 'mine',
   );
   const [chosenPeriod, setChosenPeriod] = useState<string>();
   const periodId = chosenPeriod ?? periods?.find((p) => p.current)?.id;
-  const { data: goals, isPending } = useGoals(view, periodId);
+  const { data: goals, isPending } = useGoals(
+    view,
+    periodId,
+    view === 'department' ? departmentId : undefined,
+  );
 
   return (
     <>

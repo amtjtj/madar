@@ -78,7 +78,8 @@ export const departmentDashboard = z.object({
       member: personRef,
       todo: z.number().int(),
       inProgress: z.number().int(),
-      overdue: z.number().int(),
+      /** Null unless the viewer manages the department. */
+      overdue: z.number().int().nullable(),
     }),
   ),
   stuck: z.array(

@@ -10,8 +10,8 @@ const DefaultLink: LinkComponent = ({ children, ...props }) => <a {...props}>{ch
 
 /*
  * Small SVG-free charts built from boxes (ADR 0014): one axis, thin marks with rounded data ends,
- * colors only from tokens, Persian digits, a tooltip on hover and focus, and a hidden table for
- * screen readers. Text never wears the series color.
+ * colors only from tokens, Persian digits, a tooltip on hover and tap, and either labelled links or
+ * a hidden table for screen readers. Text never wears the series color.
  */
 
 type Tone = 'primary' | 'danger' | 'warning' | 'neutral';
@@ -85,9 +85,14 @@ export function BarList({
   className,
 }: BarListProps) {
   const max = Math.max(1, ...items.map((i) => i.value));
+  const linked = items.some((i) => i.href);
   return (
     <div className={className}>
-      <ul className="flex flex-col gap-1" aria-hidden>
+      <ul
+        className="flex flex-col gap-1"
+        aria-label={title}
+        aria-hidden={linked ? undefined : true}
+      >
         {items.map((item) => {
           const row = (
             <>
@@ -109,9 +114,11 @@ export function BarList({
           return (
             <li key={item.key}>
               {item.href ? (
+                // The link carries the name and value; the drawing inside is decoration.
                 <Link
                   href={item.href}
-                  className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-sunken"
+                  aria-label={`${item.label}: ${format(item.value)}`}
+                  className="flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-sunken focus-visible:outline-2 focus-visible:outline-focus"
                 >
                   {row}
                 </Link>
@@ -122,7 +129,7 @@ export function BarList({
           );
         })}
       </ul>
-      <DataTable title={title} rows={items.map((i) => [i.label, format(i.value)])} />
+      {!linked && <DataTable title={title} rows={items.map((i) => [i.label, format(i.value)])} />}
     </div>
   );
 }
@@ -171,6 +178,8 @@ export function StackedBarList({
               className="relative flex items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-sunken"
               onMouseEnter={() => setActive(row.key)}
               onMouseLeave={() => setActive(null)}
+              // Phones have no hover: a tap shows or hides the split.
+              onClick={() => setActive((current) => (current === row.key ? null : row.key))}
             >
               <span className="w-24 shrink-0 truncate text-sm text-ink sm:w-32">{row.label}</span>
               <span className="flex h-3 flex-1 gap-0.5">
@@ -233,12 +242,12 @@ export function ColumnChart({
         {points.map((p, i) => (
           <div
             key={p.key}
-            tabIndex={0}
             onMouseEnter={() => setActive(i)}
             onMouseLeave={() => setActive(null)}
-            onFocus={() => setActive(i)}
-            onBlur={() => setActive(null)}
-            className="group relative flex h-full flex-1 flex-col items-center justify-end outline-none"
+            // Phones have no hover: a tap shows or hides the value. Keyboard and screen-reader
+            // users get the same numbers from the table below.
+            onClick={() => setActive((current) => (current === i ? null : i))}
+            className="relative flex h-full flex-1 flex-col items-center justify-end"
           >
             {(active === i || (active === null && i === last)) && (
               <span
@@ -253,7 +262,7 @@ export function ColumnChart({
             )}
             <span
               className={cn(
-                'w-full max-w-8 rounded-t-[4px] bg-chart-1 transition-opacity group-focus-visible:outline-2 group-focus-visible:outline-focus',
+                'w-full max-w-8 rounded-t-[4px] bg-chart-1 transition-opacity',
                 active !== null && active !== i && 'opacity-60',
               )}
               style={{ height: `${p.value > 0 ? Math.max(4, (p.value / max) * 85) : 0}%` }}

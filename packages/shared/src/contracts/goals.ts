@@ -107,6 +107,8 @@ export type Checkin = z.infer<typeof checkin>;
 export const listGoalsQuery = z.object({
   periodId: z.uuid().optional(),
   view: z.enum(['mine', 'department', 'company']).default('mine'),
+  /** With `department`: one department instead of all of mine (dashboard drill-down). */
+  departmentId: z.uuid().optional(),
 });
 export type ListGoalsQuery = z.infer<typeof listGoalsQuery>;
 

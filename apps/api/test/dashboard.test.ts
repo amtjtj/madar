@@ -27,6 +27,8 @@ describe.skipIf(!hasDatabase)('dashboards', () => {
   let agent: Person; // support, overloaded with overdue work
   let calm: Person; // support, nothing to flag
   let marketingHead: Person;
+  let director: Person; // oversight department on task and goal, no role
+  let deputy: Person; // support manager, not in the private project
   let support: { id: string };
   let marketing: { id: string };
   let other: Client; // another company's owner
@@ -64,6 +66,10 @@ describe.skipIf(!hasDatabase)('dashboards', () => {
     marketingHead = await memberSession(app, env, owner, {
       departments: dept(marketing.id, 'head'),
     });
+    const office = (await owner.post('/api/departments', { name: 'دفتر مدیرعامل' })).body;
+    await owner.put(`/api/departments/${office.id}/oversight`, { resources: ['task', 'goal'] });
+    director = await memberSession(app, env, owner, { departments: dept(office.id) });
+    deputy = await memberSession(app, env, owner, { departments: dept(support.id, 'manager') });
 
     // Support: three overdue tasks for the agent, one idle in-progress task, one done today.
     for (const days of [3, 4, 5]) {
@@ -181,6 +187,66 @@ describe.skipIf(!hasDatabase)('dashboards', () => {
       await ceo.c.get(`/api/dashboard/departments/${support.id}`)
     ).body;
     expect(forCeo.needsHelp).toBeNull();
+  });
+
+  it('opens both dashboards to an oversight department reader', async () => {
+    expect((await director.c.get('/api/dashboard/company')).status).toBe(200);
+    const team: DepartmentDashboard = (
+      await director.c.get(`/api/dashboard/departments/${support.id}`)
+    ).body;
+    expect(team.needsHelp).toBeNull();
+    expect(team.workload.every((w) => w.overdue === null)).toBe(true);
+  });
+
+  it('counts what each manager may see: the private project stays hidden from the deputy', async () => {
+    const forHead: DepartmentDashboard = (
+      await head.c.get(`/api/dashboard/departments/${support.id}`)
+    ).body;
+    const forDeputy: DepartmentDashboard = (
+      await deputy.c.get(`/api/dashboard/departments/${support.id}`)
+    ).body;
+    expect(forHead.headline.overdueTasks - forDeputy.headline.overdueTasks).toBe(1);
+    // The open tile and the list it opens (subtasks included) agree.
+    const list = (
+      await head.c.get(
+        `/api/tasks?view=department&departmentId=${support.id}&subtasks=include&limit=500`,
+      )
+    ).body;
+    expect(list).toHaveLength(forHead.headline.openTasks);
+  });
+
+  it('averages only department goals, never personal ones', async () => {
+    const periods = (await head.c.get('/api/goal-periods')).body as Array<{
+      id: string;
+      current: boolean;
+    }>;
+    const periodId = periods.find((p) => p.current)?.id;
+    const goal = (
+      await head.c.post('/api/goals', {
+        periodId,
+        level: 'department',
+        departmentId: support.id,
+        title: 'هدف دپارتمان',
+        keyResults: [{ title: 'نتیجه', kind: 'boolean' }],
+      })
+    ).body;
+    await head.c.post(`/api/key-results/${goal.keyResults[0].id}/check-ins`, {
+      value: 1,
+      status: 'on_track',
+    });
+    await agent.c.post('/api/goals', {
+      periodId,
+      level: 'individual',
+      departmentId: support.id,
+      title: 'هدف شخصی',
+      keyResults: [{ title: 'نتیجه', kind: 'boolean' }],
+    });
+    const team: DepartmentDashboard = (await head.c.get(`/api/dashboard/departments/${support.id}`))
+      .body;
+    expect(team.headline.goalProgress).toBe(1);
+    expect(team.goals.map((g) => g.title)).toEqual(['هدف دپارتمان']);
+    const company: CompanyDashboard = (await ceo.c.get('/api/dashboard/company')).body;
+    expect(company.departments.find((d) => d.id === support.id)?.goalProgress).toBe(1);
   });
 
   it('keeps companies apart', async () => {

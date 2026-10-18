@@ -80,33 +80,35 @@ function Home() {
     ...(seesCompany ? (['company'] as const) : []),
   ];
   const fallback: HomeTab = seesCompany ? 'company' : managed.length ? 'team' : 'today';
-  const [chosen, setChosen] = useState<HomeTab | null>(() => {
-    const fromUrl = search.get('tab') as HomeTab | null;
-    if (fromUrl) return fromUrl;
+  // The address decides (links from the company view, Back/Forward); otherwise the last choice.
+  const [stored] = useState<HomeTab | null>(() => {
     try {
-      return (localStorage.getItem(TAB_KEY) as HomeTab | null) ?? null;
+      return localStorage.getItem(TAB_KEY) as HomeTab | null;
     } catch {
       return null;
     }
   });
-  const tab = chosen && tabs.includes(chosen) ? chosen : fallback;
-  const [teamDepartment, setTeamDepartment] = useState<string | undefined>(
-    search.get('department') ?? undefined,
-  );
+  const fromUrl = search.get('tab') as HomeTab | null;
+  const wanted = fromUrl ?? stored;
+  const tab = wanted && tabs.includes(wanted) ? wanted : fallback;
+  const requestedDepartment = search.get('department');
   const departmentId =
-    teamDepartment && teamDepartments.some((d) => d.id === teamDepartment)
-      ? teamDepartment
+    requestedDepartment && teamDepartments.some((d) => d.id === requestedDepartment)
+      ? requestedDepartment
       : teamDepartments[0]?.id;
 
-  const choose = (next: HomeTab) => {
-    setChosen(next);
-    if (search.get('tab')) router.replace('/');
+  const go = (next: HomeTab, department?: string) => {
+    const params = new URLSearchParams({ tab: next });
+    if (next === 'team' && department) params.set('department', department);
+    router.replace(`/?${params.toString()}`, { scroll: false });
     try {
       localStorage.setItem(TAB_KEY, next);
     } catch {
       // Remembering the tab is a convenience only.
     }
   };
+  // Keep the department a company reader opened when switching back to «تیم من».
+  const choose = (next: HomeTab) => go(next, departmentId);
 
   return (
     <>
@@ -140,7 +142,7 @@ function Home() {
           <TeamView
             departments={teamDepartments}
             departmentId={departmentId}
-            onDepartmentChange={setTeamDepartment}
+            onDepartmentChange={(id) => go('team', id)}
           />
         ) : (
           <TodayTab />

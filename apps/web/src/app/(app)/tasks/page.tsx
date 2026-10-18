@@ -39,6 +39,7 @@ function TasksScreen() {
   const assigneeId = search.get('assigneeId') ?? undefined;
   const due = search.get('due') === 'overdue' ? ('overdue' as const) : undefined;
   const stuck = search.get('stuck') === 'true' ? true : undefined;
+  const subtasks = search.get('subtasks') === 'include' ? ('include' as const) : undefined;
   const drillDown = Boolean(due || stuck || departmentId || assigneeId);
   const departmentName = departments?.find((d) => d.id === departmentId)?.name;
   const hasDepartment = (me?.member?.departments.length ?? 0) > 0;
@@ -73,7 +74,16 @@ function TasksScreen() {
         </div>
       )}
       <TaskViews
-        params={{ view: tab, departmentId, assigneeId, due, stuck }}
+        params={{
+          view: tab,
+          departmentId,
+          assigneeId,
+          due,
+          stuck,
+          subtasks,
+          // Drill-downs show every row the card counted.
+          ...(drillDown ? { limit: 500 } : {}),
+        }}
         showAssignee={tab !== 'mine'}
         emptyDescription={tab === 'mine' ? t('tasks.emptyMine') : undefined}
         toolbar={

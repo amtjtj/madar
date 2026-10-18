@@ -23,7 +23,7 @@ import { ensurePeriods, listPeriods } from '../goals/periods.js';
 import { loadWorkCalendar } from '../notifications/calendar.js';
 import { isDepartmentManager, visibleTasks } from '../work/access.js';
 import { atRiskProjects } from './at-risk.js';
-import { openTask, overdueTask, stuckTask } from './conditions.js';
+import { openTask, overdueTask, stuckOverdueBefore, stuckTask } from './conditions.js';
 
 interface Clock {
   today: string;
@@ -86,13 +86,16 @@ export class DashboardService {
             )
         : [];
 
-      const atRisk = await atRiskProjects(tx, ctx.actor, clock.today);
+      const atRisk = await atRiskProjects(tx, ctx.actor, clock.today, clock.timeZone);
       return {
         today: clock.today,
         season: clock.season,
         headline: {
           goalProgress: mean(goals.map((g) => g.progress)),
-          overdueTasks: taskCounts.reduce((sum, row) => sum + row.overdue, 0),
+          // Only departments in the list, so the bars add up to the tile.
+          overdueTasks: taskCounts
+            .filter((row) => departments.some((d) => d.id === row.departmentId))
+            .reduce((sum, row) => sum + row.overdue, 0),
           atRiskProjects: atRisk.length,
         },
         goals,
@@ -222,7 +225,8 @@ export class DashboardService {
             member: m,
             todo: row?.todo ?? 0,
             inProgress: row?.inProgress ?? 0,
-            overdue: row?.overdue ?? 0,
+            // Person-level concerns are for the department's own managers only (plan §2).
+            overdue: manages ? (row?.overdue ?? 0) : null,
           };
         }),
         stuck: stuckRows.map((r) => ({
@@ -233,7 +237,10 @@ export class DashboardService {
             r.assigneeId && r.assigneeName
               ? { id: r.assigneeId, displayName: r.assigneeName }
               : null,
-          reason: r.dueOn && r.dueOn < clock.today ? ('overdue' as const) : ('idle' as const),
+          reason:
+            r.dueOn && r.dueOn < stuckOverdueBefore(clock.calendar, clock.today)
+              ? ('overdue' as const)
+              : ('idle' as const),
         })),
         goals,
         // People only for the department's own head and managers (plan §2, owner's decision).

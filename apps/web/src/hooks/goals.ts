@@ -29,11 +29,15 @@ export function useGoalPeriods() {
   });
 }
 
-export function useGoals(view: GoalView, periodId: string | undefined) {
+export function useGoals(view: GoalView, periodId: string | undefined, departmentId?: string) {
   return useQuery({
-    queryKey: goalKeys.list(view, periodId),
+    queryKey: [...goalKeys.list(view, periodId), departmentId ?? null],
     queryFn: () =>
-      api<GoalSummary[]>(`/api/goals?view=${view}${periodId ? `&periodId=${periodId}` : ''}`),
+      api<GoalSummary[]>(
+        `/api/goals?view=${view}${periodId ? `&periodId=${periodId}` : ''}${
+          departmentId ? `&departmentId=${departmentId}` : ''
+        }`,
+      ),
     enabled: Boolean(periodId),
     placeholderData: (previous) => previous,
   });

@@ -647,6 +647,7 @@ export const fa = {
     stepOversight: 'دپارتمان‌های ناظر را مشخص کنید',
     go: 'برو',
     done: 'انجام شد',
+    noValue: '—',
     tabs: {
       label: 'کدام نما',
       today: 'امروز من',
@@ -673,13 +674,11 @@ export const fa = {
       overdueByDepartment: 'کارهای گذشته از سررسید به تفکیک دپارتمان',
       noOverdue: 'هیچ کاری از سررسید نگذشته؛ عالی!',
       weeklyTitle: 'کارهای انجام‌شده در هر هفته',
-      weekOf: 'هفته {date}',
       projectsTitle: 'پروژه‌های در خطر',
       projectsEmpty: 'همه پروژه‌ها طبق برنامه پیش می‌روند.',
       projectProgress: '{done} از {total} کار',
       projectOverdue: '{count} کار معوق',
       projectDue: 'پایان {date}',
-      needsHelp: '{count} نفر شاید کمک لازم داشته باشند',
     },
     team: {
       chooseDepartment: 'دپارتمان',

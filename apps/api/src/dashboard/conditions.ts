@@ -19,11 +19,17 @@ export function stuckTask(calendar: WorkCalendar, timeZone: string, today: strin
     '00:00',
     timeZone,
   );
-  const overdueBefore = workingDaysBefore(calendar, today, DASHBOARD_RULES.stuckOverdueWorkingDays);
+  const overdueBefore = stuckOverdueBefore(calendar, today);
   const lastTouched = sql`greatest(${s.tasks.updatedAt}, coalesce((
     select max(c.created_at) from comments c
-    where c.subject_type = 'task' and c.subject_id = ${s.tasks.id}), ${s.tasks.updatedAt}))`;
+    where c.subject_type = 'task' and c.subject_id = ${s.tasks.id} and c.deleted_at is null),
+    ${s.tasks.updatedAt}))`;
   return sql`(${openTask} and (
     (${s.tasks.statusCategory} = 'in_progress' and ${lastTouched} < ${idleSince})
     or ${s.tasks.dueOn} < ${overdueBefore}))`;
+}
+
+/** Due before this date: stuck because it is well past due (not just a day late). */
+export function stuckOverdueBefore(calendar: WorkCalendar, today: string): string {
+  return workingDaysBefore(calendar, today, DASHBOARD_RULES.stuckOverdueWorkingDays);
 }

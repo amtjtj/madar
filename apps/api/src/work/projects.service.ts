@@ -47,7 +47,12 @@ export class ProjectsService {
   atRisk(ctx: TenantContext): Promise<Project[]> {
     return this.db.run(ctx, async (tx) => {
       const { timeZone } = await loadWorkCalendar(tx, ctx.tenantId);
-      const rows = await atRiskProjects(tx, ctx.actor, calendarDateIn(new Date(), timeZone));
+      const rows = await atRiskProjects(
+        tx,
+        ctx.actor,
+        calendarDateIn(new Date(), timeZone),
+        timeZone,
+      );
       return this.hydrate(
         tx,
         ctx,

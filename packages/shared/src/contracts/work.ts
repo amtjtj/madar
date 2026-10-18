@@ -122,6 +122,8 @@ export const listTasksQuery = z.object({
     .enum(['true', 'false'])
     .transform((v) => v === 'true')
     .optional(),
+  /** Include subtasks in the department view (dashboard counts include them). */
+  subtasks: z.enum(['include']).optional(),
   limit: z.coerce.number().int().min(1).max(500).default(200),
 });
 export type ListTasksQuery = z.infer<typeof listTasksQuery>;

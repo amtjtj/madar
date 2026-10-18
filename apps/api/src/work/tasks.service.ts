@@ -65,7 +65,8 @@ export class TasksService {
     return this.db.run(ctx, async (tx) => {
       const filters: SQL[] = [isNull(s.tasks.deletedAt), visibleTasks(ctx.actor)];
       const me = ctx.memberId;
-      const drillDown = query.due === 'overdue' || query.stuck === true;
+      const drillDown =
+        query.due === 'overdue' || query.stuck === true || query.subtasks === 'include';
       switch (query.view) {
         case 'mine':
           filters.push(eq(s.tasks.assigneeId, me));

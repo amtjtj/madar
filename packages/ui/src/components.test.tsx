@@ -139,12 +139,12 @@ describe('charts', () => {
         ]}
       />,
     );
-    expect(screen.getByRole('table', { name: 'کارهای گذشته از سررسید' })).toBeTruthy();
+    // Linked rows carry name and value themselves.
+    expect(screen.getByRole('link', { name: 'پشتیبانی: ۷' })).toBeTruthy();
     expect(screen.getAllByText('۷').length).toBeGreaterThan(0);
-    expect(screen.getByRole('rowheader', { name: 'پشتیبانی' })).toBeTruthy();
   });
 
-  it('labels the latest column and shows a tooltip on focus', async () => {
+  it('labels the latest column and shows a tooltip on tap, with a table for screen readers', async () => {
     const { ColumnChart } = await import('./components/charts.js');
     const { container } = render(
       <ColumnChart
@@ -156,8 +156,10 @@ describe('charts', () => {
       />,
     );
     expect(screen.getAllByText('۱۲').length).toBeGreaterThan(0);
-    const first = container.querySelector('[tabindex="0"]') as HTMLElement;
-    fireEvent.focus(first);
+    expect(container.querySelector('[tabindex]')).toBeNull();
+    const first = container.querySelector('[dir="ltr"] > div') as HTMLElement;
+    fireEvent.click(first);
     expect(screen.getByText('هفته ۱: ۳')).toBeTruthy();
+    expect(screen.getByRole('table', { name: 'انجام‌شده در هفته' })).toBeTruthy();
   });
 });

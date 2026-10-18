@@ -1,12 +1,16 @@
 import { schema as s, type Tx } from '@madar/db';
-import { isProjectAtRisk, type Actor } from '@madar/shared';
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { calendarDateIn, isProjectAtRisk, type Actor } from '@madar/shared';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
-import { visibleProjects } from '../work/access.js';
+import { visibleProjects, visibleTasks } from '../work/access.js';
 
-/** Active projects the viewer can see that trail their schedule or carry overdue tasks. */
-export async function atRiskProjects(tx: Tx, actor: Actor, today: string) {
-  const rows = await tx
+/**
+ * Active projects the viewer can see that trail their schedule or carry overdue tasks. Counts use
+ * top-level tasks the viewer can see, like the project page, so a card never shows hidden work.
+ * The rule runs per project in code; fine at pilot scale (tens of projects).
+ */
+export async function atRiskProjects(tx: Tx, actor: Actor, today: string, timeZone: string) {
+  const projects = await tx
     .select({
       id: s.projects.id,
       name: s.projects.name,
@@ -15,18 +19,41 @@ export async function atRiskProjects(tx: Tx, actor: Actor, today: string) {
       startOn: s.projects.startOn,
       dueOn: s.projects.dueOn,
       createdAt: s.projects.createdAt,
-      total: sql<number>`(select count(*)::int from tasks t where t.project_id = ${s.projects.id} and t.deleted_at is null and t.parent_id is null and t.status_category <> 'canceled')`,
-      done: sql<number>`(select count(*)::int from tasks t where t.project_id = ${s.projects.id} and t.deleted_at is null and t.parent_id is null and t.status_category = 'done')`,
-      overdue: sql<number>`(select count(*)::int from tasks t where t.project_id = ${s.projects.id} and t.deleted_at is null and t.status_category in ('todo', 'in_progress') and t.due_on < ${today})`,
     })
     .from(s.projects)
     .leftJoin(s.departments, eq(s.departments.id, s.projects.departmentId))
     .where(and(eq(s.projects.status, 'active'), visibleProjects(actor)))
     .orderBy(sql`${s.projects.dueOn} asc nulls last`, asc(s.projects.name));
-  return rows
+  if (projects.length === 0) return [];
+  const counts = await tx
+    .select({
+      projectId: s.tasks.projectId,
+      total: sql<number>`count(*) filter (where ${s.tasks.statusCategory} <> 'canceled')::int`,
+      done: sql<number>`count(*) filter (where ${s.tasks.statusCategory} = 'done')::int`,
+      overdue: sql<number>`count(*) filter (where ${s.tasks.statusCategory} in ('todo', 'in_progress') and ${s.tasks.dueOn} < ${today})::int`,
+    })
+    .from(s.tasks)
+    .where(
+      and(
+        inArray(
+          s.tasks.projectId,
+          projects.map((p) => p.id),
+        ),
+        isNull(s.tasks.deletedAt),
+        isNull(s.tasks.parentId),
+        visibleTasks(actor),
+      ),
+    )
+    .groupBy(s.tasks.projectId);
+
+  return projects
+    .map((p) => {
+      const c = counts.find((row) => row.projectId === p.id);
+      return { ...p, total: c?.total ?? 0, done: c?.done ?? 0, overdue: c?.overdue ?? 0 };
+    })
     .filter((p) =>
       isProjectAtRisk({
-        startOn: p.startOn ?? p.createdAt.toISOString().slice(0, 10),
+        startOn: p.startOn ?? calendarDateIn(p.createdAt, timeZone),
         dueOn: p.dueOn,
         today,
         done: p.done,

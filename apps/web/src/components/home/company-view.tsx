@@ -54,7 +54,11 @@ function CompanyDashboardView({ data }: { data: CompanyDashboard }) {
           <StatTile
             icon={<Target aria-hidden />}
             label={t('home.company.goalProgress')}
-            value={headline.goalProgress === null ? '—' : formatPercent(headline.goalProgress)}
+            value={
+              headline.goalProgress === null
+                ? t('home.noValue')
+                : formatPercent(headline.goalProgress)
+            }
             hint={
               headline.goalProgress === null
                 ? t('home.company.noGoals')

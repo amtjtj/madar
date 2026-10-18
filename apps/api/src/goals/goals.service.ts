@@ -47,7 +47,9 @@ export class GoalsService {
   list(ctx: TenantContext, query: ListGoalsQuery): Promise<GoalSummary[]> {
     return this.db.run(ctx, async (tx) => {
       const periodId = query.periodId ?? (await this.currentPeriodId(tx, ctx));
-      const myDepartments = ctx.actor.departments.map((d) => d.id);
+      const myDepartments = query.departmentId
+        ? [query.departmentId]
+        : ctx.actor.departments.map((d) => d.id);
       const view =
         query.view === 'mine'
           ? eq(s.goals.ownerId, ctx.memberId)

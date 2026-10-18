@@ -55,7 +55,9 @@ export function TeamView({
 
 function TeamDashboardView({ data }: { data: DepartmentDashboard }) {
   const id = data.department.id;
-  const tasks = (extra: string) => `/tasks?view=department&departmentId=${id}${extra}`;
+  // Subtasks included: the tiles count them too.
+  const tasks = (extra: string) =>
+    `/tasks?view=department&departmentId=${id}&subtasks=include${extra}`;
   const { headline } = data;
   return (
     <div className="flex flex-col gap-6">
@@ -84,11 +86,15 @@ function TeamDashboardView({ data }: { data: DepartmentDashboard }) {
             tone={headline.stuckTasks > 0 ? 'warning' : 'neutral'}
           />
         </TileLink>
-        <TileLink href="/goals?view=department">
+        <TileLink href={`/goals?view=department&departmentId=${id}`}>
           <StatTile
             icon={<Target aria-hidden />}
             label={t('home.team.goalProgress')}
-            value={headline.goalProgress === null ? '—' : formatPercent(headline.goalProgress)}
+            value={
+              headline.goalProgress === null
+                ? t('home.noValue')
+                : formatPercent(headline.goalProgress)
+            }
           />
         </TileLink>
       </div>
@@ -150,12 +156,11 @@ function TeamDashboardView({ data }: { data: DepartmentDashboard }) {
                 key: w.member.id,
                 label: w.member.displayName,
                 values: [w.todo, w.inProgress],
-                note:
-                  w.overdue > 0 ? (
-                    <span className="shrink-0 text-xs font-semibold text-danger-ink">
-                      {t('home.team.overdueNote', { count: formatNumber(w.overdue) })}
-                    </span>
-                  ) : undefined,
+                note: w.overdue ? (
+                  <span className="shrink-0 text-xs font-semibold text-danger-ink">
+                    {t('home.team.overdueNote', { count: formatNumber(w.overdue) })}
+                  </span>
+                ) : undefined,
               }))}
             />
           </CardContent>
