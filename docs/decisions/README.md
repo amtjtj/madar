@@ -17,3 +17,4 @@ Template: Status · Date · Context · Decision · Alternatives considered · Co
 | 0009 | Append-only, hash-chained audit log | Accepted |
 | 0010 | Work core: tasks, projects and the daily plan | Accepted |
 | 0011 | Worker, notifications, quiet hours and realtime | Accepted |
+| 0012 | Installable app (PWA) and Web Push | Accepted |

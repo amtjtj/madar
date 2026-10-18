@@ -45,6 +45,7 @@ CLAUDE.md fixes the stack; this records the exact versions chosen when the monor
 | Web | @dnd-kit/core / sortable / utilities | 6.3.1 / 10.0.0 / 3.2.2 | Board drag and drop: pointer, touch and keyboard (ADR 0010) |
 | API | fractional-indexing | 4.0.0 | Sort keys for board order (ADR 0010) |
 | Worker | bullmq / ioredis | 6.3.16 / 5.11.1 | Outbox relay queues and job schedulers; ioredis 5 is what BullMQ is tested with (ADR 0011) |
+| Web Push | web-push | 3.6.7 | VAPID signing and payload encryption in Node; no third-party push SDK (ADR 0012) |
 | Realtime | socket.io / socket.io-client | 4.8.4 / 4.8.4 | Gateway at `/api/socket` (ADR 0011) |
 | Realtime | @nestjs/websockets / @nestjs/platform-socket.io | 12.1.3 / 12.1.3 | Nest gateway |
 | Realtime | @socket.io/redis-adapter / @socket.io/redis-emitter | 8.3.0 / 5.1.0 | Shared rooms across API instances; worker emits through Redis |

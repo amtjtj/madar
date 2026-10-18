@@ -15,4 +15,4 @@ Implementation rules for the NestJS API and the Drizzle schema. The root `CLAUDE
 - Create notifications only through `Notifier.notify()` (skips the actor, checks visibility, muted kinds, quiet hours, dedupe). Each new kind needs `NOTIFICATION_KINDS`, a `notifications.kinds.*` and a `notificationSettings.kinds.*` string.
 - Realtime messages carry no data; add a hint name to `REALTIME_EVENTS` and let the web refetch. Rooms come from `realtime/rooms.ts` and are always built from the event's tenant; only the server joins sockets to rooms.
 - The worker reads across tenants only through the platform functions (`lock_unpublished_events`, `mark_events_published`, `list_active_tenants`).
-
+- Device push (ADR 0012) is driven by `notification.created`; never send a push directly from a feature. Push payloads are `{ v, kind, count, subject }` only (no titles or names); the service worker words them from `pwa.pushMessages.*`. A new notification kind therefore also needs a `pwa.pushMessages.kinds.*` string.

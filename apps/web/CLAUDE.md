@@ -21,3 +21,4 @@ Rules for the Next.js app and the design system. The root `CLAUDE.md` (golden ru
 - A `'use client'` file exports only components, hooks and types. Constants, helpers and `cva` variants go in a plain module, because server components receive client-module values as references, not values (this caused a production-only hydration error once).
 - Next.js 16 docs ship inside `node_modules/next/dist/docs/` (see `apps/web/AGENTS.md`); check them before using an unfamiliar Next API.
 - ESLint forbids physical Tailwind classes (`ml-*`, `left-*`, `text-right`, …) in web code.
+- PWA (ADR 0012): the service worker is built from `src/lib/service-worker.ts` and served by `app/sw.js/route.ts`; it must never cache pages or API responses. New public files the browser fetches without a session (icons, manifest) need an exclusion in `src/proxy.ts`. Regenerate icons after a logo change with `node scripts/icons.mjs`.
