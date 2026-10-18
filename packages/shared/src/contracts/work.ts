@@ -23,6 +23,12 @@ export const calendarDate = z.iso.date();
 
 const personRef = z.object({ id: z.uuid(), displayName: z.string() });
 
+/** The key result a task or project serves (null when none, or the viewer cannot see its goal). */
+const keyResultRef = z
+  .object({ id: z.uuid(), title: z.string(), goal: z.object({ id: z.uuid(), title: z.string() }) })
+  .nullable();
+export type KeyResultRef = z.infer<typeof keyResultRef>;
+
 export const task = z.object({
   id: z.uuid(),
   title: z.string(),
@@ -43,6 +49,7 @@ export const task = z.object({
   version: z.number().int(),
   subtasks: z.object({ total: z.number().int(), done: z.number().int() }),
   commentCount: z.number().int(),
+  keyResult: keyResultRef,
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
   /** What the viewer may do (UI hints; the API enforces). */
@@ -81,6 +88,7 @@ export const updateTaskRequest = z.object({
   priority: z.enum(TASK_PRIORITIES).optional(),
   weight: z.number().int().min(1).max(5).optional(),
   statusKey: z.string().max(40).optional(),
+  keyResultId: z.uuid().nullable().optional(),
 });
 export type UpdateTaskRequest = z.infer<typeof updateTaskRequest>;
 
@@ -150,6 +158,7 @@ export const project = z.object({
   dueOn: calendarDate.nullable(),
   tasks: z.object({ total: z.number().int(), done: z.number().int() }),
   members: z.array(personRef.extend({ role: z.enum(['owner', 'member']) })),
+  keyResult: keyResultRef,
   can: z.object({ edit: z.boolean() }),
 });
 export type Project = z.infer<typeof project>;
@@ -166,7 +175,10 @@ export const createProjectRequest = z.object({
 });
 export type CreateProjectRequest = z.input<typeof createProjectRequest>;
 
-export const updateProjectRequest = createProjectRequest.omit({ memberIds: true }).partial();
+export const updateProjectRequest = createProjectRequest
+  .omit({ memberIds: true })
+  .partial()
+  .extend({ keyResultId: z.uuid().nullable().optional() });
 export type UpdateProjectRequest = z.infer<typeof updateProjectRequest>;
 
 export const setProjectMembersRequest = z.object({

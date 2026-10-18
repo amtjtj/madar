@@ -1,9 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { emitEvent, schema as s, type Tx } from '@madar/db';
-import { deliverAfter, type NotificationKind, type WorkCalendar } from '@madar/shared';
+import {
+  deliverAfter,
+  type NotificationKind,
+  type NotificationSubject,
+  type WorkCalendar,
+} from '@madar/shared';
 import { and, eq, isNull } from 'drizzle-orm';
 
 import { loadMemberInTx } from '../auth/tenant-context.service.js';
+import { visibleGoals } from '../goals/access.js';
 import { visibleProjects, visibleTasks } from '../work/access.js';
 import { loadWorkCalendar } from './calendar.js';
 
@@ -11,7 +17,7 @@ export interface NewNotification {
   tenantId: string;
   recipientId: string;
   kind: NotificationKind;
-  subjectType: 'task' | 'project';
+  subjectType: NotificationSubject;
   subjectId: string;
   actorId: string | null;
   /** Shown in the list: the title at the time plus message values. */
@@ -71,7 +77,7 @@ export class Notifier {
   private async canSee(
     tx: Tx,
     actor: Parameters<typeof visibleTasks>[0],
-    subjectType: 'task' | 'project',
+    subjectType: NotificationSubject,
     subjectId: string,
   ): Promise<boolean> {
     if (subjectType === 'task') {
@@ -79,6 +85,13 @@ export class Notifier {
         .select({ id: s.tasks.id })
         .from(s.tasks)
         .where(and(eq(s.tasks.id, subjectId), isNull(s.tasks.deletedAt), visibleTasks(actor)));
+      return Boolean(row);
+    }
+    if (subjectType === 'goal') {
+      const [row] = await tx
+        .select({ id: s.goals.id })
+        .from(s.goals)
+        .where(and(eq(s.goals.id, subjectId), isNull(s.goals.archivedAt), visibleGoals(actor)));
       return Boolean(row);
     }
     const [row] = await tx

@@ -2,6 +2,9 @@ import { z } from 'zod';
 
 import { calendarDate } from './work.js';
 
+export const NOTIFICATION_SUBJECTS = ['task', 'project', 'goal'] as const;
+export type NotificationSubject = (typeof NOTIFICATION_SUBJECTS)[number];
+
 export const NOTIFICATION_KINDS = [
   'task_assigned',
   'task_commented',
@@ -9,13 +12,14 @@ export const NOTIFICATION_KINDS = [
   'task_overdue',
   'task_overdue_escalation',
   'project_member_added',
+  'key_result_checkin_due',
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
 export const notification = z.object({
   id: z.uuid(),
   kind: z.enum(NOTIFICATION_KINDS),
-  subjectType: z.enum(['task', 'project']),
+  subjectType: z.enum(NOTIFICATION_SUBJECTS),
   subjectId: z.uuid(),
   actor: z.object({ id: z.uuid(), displayName: z.string() }).nullable(),
   /** Title of the task or project at the time (shown in the list). */

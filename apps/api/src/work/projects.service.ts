@@ -11,6 +11,7 @@ import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { TenantContext } from '../common/context.js';
 import { forbidden, notFound } from '../common/errors.js';
 import { TenantDb } from '../database/tenant-db.service.js';
+import { keyResultRefs, requireLinkableKeyResult } from '../goals/links.js';
 import { canCreateIn, canEditProject, visibleProjects } from './access.js';
 
 type ProjectRow = typeof s.projects.$inferSelect;
@@ -87,6 +88,9 @@ export class ProjectsService {
       const current = await this.requireEditable(tx, ctx, id);
       const departmentId =
         input.departmentId === undefined ? current.departmentId : input.departmentId;
+      if (input.keyResultId && input.keyResultId !== current.keyResultId) {
+        await requireLinkableKeyResult(tx, ctx.actor, input.keyResultId);
+      }
       if (input.departmentId && input.departmentId !== current.departmentId) {
         await requireActiveDepartment(tx, input.departmentId);
         if (!canCreateIn(ctx.actor, input.departmentId)) throw forbidden();
@@ -102,6 +106,7 @@ export class ProjectsService {
           color: input.color,
           startOn: input.startOn,
           dueOn: input.dueOn,
+          keyResultId: input.keyResultId,
         })
         .where(eq(s.projects.id, id));
       return this.one(tx, ctx, id);
@@ -213,6 +218,11 @@ export class ProjectsService {
       .innerJoin(s.members, eq(s.members.id, s.projectMembers.memberId))
       .where(inArray(s.projectMembers.projectId, ids))
       .orderBy(asc(s.members.displayName));
+    const keyResults = await keyResultRefs(
+      tx,
+      ctx.actor,
+      rows.map((r) => r.project.keyResultId),
+    );
 
     const byId = new Map(
       rows.map((r) => {
@@ -233,6 +243,7 @@ export class ProjectsService {
           dueOn: r.project.dueOn,
           tasks: { total: r.taskTotal, done: r.taskDone },
           members: projectMembers.map(({ id, displayName, role }) => ({ id, displayName, role })),
+          keyResult: (r.project.keyResultId && keyResults.get(r.project.keyResultId)) || null,
           can: {
             edit: canEditProject(ctx.actor, {
               ...r.project,

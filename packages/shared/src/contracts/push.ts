@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { NOTIFICATION_KINDS } from './notifications.js';
+import { NOTIFICATION_KINDS, NOTIFICATION_SUBJECTS } from './notifications.js';
 
 /**
  * Push services of the major browsers. The worker POSTs to a subscription's endpoint, which the
@@ -60,6 +60,6 @@ export const pushPayload = z.object({
   /** Unread notifications this push stands for; more than one shows «n new notifications». */
   count: z.number().int().min(1),
   /** For a single notification: where a tap opens. */
-  subject: z.object({ type: z.enum(['task', 'project']), id: z.uuid() }).nullable(),
+  subject: z.object({ type: z.enum(NOTIFICATION_SUBJECTS), id: z.uuid() }).nullable(),
 });
 export type PushPayload = z.infer<typeof pushPayload>;

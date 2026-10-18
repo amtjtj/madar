@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { schema as s } from '@madar/db';
 import type {
+  NotificationSubject,
   ListNotificationsQuery,
   Notification,
   NotificationKind,
@@ -51,7 +52,7 @@ export class NotificationsService {
           return {
             id: n.id,
             kind: n.kind as NotificationKind,
-            subjectType: n.subjectType as 'task' | 'project',
+            subjectType: n.subjectType as NotificationSubject,
             subjectId: n.subjectId,
             actor: n.actorId && actorName ? { id: n.actorId, displayName: actorName } : null,
             title: payload.title ?? '',

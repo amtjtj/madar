@@ -16,5 +16,6 @@ export function notificationText(n: Notification): string {
 }
 
 export function notificationHref(n: Notification): string {
+  if (n.subjectType === 'goal') return `/goals/${n.subjectId}`;
   return n.subjectType === 'project' ? `/projects/${n.subjectId}` : `/tasks/${n.subjectId}`;
 }

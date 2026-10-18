@@ -1,6 +1,12 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { listActiveTenants, schema as s, withTenant, type DbHandle, type Tx } from '@madar/db';
-import { addDays, isWorkingDay, workdayStarted, workingDaysBetween } from '@madar/shared';
+import {
+  addDays,
+  isWorkingDay,
+  persianWeekdayOfCalendarDate,
+  workdayStarted,
+  workingDaysBetween,
+} from '@madar/shared';
 import { and, asc, eq, gte, inArray, isNotNull, isNull, lt, lte, sql, type SQL } from 'drizzle-orm';
 
 import { DB_HANDLE } from '../database/tokens.js';
@@ -132,8 +138,65 @@ export class RemindersService {
           }
         }
       }
+      created += await this.checkinReminders(tx, today, base);
       return created;
     });
+  }
+
+  /**
+   * Weekly, gentle: the owner of a current-season goal whose key results had no check-in for seven
+   * days hears about it once per week (Saturday-based), on the first working day it runs.
+   */
+  private async checkinReminders(
+    tx: Tx,
+    today: string,
+    base: {
+      tenantId: string;
+      actorId: null;
+      now: Date;
+      calendar: Awaited<ReturnType<typeof loadWorkCalendar>>;
+    },
+  ): Promise<number> {
+    const weekStart = addDays(today, -persianWeekdayOfCalendarDate(today));
+    const weekAgo = new Date(base.now.getTime() - 7 * 24 * 60 * 60_000);
+    const stale = await tx
+      .select({ id: s.goals.id, title: s.goals.title, ownerId: s.goals.ownerId })
+      .from(s.goals)
+      .innerJoin(s.goalPeriods, eq(s.goalPeriods.id, s.goals.periodId))
+      .where(
+        and(
+          isNull(s.goals.archivedAt),
+          lte(s.goalPeriods.startOn, today),
+          gte(s.goalPeriods.endOn, today),
+          lt(s.goals.createdAt, weekAgo),
+          sql`exists (
+            select 1 from key_results kr
+            where kr.goal_id = ${s.goals.id} and kr.archived_at is null
+              and (kr.last_checkin_at is null or kr.last_checkin_at < ${weekAgo}))`,
+          sql`not exists (
+            select 1 from notifications n
+            where n.subject_id = ${s.goals.id} and n.kind = 'key_result_checkin_due'
+              and n.dedupe_key = ${`checkin_due:`} || ${s.goals.id}::text || ':' || ${weekStart})`,
+        ),
+      )
+      .orderBy(asc(s.goals.createdAt))
+      .limit(2000);
+    let created = 0;
+    for (const goal of stale) {
+      if (
+        await this.notifier.notify(tx, {
+          ...base,
+          recipientId: goal.ownerId,
+          kind: 'key_result_checkin_due',
+          subjectType: 'goal',
+          subjectId: goal.id,
+          payload: { title: goal.title },
+          dedupeKey: `checkin_due:${goal.id}:${weekStart}`,
+        })
+      )
+        created++;
+    }
+    return created;
   }
 
   /** Open tasks with a due date, oldest due first (so a capped batch never starves old tasks). */

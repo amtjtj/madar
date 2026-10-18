@@ -21,6 +21,7 @@ import { generateKeyBetween } from 'fractional-indexing';
 import type { TenantContext } from '../common/context.js';
 import { ApiError, forbidden, notFound } from '../common/errors.js';
 import { TenantDb } from '../database/tenant-db.service.js';
+import { keyResultRefs, requireLinkableKeyResult } from '../goals/links.js';
 import {
   canCreateIn,
   canDeleteTask,
@@ -226,6 +227,9 @@ export class TasksService {
       }
       if (input.projectId) await this.requireUsableProject(tx, ctx, input.projectId);
       if (input.assigneeId) await requireActiveMember(tx, input.assigneeId);
+      if (input.keyResultId && input.keyResultId !== current.keyResultId) {
+        await requireLinkableKeyResult(tx, ctx.actor, input.keyResultId);
+      }
 
       const patch: Partial<typeof s.tasks.$inferInsert> = {};
       const changes: ActivityChanges = {};
@@ -237,6 +241,7 @@ export class TasksService {
         'dueOn',
         'priority',
         'weight',
+        'keyResultId',
       ] as const;
       for (const field of fields) {
         const next = input[field];
@@ -580,6 +585,11 @@ export class TasksService {
       .from(s.taskCollaborators)
       .innerJoin(s.members, eq(s.members.id, s.taskCollaborators.memberId))
       .where(inArray(s.taskCollaborators.taskId, ids));
+    const keyResults = await keyResultRefs(
+      tx,
+      ctx.actor,
+      rows.map((r) => r.task.keyResultId),
+    );
 
     const byId = new Map(
       rows.map((r) => {
@@ -620,6 +630,7 @@ export class TasksService {
           version: r.task.version,
           subtasks: { total: r.subtaskTotal, done: r.subtaskDone },
           commentCount: r.commentCount,
+          keyResult: (r.task.keyResultId && keyResults.get(r.task.keyResultId)) || null,
           createdAt: r.task.createdAt.toISOString(),
           updatedAt: r.task.updatedAt.toISOString(),
           can: {

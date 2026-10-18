@@ -187,6 +187,7 @@ function draftTask(id: string, body: CreateTaskRequest): Task {
     version: 0,
     subtasks: { total: 0, done: 0 },
     commentCount: 0,
+    keyResult: null,
     createdAt: now,
     updatedAt: now,
     can: { edit: false, setWeight: false, delete: false },
