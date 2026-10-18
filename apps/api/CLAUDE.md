@@ -10,6 +10,7 @@ Implementation rules for the NestJS API and the Drizzle schema. The root `CLAUDE
 - System-role grants are copied into each tenant at signup: adding a permission to `SYSTEM_ROLE_GRANTS` also needs a data migration for existing tenants (see `0004_grant_task_manage.sql`).
 - Work visibility (who sees which task/project) lives in `apps/api/src/work/access.ts` as SQL conditions; reuse them, never filter in memory (ADR 0010). Goal visibility and edit rules live in `apps/api/src/goals/access.ts` (ADR 0013).
 - Dashboard counts and the list filters they link to share their SQL (`apps/api/src/dashboard/conditions.ts`, `at-risk.ts`); change both together (ADR 0014).
+- Weekly reports (ADR 0015) are built by one function, `apps/api/src/reports/builder.ts`, for both the live week and stored snapshots. Snapshots are a shared view: never add private-project work, individual goals or per-person counts to them. `weekly_reports` is append-only.
 - Goal progress is computed, never written by hand: after any change to key results, check-ins or the goal tree, call `recomputeGoalChain()` in the same transaction.
 
 ## Events, worker and realtime (ADR 0011)

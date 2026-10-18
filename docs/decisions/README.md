@@ -20,3 +20,4 @@ Template: Status · Date · Context · Decision · Alternatives considered · Co
 | 0012 | Installable app (PWA) and Web Push | Accepted |
 | 0013 | Goals (OKR) in three levels | Accepted |
 | 0014 | Role homes, dashboards and charts | Accepted |
+| 0015 | Weekly reports and PDF export | Accepted |
