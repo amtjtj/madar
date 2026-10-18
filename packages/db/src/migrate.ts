@@ -1,7 +1,7 @@
 /**
  * Applies migrations as the owner role (DATABASE_URL) after making sure the application role from
- * APP_DATABASE_URL exists with its password. The app role is never the table owner and never
- * bypasses RLS (ADR 0002).
+ * APP_DATABASE_URL (and the worker role from WORKER_DATABASE_URL, when set) exists with its password.
+ * Neither is ever the table owner or bypasses RLS (ADR 0002, ADR 0011).
  */
 import { resolve } from 'node:path';
 
@@ -12,27 +12,31 @@ import pg from 'pg';
 import { loadRootEnv, requireEnv } from './env.js';
 
 export const APP_ROLE = 'madar_app';
+export const WORKER_ROLE = 'madar_worker';
 
 function quoteLiteral(value: string): string {
   return `'${value.replace(/'/g, "''")}'`;
 }
 
-export async function ensureAppRole(owner: pg.Pool, appUrl: string): Promise<void> {
-  const url = new URL(appUrl);
+export async function ensureLoginRole(
+  owner: pg.Pool,
+  roleUrl: string,
+  role: string,
+): Promise<void> {
+  const url = new URL(roleUrl);
   const user = decodeURIComponent(url.username);
   const password = decodeURIComponent(url.password);
-  if (user !== APP_ROLE) {
-    throw new Error(`APP_DATABASE_URL must connect as "${APP_ROLE}" (got "${user}")`);
-  }
-  if (!password) throw new Error('APP_DATABASE_URL must include a password');
+  if (user !== role)
+    throw new Error(`The URL for ${role} must connect as "${role}" (got "${user}")`);
+  if (!password) throw new Error(`The URL for ${role} must include a password`);
   const pw = quoteLiteral(password);
   await owner.query(`
     DO $$
     BEGIN
-      IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${APP_ROLE}') THEN
-        ALTER ROLE ${APP_ROLE} LOGIN NOBYPASSRLS NOSUPERUSER PASSWORD ${pw};
+      IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${role}') THEN
+        ALTER ROLE ${role} LOGIN NOBYPASSRLS NOSUPERUSER PASSWORD ${pw};
       ELSE
-        CREATE ROLE ${APP_ROLE} LOGIN NOBYPASSRLS NOSUPERUSER PASSWORD ${pw};
+        CREATE ROLE ${role} LOGIN NOBYPASSRLS NOSUPERUSER PASSWORD ${pw};
       END IF;
     END
     $$;
@@ -40,13 +44,18 @@ export async function ensureAppRole(owner: pg.Pool, appUrl: string): Promise<voi
   // Let the app role connect to this database (names cannot be parameterized).
   const { rows } = await owner.query<{ db: string }>('select current_database() as db');
   const db = rows[0]?.db ?? '';
-  await owner.query(`GRANT CONNECT ON DATABASE "${db.replace(/"/g, '""')}" TO ${APP_ROLE}`);
+  await owner.query(`GRANT CONNECT ON DATABASE "${db.replace(/"/g, '""')}" TO ${role}`);
 }
 
-export async function runMigrations(ownerUrl: string, appUrl: string): Promise<void> {
+export async function runMigrations(
+  ownerUrl: string,
+  appUrl: string,
+  workerUrl?: string,
+): Promise<void> {
   const pool = new pg.Pool({ connectionString: ownerUrl, max: 1 });
   try {
-    await ensureAppRole(pool, appUrl);
+    await ensureLoginRole(pool, appUrl, APP_ROLE);
+    if (workerUrl) await ensureLoginRole(pool, workerUrl, WORKER_ROLE);
     await migrate(drizzle(pool), { migrationsFolder: resolve(import.meta.dirname, '../drizzle') });
   } finally {
     await pool.end();
@@ -55,7 +64,11 @@ export async function runMigrations(ownerUrl: string, appUrl: string): Promise<v
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   loadRootEnv();
-  runMigrations(requireEnv('DATABASE_URL'), requireEnv('APP_DATABASE_URL'))
+  runMigrations(
+    requireEnv('DATABASE_URL'),
+    requireEnv('APP_DATABASE_URL'),
+    process.env.WORKER_DATABASE_URL || undefined,
+  )
     .then(() => console.warn('Migrations applied.'))
     .catch((error: unknown) => {
       console.error(error);

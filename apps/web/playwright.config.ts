@@ -44,7 +44,8 @@ export default defineConfig({
       // Outbox relay and consumers (notifications, realtime), started once the API above is built and up.
       command: `until curl -sf http://localhost:${apiPort}/api/health > /dev/null; do sleep 1; done; pnpm --filter @madar/api worker`,
       wait: { stdout: /Worker started/ },
-      env: { NODE_ENV: 'test' },
+      // Own queue prefix: a dev worker on the same Redis must not take e2e jobs (and vice versa).
+      env: { NODE_ENV: 'test', QUEUE_PREFIX: 'madar-e2e' },
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },

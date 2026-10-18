@@ -8,11 +8,18 @@ import { withTenant } from '../tenant.js';
 
 loadRootEnv();
 
-export const hasDatabase = Boolean(process.env.APP_DATABASE_URL && process.env.DATABASE_URL);
+export const hasDatabase = Boolean(
+  process.env.APP_DATABASE_URL && process.env.DATABASE_URL && process.env.WORKER_DATABASE_URL,
+);
 
 /** Connection as the application role (subject to RLS). */
 export function appDb(): DbHandle {
   return createDb(process.env.APP_DATABASE_URL ?? '', { max: 4 });
+}
+
+/** Connection as the worker role (ADR 0011): the app role plus the cross-tenant outbox functions. */
+export function workerDb(): DbHandle {
+  return createDb(process.env.WORKER_DATABASE_URL ?? '', { max: 4 });
 }
 
 /** Connection as the owner role (bypasses nothing in app code; used only to simulate tampering). */

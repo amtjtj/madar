@@ -15,6 +15,7 @@
       "passThroughEnv": [
         "DATABASE_URL",
         "APP_DATABASE_URL",
+        "WORKER_DATABASE_URL",
         "REDIS_URL",
         "AUTH_*",
         "TENANT_SIGNUP_CODE",
@@ -33,7 +34,14 @@
     },
     "test": {
       "dependsOn": ["^build"],
-      "env": ["DATABASE_URL", "APP_DATABASE_URL", "REDIS_URL", "AUTH_*", "TENANT_SIGNUP_CODE"]
+      "env": [
+        "DATABASE_URL",
+        "APP_DATABASE_URL",
+        "WORKER_DATABASE_URL",
+        "REDIS_URL",
+        "AUTH_*",
+        "TENANT_SIGNUP_CODE"
+      ]
     },
     "test:e2e": {
       "dependsOn": ["^build"],
@@ -41,6 +49,7 @@
       "env": [
         "DATABASE_URL",
         "APP_DATABASE_URL",
+        "WORKER_DATABASE_URL",
         "REDIS_URL",
         "AUTH_*",
         "TENANT_SIGNUP_CODE",

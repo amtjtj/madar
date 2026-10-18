@@ -16,6 +16,7 @@ import {
   createTenantFixture,
   hasDatabase,
   ownerDb,
+  workerDb,
   type TenantFixture,
 } from './test/fixtures.js';
 
@@ -303,6 +304,7 @@ describe.skipIf(!hasDatabase)('audit log', () => {
 
 describe.skipIf(!hasDatabase)('outbox relay functions', () => {
   let app: DbHandle;
+  let worker: DbHandle;
   let a: TenantFixture;
   let b: TenantFixture;
 
@@ -320,10 +322,25 @@ describe.skipIf(!hasDatabase)('outbox relay functions', () => {
 
   beforeAll(async () => {
     app = appDb();
+    worker = workerDb();
     a = await createTenantFixture(app, 'ra');
     b = await createTenantFixture(app, 'rb');
   });
-  afterAll(() => app?.close());
+  afterAll(async () => {
+    await app?.close();
+    await worker?.close();
+  });
+
+  it('only the worker role may call the cross-tenant functions', async () => {
+    const denied = (e: unknown) => String((e as { cause?: Error }).cause?.message ?? e);
+    await expect(
+      app.db.transaction((tx) => lockUnpublishedEvents(tx, 1)).catch(denied),
+    ).resolves.toMatch(/permission denied/);
+    await expect(listActiveTenants(app.db).catch(denied)).resolves.toMatch(/permission denied/);
+    await expect(
+      app.db.transaction((tx) => markEventsPublished(tx, [a.tenantId])).catch(denied),
+    ).resolves.toMatch(/permission denied/);
+  });
 
   it("the app role cannot read other tenants' events directly", async () => {
     const other = await withTenant(app.db, { tenantId: a.tenantId }, (tx) =>
@@ -339,7 +356,7 @@ describe.skipIf(!hasDatabase)('outbox relay functions', () => {
       await oldEvent(a.tenantId, 'task.created'),
       await oldEvent(b.tenantId, 'task.created'),
     ];
-    const first = app.db.transaction(async (tx) => {
+    const first = worker.db.transaction(async (tx) => {
       const events = await lockUnpublishedEvents(tx, 1, [a.tenantId, b.tenantId]);
       await new Promise((resolve) => setTimeout(resolve, 200));
       await markEventsPublished(
@@ -349,7 +366,7 @@ describe.skipIf(!hasDatabase)('outbox relay functions', () => {
       return events;
     });
     await new Promise((resolve) => setTimeout(resolve, 50));
-    const second = await app.db.transaction(async (tx) => {
+    const second = await worker.db.transaction(async (tx) => {
       const events = await lockUnpublishedEvents(tx, 1, [a.tenantId, b.tenantId]);
       await markEventsPublished(
         tx,
@@ -367,7 +384,7 @@ describe.skipIf(!hasDatabase)('outbox relay functions', () => {
     });
     expect(second[0]?.tenantId).toBe(b.tenantId);
 
-    const again = await app.db.transaction((tx) =>
+    const again = await worker.db.transaction((tx) =>
       lockUnpublishedEvents(tx, 5, [a.tenantId, b.tenantId]),
     );
     expect(again.map((e) => e.id)).not.toContain(ids[0]);
@@ -377,14 +394,14 @@ describe.skipIf(!hasDatabase)('outbox relay functions', () => {
   it('a relay that fails before commit leaves the events for the next one', async () => {
     const id = await oldEvent(a.tenantId, 'comment.created');
     await expect(
-      app.db.transaction(async (tx) => {
+      worker.db.transaction(async (tx) => {
         expect(
           (await lockUnpublishedEvents(tx, 1, [a.tenantId, b.tenantId])).map((e) => e.id),
         ).toEqual([id]);
         throw new Error('crash before enqueue');
       }),
     ).rejects.toThrow('crash before enqueue');
-    const retry = await app.db.transaction(async (tx) => {
+    const retry = await worker.db.transaction(async (tx) => {
       const events = await lockUnpublishedEvents(tx, 1, [a.tenantId, b.tenantId]);
       await markEventsPublished(
         tx,
@@ -396,7 +413,7 @@ describe.skipIf(!hasDatabase)('outbox relay functions', () => {
   });
 
   it('lists active tenants with their time zone only', async () => {
-    const tenants = await listActiveTenants(app.db);
+    const tenants = await listActiveTenants(worker.db);
     expect(tenants.find((t) => t.id === a.tenantId)).toEqual({
       id: a.tenantId,
       timezone: 'Asia/Tehran',

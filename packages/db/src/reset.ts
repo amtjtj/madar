@@ -22,5 +22,9 @@ try {
 } finally {
   await pool.end();
 }
-await runMigrations(ownerUrl, requireEnv('APP_DATABASE_URL'));
+await runMigrations(
+  ownerUrl,
+  requireEnv('APP_DATABASE_URL'),
+  process.env.WORKER_DATABASE_URL || undefined,
+);
 console.warn('Database reset and migrated.');

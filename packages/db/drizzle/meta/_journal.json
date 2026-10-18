@@ -50,6 +50,13 @@
       "when": 1792279685795,
       "tag": "0006_notify_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792305560900,
+      "tag": "0007_worker_role",
+      "breakpoints": true
     }
   ]
 }

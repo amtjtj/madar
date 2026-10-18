@@ -8,6 +8,8 @@ const envSchema = z.object({
   API_PORT: z.coerce.number().int().positive().default(4000),
   /** Application role: RLS applies (never the owner URL). */
   APP_DATABASE_URL: z.string().url(),
+  /** Worker role (ADR 0011): like the app role, plus the cross-tenant outbox functions. */
+  WORKER_DATABASE_URL: z.string().url().optional(),
   API_CORS_ORIGINS: z
     .string()
     .default('')
