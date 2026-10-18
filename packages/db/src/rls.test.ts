@@ -44,12 +44,24 @@ const DATA_PLANE = [
   'notification_preferences',
   'processed_events',
   'push_subscriptions',
+  'goal_periods',
+  'goals',
+  'key_results',
+  'key_result_checkins',
 ] as const;
 
 /** Tables the app may only append to (no UPDATE/DELETE grant). */
-const APPEND_ONLY = ['audit_logs', 'activities', 'processed_events'];
+const APPEND_ONLY = ['audit_logs', 'activities', 'processed_events', 'key_result_checkins'];
 /** Tables the app may update but never delete from. */
-const NO_DELETE = ['domain_events', 'work_calendars', 'notifications', 'notification_preferences'];
+const NO_DELETE = [
+  'domain_events',
+  'work_calendars',
+  'notifications',
+  'notification_preferences',
+  'goal_periods',
+  'goals',
+  'key_results',
+];
 
 describe.skipIf(!hasDatabase)('tenant isolation (RLS)', () => {
   let app: DbHandle;

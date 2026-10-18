@@ -123,6 +123,32 @@ export async function createTenantFixture(handle: DbHandle, label = 't'): Promis
     });
     await tx.insert(s.notificationPreferences).values({ memberId: member.id });
     await tx.insert(s.processedEvents).values({ consumer: 'fixture', eventId: uuidv7() });
+    // Goals: one row in every table
+    const [period] = await tx
+      .insert(s.goalPeriods)
+      .values({ year: 1405, quarter: 3, startOn: '2026-09-23', endOn: '2026-12-21' })
+      .returning();
+    if (!period) throw new Error('period insert failed');
+    const [goal] = await tx
+      .insert(s.goals)
+      .values({
+        periodId: period.id,
+        level: 'department',
+        departmentId: department.id,
+        ownerId: member.id,
+        createdBy: member.id,
+        title: 'هدف',
+      })
+      .returning();
+    if (!goal) throw new Error('goal insert failed');
+    const [kr] = await tx
+      .insert(s.keyResults)
+      .values({ goalId: goal.id, title: 'نتیجه', kind: 'number', targetValue: 10 })
+      .returning();
+    if (!kr) throw new Error('key result insert failed');
+    await tx
+      .insert(s.keyResultCheckins)
+      .values({ keyResultId: kr.id, value: 3, status: 'on_track', authorId: member.id });
     await tx.insert(s.pushSubscriptions).values({
       memberId: member.id,
       endpoint: `https://fcm.googleapis.com/fcm/send/${suffix}`,

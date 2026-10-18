@@ -22,6 +22,8 @@ export const PERMISSIONS = [
   'task.manage',
   'project.read',
   'goal.read',
+  /** Create and edit company-level goals (department and personal goals follow department roles). */
+  'goal.manage',
   'metric.read',
   'approval.read',
   'leave.read',
@@ -45,11 +47,15 @@ const all = (scope: Scope, ...permissions: Permission[]): Grant[] =>
 /** Default grants seeded for each system role when a tenant is created. */
 export const SYSTEM_ROLE_GRANTS: Record<SystemRole, Grant[]> = {
   owner: all('tenant', ...PERMISSIONS),
-  // System administration, not content management: no oversight changes, no task.manage.
+  // System administration, not content management: no oversight changes, task or goal management.
   admin: all(
     'tenant',
     ...PERMISSIONS.filter(
-      (p) => p !== 'department.set_oversight' && p !== 'tenant.manage' && p !== 'task.manage',
+      (p) =>
+        p !== 'department.set_oversight' &&
+        p !== 'tenant.manage' &&
+        p !== 'task.manage' &&
+        p !== 'goal.manage',
     ),
   ),
   executive: all(
@@ -60,6 +66,7 @@ export const SYSTEM_ROLE_GRANTS: Record<SystemRole, Grant[]> = {
     'task.read',
     'project.read',
     'goal.read',
+    'goal.manage',
     'metric.read',
     'approval.read',
   ),

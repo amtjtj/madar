@@ -21,6 +21,7 @@ import {
 
 import { createdAt, id, tenantId, updatedAt } from './columns.js';
 import { tenants } from './control.js';
+import { keyResults } from './goals.js';
 import { departments, members } from './org.js';
 
 export const projectVisibility = pgEnum('project_visibility', ['department', 'tenant', 'private']);
@@ -49,11 +50,19 @@ export const projects = pgTable(
     color: text('color'),
     startOn: date('start_on', { mode: 'string' }),
     dueOn: date('due_on', { mode: 'string' }),
+    /** The key result this project serves (step 7). */
+    keyResultId: uuid('key_result_id'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
     unique('projects_tenant_id_id_key').on(t.tenantId, t.id),
+    index('projects_tenant_key_result_idx').on(t.tenantId, t.keyResultId),
+    foreignKey({
+      name: 'projects_key_result_fk',
+      columns: [t.tenantId, t.keyResultId],
+      foreignColumns: [keyResults.tenantId, keyResults.id],
+    }),
     index('projects_tenant_department_idx').on(t.tenantId, t.departmentId),
     foreignKey({
       name: 'projects_department_fk',
@@ -119,11 +128,19 @@ export const tasks = pgTable(
     deletedAt: timestamp('deleted_at', { withTimezone: true }),
     /** Optimistic concurrency: incremented on every update. */
     version: integer('version').notNull().default(1),
+    /** The key result this task serves (step 7). */
+    keyResultId: uuid('key_result_id'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
     unique('tasks_tenant_id_id_key').on(t.tenantId, t.id),
+    index('tasks_tenant_key_result_idx').on(t.tenantId, t.keyResultId),
+    foreignKey({
+      name: 'tasks_key_result_fk',
+      columns: [t.tenantId, t.keyResultId],
+      foreignColumns: [keyResults.tenantId, keyResults.id],
+    }),
     index('tasks_tenant_department_status_idx').on(t.tenantId, t.departmentId, t.statusCategory),
     index('tasks_tenant_assignee_status_idx').on(t.tenantId, t.assigneeId, t.statusCategory),
     index('tasks_tenant_project_idx').on(t.tenantId, t.projectId),

@@ -71,6 +71,13 @@
       "when": 1792310038291,
       "tag": "0009_push_endpoint_key",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792311253925,
+      "tag": "0010_goals",
+      "breakpoints": true
     }
   ]
 }
