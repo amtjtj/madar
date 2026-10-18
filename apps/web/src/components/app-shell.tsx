@@ -13,6 +13,7 @@ import {
   LogOut,
   Network,
   ScrollText,
+  Target,
   Users,
   WifiOff,
 } from 'lucide-react';
@@ -121,6 +122,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const workItems: NavItem[] = [
     { key: '/', label: t('nav.today'), href: '/', icon: <House aria-hidden /> },
     { key: '/tasks', label: t('shell.tasks'), href: '/tasks', icon: <ListTodo aria-hidden /> },
+    { key: '/goals', label: t('shell.goals'), href: '/goals', icon: <Target aria-hidden /> },
     {
       key: '/projects',
       label: t('shell.projects'),
@@ -130,7 +132,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   ];
   const orgItems = useOrgNavItems();
   const items = [...workItems, ...orgItems];
-  // The mobile tab bar has room for four: the organization screens share one «سازمان» hub.
+  // The mobile tab bar has room for five: the organization screens share one «سازمان» hub.
   const bottomItems: NavItem[] = [
     ...workItems,
     ...(orgItems.length

@@ -23,3 +23,12 @@ export const notificationKeys = {
 export const pushKeys = {
   config: ['push-config'] as const,
 };
+
+export const goalKeys = {
+  all: ['goals'] as const,
+  periods: ['goals', 'periods'] as const,
+  list: (view: string, periodId: string | undefined) => ['goals', 'list', view, periodId] as const,
+  goal: (id: string) => ['goals', 'detail', id] as const,
+  checkins: (keyResultId: string) => ['goals', 'checkins', keyResultId] as const,
+  options: (q: string) => ['goals', 'kr-options', q] as const,
+};
