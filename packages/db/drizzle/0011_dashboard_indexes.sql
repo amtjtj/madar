@@ -1,0 +1,1 @@
+CREATE INDEX "tasks_tenant_completed_idx" ON "tasks" USING btree ("tenant_id","completed_at") WHERE "tasks"."deleted_at" is null;

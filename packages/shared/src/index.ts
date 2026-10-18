@@ -1,5 +1,6 @@
 export * from './contracts/audit.js';
 export * from './contracts/common.js';
+export * from './contracts/dashboard.js';
 export * from './contracts/departments.js';
 export * from './contracts/goals.js';
 export * from './contracts/health.js';
@@ -14,5 +15,6 @@ export * from './locale/digits.js';
 export * from './locale/jalali.js';
 export * from './locale/quarters.js';
 export * from './locale/work-calendar.js';
+export * from './dashboard-rules.js';
 export * from './goal-progress.js';
 export * from './permissions.js';

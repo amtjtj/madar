@@ -78,6 +78,13 @@
       "when": 1792311253925,
       "tag": "0010_goals",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792326374869,
+      "tag": "0011_dashboard_indexes",
+      "breakpoints": true
     }
   ]
 }

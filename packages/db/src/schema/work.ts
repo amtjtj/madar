@@ -146,6 +146,10 @@ export const tasks = pgTable(
     index('tasks_tenant_project_idx').on(t.tenantId, t.projectId),
     index('tasks_tenant_parent_idx').on(t.tenantId, t.parentId),
     index('tasks_tenant_due_idx').on(t.tenantId, t.dueOn),
+    // «Done per week» on the dashboards.
+    index('tasks_tenant_completed_idx')
+      .on(t.tenantId, t.completedAt)
+      .where(sql`${t.deletedAt} is null`),
     foreignKey({
       name: 'tasks_department_fk',
       columns: [t.tenantId, t.departmentId],
