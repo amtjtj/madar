@@ -2,6 +2,8 @@
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 ENV_FILE=${MADAR_ENV_FILE:-$ROOT/.env}
 PROJECT=${MADAR_PROJECT:-madar}
+# Compose runs the images of the current deployment, never whatever was built last.
+export MADAR_TAG=${MADAR_TAG:-$(cat "$ROOT/.deploy/current" 2>/dev/null || echo latest)}
 
 compose() {
   docker compose --env-file "$ENV_FILE" -f "$ROOT/docker/compose.prod.yml" -p "$PROJECT" "$@"

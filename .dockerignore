@@ -10,9 +10,11 @@
 **/playwright-report
 **/blob-report
 .git
-.env
-.env.*
+**/.env
+**/.env.*
 !.env.example
+.deploy
+docker/caddy/certs
 backups
 *.rdb
 *.log

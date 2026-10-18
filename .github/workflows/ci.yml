@@ -87,5 +87,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: production-smoke
-          path: apps/web/test-results
+          # Traces only; never the saved demo sessions.
+          path: |
+            apps/web/test-results
+            !apps/web/test-results/.smoke-auth
           retention-days: 7

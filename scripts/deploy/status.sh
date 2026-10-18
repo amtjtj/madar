@@ -15,7 +15,8 @@ say "Last backup"
 if [ -f "$ROOT/backups/last-check.json" ]; then
   sed 's/,"restored".*/}/' "$ROOT/backups/last-check.json"
 else
-  echo "No backup yet (the first one runs at $(env_value BACKUP_AT || echo 03:30) Tehran time)."
+  at=$(env_value BACKUP_AT)
+  echo "No backup yet (the first one runs at ${at:-03:30} Tehran time)."
 fi
 
 say "Disk"

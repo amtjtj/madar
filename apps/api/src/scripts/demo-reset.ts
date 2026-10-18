@@ -10,6 +10,7 @@ import { resolve } from 'node:path';
 import { truncateAllData } from '@madar/db';
 
 import { demoMode, nextDailyRun } from './demo.js';
+import { SEED_COMPANY } from './seed-data.js';
 
 const log = (message: string) =>
   process.stdout.write(
@@ -31,7 +32,8 @@ function seed(): Promise<void> {
 async function reset(): Promise<void> {
   const ownerUrl = process.env.DATABASE_URL;
   if (!ownerUrl) throw new Error('DATABASE_URL (owner) is required to reset the demo');
-  const tables = await truncateAllData(ownerUrl);
+  // Refuses inside the database if any company other than the demo one exists.
+  const tables = await truncateAllData(ownerUrl, { onlyIfTenantSlugs: [SEED_COMPANY.slug] });
   log(`emptied ${tables} tables`);
   await seed();
   log('demo company seeded');

@@ -44,14 +44,16 @@ Constraints:
   - It runs nightly at 03:30 Tehran and keeps 7 daily and 4 weekly copies.
   - Every new dump is restored into a scratch database and its row counts are compared with the live one. The result goes to `backups/last-check.json`, which `status.sh` shows.
   - It can optionally copy each dump to S3-compatible storage at the provider.
-  - `restore.sh` replaces the live database from a dump.
+  - Deploy-time and manual dumps go to `manual/` (last 5), so they never push out the nightly copies. A dump that fails its restore check is kept aside as `.failed` and never replaces a good one.
+  - `restore.sh` takes a safety dump, restores into a separate database, and swaps it in only after a complete restore; the old database stays as `<db>_before_restore`.
 - **Monitoring without external services:**
   - `/api/health` reports database, Redis and worker. The worker refreshes a heartbeat key in Redis every 30 s.
   - Container healthchecks cover api, worker and web.
   - Logs are JSON with request ids; secrets, cookies and query strings are never logged.
   - `status.sh` gives one screen of state.
   - `smoke.sh` checks a running demo stack: only Caddy publishes ports, a Playwright smoke test over HTTPS at 360 and 1440 px (three roles, a live WebSocket hint, the weekly report), a backup with its restore check, and with `--restore` a full restore drill. CI runs it on every push against images built from that commit.
-- **Sign-in rate limit:** 20 attempts per minute per IP, up from 5. A whole office signs in from one address around 9:00; the smoke test hit the old limit exactly that way.
+- **Sign-in rate limit:** 20 attempts per minute per IP, up from 5. A whole office signs in from one address around 9:00; the smoke test hit the old limit exactly that way. A per-account limit or backoff (against slow guessing of one account) is a phase 2 follow-up.
+- **Hardening:** app containers run as `node` with `no-new-privileges`. Postgres and Redis sit on a `data` network that the web container is not on. Dumps are readable by root only. The demo reset also refuses inside the database if any company other than the demo one exists, so a demo flag left in a real server's `.env` cannot empty it.
   - Alerts (SMS or a messenger) are left for phase 2, as the owner decided.
 - **Demo mode** (`DEMO_MODE=true`, `COMPOSE_PROFILES=demo`):
   - the demo company may be seeded in production, with its own random `DEMO_PASSWORD`;

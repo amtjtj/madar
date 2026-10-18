@@ -16,6 +16,6 @@ export {
   type TenantScope,
   type Tx,
 } from './tenant.js';
-export { truncateAllData } from './truncate.js';
+export { NotADemoDatabaseError, truncateAllData } from './truncate.js';
 export { uuidv7 } from './schema/columns.js';
 export * as schema from './schema/index.js';

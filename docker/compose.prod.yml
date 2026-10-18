@@ -9,6 +9,10 @@ x-logging: &logging
     max-size: 10m
     max-file: '5'
 
+# App containers may not gain privileges (setuid binaries); they run as `node`.
+x-hardening: &hardening
+  security_opt: ['no-new-privileges:true']
+
 x-app-env: &app-env
   NODE_ENV: production
   APP_DATABASE_URL: ${APP_DATABASE_URL}
@@ -42,6 +46,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+    networks: [data]
     logging: *logging
 
   redis:
@@ -55,6 +60,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+    networks: [data]
     logging: *logging
 
   # Applies migrations (and creates the app and worker roles) before api and worker start.
@@ -69,6 +75,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    <<: *hardening
+    healthcheck:
+      disable: true
+    networks: [data]
     logging: *logging
 
   api:
@@ -82,6 +92,9 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+    <<: *hardening
+    # Reaches the database (data) and is reached by Caddy (edge).
+    networks: [data, edge]
     logging: *logging
 
   worker:
@@ -100,6 +113,8 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+    <<: *hardening
+    networks: [data]
     logging: *logging
 
   web:
@@ -110,6 +125,9 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    <<: *hardening
+    # The web server never talks to the database.
+    networks: [edge]
     logging: *logging
 
   # Demo server only (COMPOSE_PROFILES=demo): resets the demo company every night.
@@ -127,6 +145,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+    <<: *hardening
+    networks: [data]
     logging: *logging
 
   # Nightly pg_dump with a restore check after every backup (docker/backup/backup.sh).
@@ -154,6 +174,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks: [data]
     logging: *logging
 
   caddy:
@@ -175,7 +196,12 @@ services:
     depends_on:
       web:
         condition: service_healthy
+    networks: [edge]
     logging: *logging
+
+networks:
+  data:
+  edge:
 
 volumes:
   postgres-data:

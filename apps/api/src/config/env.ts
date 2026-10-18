@@ -62,6 +62,8 @@ const envSchema = z.object({
   TENANT_SIGNUP_CODE: z.string().default(''),
   /** Demo server (plan phase-1-step-9 §5): the demo company may be seeded and reset. */
   DEMO_MODE: flag,
+  /** Password of every seeded demo account (compose passes DEMO_PASSWORD here). */
+  SEED_PASSWORD: z.string().default(''),
 });
 
 /** Production refuses to start with development defaults (plan phase-1-step-9 §4). */
@@ -75,6 +77,10 @@ const productionSchema = envSchema.superRefine((env, ctx) => {
   }
   if (env.TENANT_SIGNUP_CODE.length < 12) {
     fail('TENANT_SIGNUP_CODE', 'Required in production (at least 12 characters)');
+  }
+  if (!env.WORKER_DATABASE_URL) fail('WORKER_DATABASE_URL', 'Required in production');
+  if (env.DEMO_MODE && (env.SEED_PASSWORD.length < 12 || env.SEED_PASSWORD === 'madar-demo-1234')) {
+    fail('SEED_PASSWORD', 'A demo server needs its own DEMO_PASSWORD (at least 12 characters)');
   }
   for (const key of ['APP_DATABASE_URL', 'WORKER_DATABASE_URL'] as const) {
     if (env[key] && DEV_PASSWORD.test(env[key])) fail(key, 'Uses a development password');

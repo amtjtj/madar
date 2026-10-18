@@ -29,13 +29,17 @@ describe('loadEnv', () => {
 
     it('starts with real secrets', () => {
       expect(loadEnv(production).DEMO_MODE).toBe(false);
-      expect(loadEnv({ ...production, DEMO_MODE: 'true' }).DEMO_MODE).toBe(true);
+      expect(
+        loadEnv({ ...production, DEMO_MODE: 'true', SEED_PASSWORD: 'Vq7mK2pX9wLs' }).DEMO_MODE,
+      ).toBe(true);
     });
 
     it.each([
       ['AUTH_SECRET', { AUTH_SECRET: 'change-me-to-a-long-random-secret-at-least-32-chars' }],
       ['AUTH_BASE_URL', { AUTH_BASE_URL: 'http://demo.madar.test' }],
       ['TENANT_SIGNUP_CODE', { TENANT_SIGNUP_CODE: '' }],
+      ['WORKER_DATABASE_URL', { WORKER_DATABASE_URL: undefined }],
+      ['SEED_PASSWORD', { DEMO_MODE: 'true', SEED_PASSWORD: 'madar-demo-1234' }],
       [
         'APP_DATABASE_URL',
         { APP_DATABASE_URL: 'postgres://madar_app:madar_app_dev_password@postgres:5432/madar' },

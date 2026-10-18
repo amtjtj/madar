@@ -33,8 +33,8 @@ grep -q '"ok":true' backups/last-check.json || fail "restore check failed: $(cat
 
 if [ "${1:-}" = --restore ]; then
   say "Restore drill"
-  latest=$(ls -1t backups/daily/*.dump | head -n 1)
-  MADAR_YES=1 "$ROOT/scripts/deploy/restore.sh" "$latest"
+  latest=$(compose exec -T backup sh -c 'ls -1t /backups/manual/*.dump | head -n 1' | tr -d '\r')
+  MADAR_YES=1 "$ROOT/scripts/deploy/restore.sh" "backups/${latest#/backups/}"
   health "$host_ip" | grep -q '"status":"ok"' || fail "unhealthy after the restore"
 fi
-say "Smoke test passed"
+say "Smoke test passed. On a demo server, reset the demo data now (docs/deploy.md §7): the test left tasks behind."

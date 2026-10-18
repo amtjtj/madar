@@ -1,19 +1,23 @@
 #!/bin/sh
 # Database backups (ADR 0016). Runs in the `backup` service (postgres image, same version as the
-# database). Every night: pg_dump, keep KEEP_DAILY daily and KEEP_WEEKLY weekly copies, restore the
-# new file into a scratch database and compare row counts, optionally copy it to S3.
-#   backup.sh loop    run forever, once a day at BACKUP_AT (Asia/Tehran)
-#   backup.sh now     one backup and its restore check
-#   backup.sh check   restore check of the newest backup
+# database). Every night: pg_dump, keep KEEP_DAILY nightly and KEEP_WEEKLY weekly copies, restore
+# the new file into a scratch database and compare row counts, optionally copy it to S3.
+#   backup.sh loop    run forever, once a day at BACKUP_AT (Asia/Tehran), into daily/ (+ weekly/)
+#   backup.sh now     one backup into manual/ (deploys, smoke tests, by hand) and its restore check
+#   backup.sh check   restore check of the newest nightly backup
 set -eu
 export PGOPTIONS="-c client_min_messages=warning"
+# Dumps hold every company's data: readable by the owner only.
+umask 077
 
 DIR=/backups
 BACKUP_AT=${BACKUP_AT:-03:30}
 KEEP_DAILY=${KEEP_DAILY:-7}
 KEEP_WEEKLY=${KEEP_WEEKLY:-4}
-CHECK_DB=madar_restore_check
-# Tables whose row counts must match after a restore.
+KEEP_MANUAL=${KEEP_MANUAL:-5}
+# One scratch database per run, so a nightly and a deploy backup never collide.
+CHECK_DB=madar_restore_check_$$
+# Tables whose row counts are compared after a restore.
 TABLES="tenants members departments projects tasks comments goals key_results key_result_checkins notifications weekly_reports audit_logs"
 
 log() { printf '{"time":"%s","service":"backup","message":"%s"}\n' "$(date -Iseconds)" "$*"; }
@@ -24,53 +28,70 @@ count_rows() { # database
   done | sed 's/,$//'
 }
 
+count_of() { # counts table
+  echo "$1" | tr ',' '\n' | grep "\"$2\":" | cut -d: -f2
+}
+
 check() { # file
   file=$1
   dropdb --if-exists "$CHECK_DB"
   createdb "$CHECK_DB"
   ok=true
-  pg_restore --exit-on-error --no-owner --no-privileges -d "$CHECK_DB" "$file" || ok=false
+  # The same restore as scripts/deploy/restore.sh (owners and grants included).
+  pg_restore --exit-on-error -d "$CHECK_DB" "$file" || ok=false
   live=$(count_rows "$PGDATABASE")
   restored=$(count_rows "$CHECK_DB")
   dropdb --if-exists "$CHECK_DB"
-  # The live database may have grown since the dump; it must never have fewer rows.
   if [ "$ok" = true ]; then
     for t in $TABLES; do
-      a=$(echo "$live" | tr ',' '\n' | grep "\"$t\":" | cut -d: -f2)
-      b=$(echo "$restored" | tr ',' '\n' | grep "\"$t\":" | cut -d: -f2)
+      a=$(count_of "$live" "$t")
+      b=$(count_of "$restored" "$t")
+      # The live database may have grown since the dump, never shrunk; an empty dump of a
+      # database with companies is a failure.
       if [ "$b" -lt 0 ] || [ "$b" -gt "$a" ]; then ok=false; fi
+      if [ "$t" = tenants ] && [ "$a" -gt 0 ] && [ "$b" -eq 0 ]; then ok=false; fi
     done
   fi
-  printf '{"time":"%s","file":"%s","bytes":%s,"ok":%s,"restored":{%s},"live":{%s}}\n' \
+  # The summary has no data in it: readable by status.sh without sudo.
+  (umask 022 && printf '{"time":"%s","file":"%s","bytes":%s,"ok":%s,"restored":{%s},"live":{%s}}\n' \
     "$(date -Iseconds)" "$(basename "$file")" "$(wc -c < "$file")" "$ok" "$restored" "$live" \
-    > "$DIR/last-check.json"
+    > "$DIR/last-check.json")
   if [ "$ok" = true ]; then log "restore check passed for $(basename "$file")"; else
     log "ERROR restore check FAILED for $(basename "$file")"; return 1; fi
 }
 
 upload() { # file
   [ -n "${BACKUP_S3_BUCKET:-}" ] || return 0
+  # Needs the Alpine package mirror once; see docs/deploy.md.
   command -v aws >/dev/null 2>&1 || apk add --no-cache aws-cli >/dev/null
   AWS_ACCESS_KEY_ID=$BACKUP_S3_ACCESS_KEY AWS_SECRET_ACCESS_KEY=$BACKUP_S3_SECRET_KEY \
-    aws --endpoint-url "$BACKUP_S3_ENDPOINT" s3 cp "$1" "s3://$BACKUP_S3_BUCKET/$(basename "$1")" \
-    --only-show-errors && log "copied $(basename "$1") to s3://$BACKUP_S3_BUCKET"
+    aws ${BACKUP_S3_ENDPOINT:+--endpoint-url "$BACKUP_S3_ENDPOINT"} s3 cp "$1" \
+    "s3://$BACKUP_S3_BUCKET/$(basename "$1")" --only-show-errors \
+    && log "copied $(basename "$1") to s3://$BACKUP_S3_BUCKET"
 }
 
 prune() { # dir keep
   ls -1t "$1"/*.dump 2>/dev/null | tail -n +"$(($2 + 1))" | xargs -r rm -f
 }
 
-backup() {
-  mkdir -p "$DIR/daily" "$DIR/weekly"
-  file="$DIR/daily/madar_$(date +%Y-%m-%d_%H%M).dump"
-  pg_dump -Fc -f "$file.partial"
+backup() { # set: daily | manual
+  set_dir="$DIR/$1"
+  mkdir -p "$set_dir" "$DIR/weekly"
+  chmod 700 "$set_dir" "$DIR/weekly"
+  file="$set_dir/madar_$(date +%Y-%m-%d_%H%M).dump"
+  pg_dump -Fc -f "$file.partial" || { rm -f "$file.partial"; log "ERROR pg_dump failed"; return 1; }
   mv "$file.partial" "$file"
-  log "backup written: $(basename "$file") ($(wc -c < "$file") bytes)"
-  # Fridays also go to the weekly set.
-  if [ "$(date +%u)" = 5 ]; then cp "$file" "$DIR/weekly/"; fi
-  prune "$DIR/daily" "$KEEP_DAILY"
-  prune "$DIR/weekly" "$KEEP_WEEKLY"
-  check "$file"
+  log "backup written: $1/$(basename "$file") ($(wc -c < "$file") bytes)"
+  # A dump that does not restore is kept aside and never replaces a good one.
+  check "$file" || { mv "$file" "$file.failed"; return 1; }
+  if [ "$1" = daily ]; then
+    # Fridays also go to the weekly set.
+    if [ "$(date +%u)" = 5 ]; then cp "$file" "$DIR/weekly/"; fi
+    prune "$DIR/daily" "$KEEP_DAILY"
+    prune "$DIR/weekly" "$KEEP_WEEKLY"
+  else
+    prune "$DIR/manual" "$KEEP_MANUAL"
+  fi
   upload "$file" || log "ERROR copy to S3 failed"
 }
 
@@ -82,13 +103,13 @@ seconds_until() { # HH:MM, today or tomorrow
 }
 
 case "${1:-loop}" in
-  now) backup ;;
+  now) backup manual ;;
   check) check "$(ls -1t "$DIR"/daily/*.dump | head -n 1)" ;;
   loop)
-    log "nightly backups at $BACKUP_AT ($(date +%Z)), keeping $KEEP_DAILY daily and $KEEP_WEEKLY weekly"
+    log "nightly backups at $BACKUP_AT ($(date +%Z)), keeping $KEEP_DAILY nightly and $KEEP_WEEKLY weekly"
     while true; do
       sleep "$(seconds_until "$BACKUP_AT")"
-      backup || log "ERROR backup failed"
+      backup daily || log "ERROR nightly backup failed"
     done
     ;;
   *) echo "usage: backup.sh loop|now|check" >&2; exit 2 ;;
