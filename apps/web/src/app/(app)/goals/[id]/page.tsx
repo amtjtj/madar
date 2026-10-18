@@ -80,7 +80,7 @@ export default function GoalPage() {
           <GoalStatusBadge goal={goal} />
         </div>
         {goal.description && <p className="text-ink-muted">{goal.description}</p>}
-        <ProgressBar value={goal.progress} size="lg" showValue label={t('goals.title')} />
+        <ProgressBar value={goal.progress} size="lg" showValue label={t('goals.progressLabel')} />
       </div>
 
       <div className="grid gap-6 pb-20 md:pb-0 lg:grid-cols-[minmax(0,1fr)_20rem]">

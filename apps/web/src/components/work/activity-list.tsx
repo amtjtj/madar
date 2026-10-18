@@ -6,6 +6,18 @@ import { formatRelativeTime, type Activity } from '@madar/shared';
 import { useActivity } from '@/hooks/work';
 
 const KNOWN_VERBS = ['created', 'updated', 'status_changed', 'collaborators_changed', 'deleted'];
+// Fields with a `task.fields.*` name; an unknown field is skipped instead of breaking the page.
+const KNOWN_FIELDS = [
+  'title',
+  'description',
+  'projectId',
+  'assigneeId',
+  'dueOn',
+  'priority',
+  'weight',
+  'status',
+  'keyResultId',
+];
 const statusName = (key: unknown) =>
   typeof key === 'string' ? t(`work.status.${key}` as MessageKey) : '';
 
@@ -25,7 +37,9 @@ function describe(entry: Activity): string {
 
 function changedFields(entry: Activity): string | null {
   if (entry.verb !== 'updated' || !entry.changes) return null;
-  const names = Object.keys(entry.changes).map((field) => t(`task.fields.${field}` as MessageKey));
+  const names = Object.keys(entry.changes)
+    .filter((field) => KNOWN_FIELDS.includes(field))
+    .map((field) => t(`task.fields.${field}` as MessageKey));
   return names.length ? t('task.changedFields', { fields: names.join('، ') }) : null;
 }
 

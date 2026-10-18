@@ -346,6 +346,7 @@ export const fa = {
       priority: 'اولویت',
       weight: 'وزن',
       status: 'وضعیت',
+      keyResultId: 'نتیجه کلیدی',
     },
     changedFields: 'تغییر در: {fields}',
     someone: 'کسی',
@@ -397,7 +398,8 @@ export const fa = {
       '4': 'زمستان {year}',
     },
     period: 'فصل',
-    current: '(فصل جاری)',
+    current: '(جاری)',
+    progressLabel: 'پیشرفت هدف',
     views: {
       mine: 'اهداف من',
       department: 'دپارتمان من',
@@ -760,6 +762,9 @@ export const fa = {
       department_oversight_changed: 'تغییر دسترسی ناظر',
       task_deleted: 'حذف کار',
       work_calendar_updated: 'تغییر ساعت کاری شرکت',
+      goal_created: 'ساخت هدف شرکت',
+      goal_updated: 'ویرایش هدف شرکت',
+      goal_archived: 'بایگانی هدف',
     },
   },
   work: {

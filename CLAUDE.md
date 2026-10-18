@@ -122,7 +122,7 @@ Requirements: Node 22.12+ (24 LTS recommended), pnpm 10 (`corepack enable`), Doc
 | Generate a migration from the Drizzle schema | `pnpm db:generate` |
 | Apply migrations (also creates the `madar_app` role) | `pnpm db:migrate` |
 | Drop everything and re-migrate (development only) | `pnpm db:reset` |
-| Seed the demo company «زرین‌مدار» (20 people, 5 projects, ~60 tasks; password `SEED_PASSWORD`) | `pnpm db:seed` |
+| Seed the demo company «زرین‌مدار» (20 people, 5 projects, ~60 tasks, 9 goals; password `SEED_PASSWORD`) | `pnpm db:seed` |
 | Install the licensed Abar Low fonts (git-ignored) | `pnpm fonts:install <dir-with-AbarLow-files>` |
 | Generate Web Push (VAPID) keys for `.env` (after a build) | `pnpm --filter @madar/api vapid:generate` |
 | One package only | `pnpm --filter @madar/<name> <script>` (e.g. `pnpm --filter @madar/api test`) |
