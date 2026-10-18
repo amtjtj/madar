@@ -53,8 +53,11 @@ export function useActivity(taskId: string) {
   });
 }
 
-export function useProjects() {
-  return useQuery({ queryKey: workKeys.projects, queryFn: () => api<Project[]>('/api/projects') });
+export function useProjects(filter: { risk?: boolean } = {}) {
+  return useQuery({
+    queryKey: filter.risk ? [...workKeys.projects, 'risk'] : workKeys.projects,
+    queryFn: () => api<Project[]>(filter.risk ? '/api/projects?risk=true' : '/api/projects'),
+  });
 }
 
 export function useProject(id: string) {

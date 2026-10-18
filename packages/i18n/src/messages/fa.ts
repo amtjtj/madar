@@ -250,6 +250,12 @@ export const fa = {
     saving: 'در حال ذخیره…',
   },
   tasks: {
+    filters: {
+      label: 'فیلتر:',
+      overdue: 'گذشته از سررسید',
+      stuck: 'گیرکرده',
+      clear: 'حذف فیلتر',
+    },
     title: 'کارها',
     subtitle: 'کارهای خودت و دپارتمانت، در لیست یا برد',
     tabs: {
@@ -390,6 +396,9 @@ export const fa = {
     addMember: 'افزودن عضو',
     removeMember: 'برداشتن {name}',
     notFoundTitle: 'این پروژه پیدا نشد',
+    atRisk: 'در خطر',
+    noneAtRisk: 'هیچ پروژه‌ای در خطر نیست',
+    noneAtRiskHint: 'همه پروژه‌های فعال طبق برنامه پیش می‌روند.',
   },
   goals: {
     title: 'اهداف',
