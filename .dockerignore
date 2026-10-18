@@ -1,0 +1,19 @@
+# Build context for docker/*.Dockerfile. Fonts in apps/web/public/fonts/abar stay included:
+# they are installed on the server (pnpm fonts:install) and baked into the web image.
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/*.tsbuildinfo
+**/coverage
+**/test-results
+**/playwright-report
+**/blob-report
+.git
+.env
+.env.*
+!.env.example
+backups
+*.rdb
+*.log
+docs
