@@ -43,6 +43,7 @@ const DATA_PLANE = [
   'notifications',
   'notification_preferences',
   'processed_events',
+  'push_subscriptions',
 ] as const;
 
 /** Tables the app may only append to (no UPDATE/DELETE grant). */

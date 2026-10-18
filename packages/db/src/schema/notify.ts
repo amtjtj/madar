@@ -62,6 +62,8 @@ export const notifications = pgTable(
     /** Quiet hours: not pushed before this instant (the in-app list shows it at once). */
     deliverAfter: timestamp('deliver_after', { withTimezone: true }).notNull().defaultNow(),
     readAt: timestamp('read_at', { withTimezone: true }),
+    /** When a device push covered this notification (or it was skipped); never pushed twice. */
+    pushedAt: timestamp('pushed_at', { withTimezone: true }),
   },
   (t) => [
     unique('notifications_tenant_id_id_key').on(t.tenantId, t.id),
@@ -116,4 +118,34 @@ export const processedEvents = pgTable(
     processedAt: createdAt(),
   },
   (t) => [primaryKey({ columns: [t.tenantId, t.consumer, t.eventId] })],
+);
+
+/**
+ * Web Push subscriptions: one per member and browser (phase 1, step 6b). Only the member's own
+ * session writes them; the worker reads them to deliver pushes.
+ */
+export const pushSubscriptions = pgTable(
+  'push_subscriptions',
+  {
+    id: id(),
+    tenantId: tenantId().references(() => tenants.id, { onDelete: 'cascade' }),
+    memberId: uuid('member_id').notNull(),
+    /** Push service URL chosen by the browser (allowlisted hosts only). */
+    endpoint: text('endpoint').notNull(),
+    p256dh: text('p256dh').notNull(),
+    auth: text('auth').notNull(),
+    userAgent: text('user_agent'),
+    createdAt: createdAt(),
+    lastSuccessAt: timestamp('last_success_at', { withTimezone: true }),
+    /** Consecutive failed deliveries; the subscription is dropped after a few. */
+    failureCount: smallint('failure_count').notNull().default(0),
+  },
+  (t) => [
+    unique('push_subscriptions_member_endpoint_key').on(t.tenantId, t.memberId, t.endpoint),
+    foreignKey({
+      name: 'push_subscriptions_member_fk',
+      columns: [t.tenantId, t.memberId],
+      foreignColumns: [members.tenantId, members.id],
+    }).onDelete('cascade'),
+  ],
 );

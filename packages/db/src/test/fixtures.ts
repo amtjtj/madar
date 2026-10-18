@@ -123,6 +123,12 @@ export async function createTenantFixture(handle: DbHandle, label = 't'): Promis
     });
     await tx.insert(s.notificationPreferences).values({ memberId: member.id });
     await tx.insert(s.processedEvents).values({ consumer: 'fixture', eventId: uuidv7() });
+    await tx.insert(s.pushSubscriptions).values({
+      memberId: member.id,
+      endpoint: `https://fcm.googleapis.com/fcm/send/${suffix}`,
+      p256dh: 'BKey',
+      auth: 'auth',
+    });
     return {
       tenantId: tenant.id,
       userId: user.id,
