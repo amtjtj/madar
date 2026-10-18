@@ -7,7 +7,7 @@ const validBody = {
   service: 'madar-api',
   version: '0.0.0',
   time: new Date().toISOString(),
-  dependencies: { database: 'up' },
+  dependencies: { database: 'up', redis: 'up', worker: 'up' },
 };
 
 function fakeFetch(status: number, body: unknown): typeof fetch {

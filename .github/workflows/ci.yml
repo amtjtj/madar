@@ -60,3 +60,32 @@ jobs:
           name: playwright-report
           path: apps/web/playwright-report
           retention-days: 7
+
+  # The production stack (ADR 0016): build the images, deploy with the real scripts on a demo
+  # configuration (local certificate), then smoke-test it over HTTPS and drill a restore.
+  production-stack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @madar/web exec playwright install --with-deps chromium
+      - name: Production settings for a local demo stack
+        run: |
+          scripts/deploy/init-env.sh localhost ci@madar.test --demo
+          sed -i 's|^CADDY_TLS=.*|CADDY_TLS=tls internal|' .env
+      - run: scripts/deploy/deploy.sh --no-pull
+      - run: scripts/deploy/smoke.sh --restore
+      - if: failure()
+        run: docker compose --env-file .env -f docker/compose.prod.yml -p madar logs --tail 200
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-smoke
+          path: apps/web/test-results
+          retention-days: 7

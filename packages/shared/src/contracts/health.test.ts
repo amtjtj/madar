@@ -9,7 +9,7 @@ describe('healthResponse', () => {
       service: 'madar-api',
       version: '0.0.0',
       time: new Date().toISOString(),
-      dependencies: { database: 'up' },
+      dependencies: { database: 'up', redis: 'up', worker: 'down' },
     };
     expect(healthResponse.parse(payload)).toEqual(payload);
   });
@@ -20,7 +20,7 @@ describe('healthResponse', () => {
       service: 'madar-api',
       version: '0.0.0',
       time: new Date().toISOString(),
-      dependencies: { database: 'maybe' },
+      dependencies: { database: 'maybe', redis: 'up', worker: 'up' },
     });
     expect(result.success).toBe(false);
   });

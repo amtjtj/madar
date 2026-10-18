@@ -56,7 +56,8 @@ export function createAuth(db: Database, env: Env) {
       window: 60,
       max: 60,
       customRules: {
-        '/sign-in/username': { window: 60, max: 5 },
+        // Per IP: a whole office signs in from one address around 9:00 (ADR 0016).
+        '/sign-in/username': { window: 60, max: 20 },
         '/two-factor/*': { window: 60, max: 5 },
         '/change-password': { window: 60, max: 5 },
       },
