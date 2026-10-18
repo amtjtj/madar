@@ -149,7 +149,7 @@ export function WeeklyReportView({
         </Section>
       )}
 
-      <div className="grid gap-5 lg:grid-cols-2 print:grid-cols-1">
+      <div className="grid gap-5 lg:grid-cols-2 print:grid-cols-1 [&>*]:min-w-0">
         <Section title={t('reports.goals')}>
           {report.goals.length === 0 ? (
             <Empty>{t('reports.goalsEmpty')}</Empty>

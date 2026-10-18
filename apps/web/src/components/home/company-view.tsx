@@ -90,7 +90,7 @@ function CompanyDashboardView({ data }: { data: CompanyDashboard }) {
         </TileLink>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
         <Card>
           <CardContent className="flex flex-col gap-2">
             <h2 className="text-lg font-bold text-ink">{t('home.company.goalsTitle')}</h2>
@@ -263,7 +263,7 @@ export function DashboardSkeleton() {
           <Skeleton key={i} className="h-28 rounded-xl" />
         ))}
       </div>
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
         {[0, 1, 2, 3].map((i) => (
           <Skeleton key={i} className="h-56 rounded-xl" />
         ))}

@@ -35,6 +35,15 @@ async function as(browser: Browser, role: Role): Promise<Page> {
   return page;
 }
 
+// With a real company's data (8 weeks of charts, long names) nothing may push the page sideways.
+async function expectNoSidewaysScroll(page: Page) {
+  await page.waitForLoadState('networkidle');
+  const extra = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(extra).toBeLessThanOrEqual(0);
+}
+
 test.beforeAll(() => {
   expect(PASSWORD, 'SMOKE_PASSWORD (the DEMO_PASSWORD) is required').not.toBe('');
 });
@@ -56,15 +65,18 @@ test('each role lands on its home', async ({ browser }) => {
   const ceo = await as(browser, 'ceo');
   await expect(ceo.getByRole('radio', { name: 'شرکت' })).toHaveAttribute('aria-checked', 'true');
   await expect(ceo.getByRole('link', { name: /کارهای گذشته از سررسید/ })).toBeVisible();
+  await expectNoSidewaysScroll(ceo);
 
   const manager = await as(browser, 'manager');
   await expect(manager.getByRole('radio', { name: 'تیم من' })).toHaveAttribute(
     'aria-checked',
     'true',
   );
+  await expectNoSidewaysScroll(manager);
 
   const employee = await as(browser, 'employee');
   await expect(employee.getByRole('heading', { name: 'برنامه امروز' })).toBeVisible();
+  await expectNoSidewaysScroll(employee);
 });
 
 test('a task assigned by the manager reaches the employee live (WebSocket through Caddy)', async ({

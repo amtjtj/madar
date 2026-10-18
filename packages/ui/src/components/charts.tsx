@@ -278,6 +278,8 @@ export function ColumnChart({
               // Every other label on phones; the visible ones may overflow into the hidden ones.
               'flex flex-1 justify-center text-[0.65rem] whitespace-nowrap text-ink-subtle',
               i % 2 !== last % 2 && 'invisible sm:visible',
+              // The newest label sits at the edge: keep it inside the card.
+              i === last && 'justify-end',
             )}
           >
             {p.label}

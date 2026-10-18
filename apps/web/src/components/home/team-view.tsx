@@ -100,7 +100,7 @@ function TeamDashboardView({ data }: { data: DepartmentDashboard }) {
         </TileLink>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2 [&>*]:min-w-0">
         {data.needsHelp && (
           <Card>
             <CardContent className="flex flex-col gap-3">
