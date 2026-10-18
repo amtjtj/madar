@@ -17,6 +17,8 @@ const API_CODES = new Set([
   'not_a_member',
   'version_conflict',
   'no_department',
+  'push_endpoint_not_allowed',
+  'push_disabled',
 ]);
 
 /** Persian message for any error thrown by `api()` or the auth helpers. */

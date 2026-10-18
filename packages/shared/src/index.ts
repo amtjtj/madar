@@ -5,6 +5,7 @@ export * from './contracts/health.js';
 export * from './contracts/me.js';
 export * from './contracts/members.js';
 export * from './contracts/notifications.js';
+export * from './contracts/push.js';
 export * from './contracts/realtime.js';
 export * from './contracts/tenants.js';
 export * from './contracts/work.js';

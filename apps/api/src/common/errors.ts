@@ -23,6 +23,8 @@ export type ErrorCode =
   | 'rate_limited'
   | 'version_conflict'
   | 'no_department'
+  | 'push_endpoint_not_allowed'
+  | 'push_disabled'
   | 'conflict';
 
 export class ApiError extends HttpException {

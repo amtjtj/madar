@@ -20,6 +20,6 @@ export function proxy(request: NextRequest) {
 export const config = {
   // Everything except auth pages, public pages, API, Next internals and static files.
   matcher: [
-    '/((?!login|signup|status|design-system|api|_next/static|_next/image|fonts|icon\\.svg|favicon\\.ico|robots\\.txt).*)',
+    '/((?!login|signup|status|design-system|api|_next/static|_next/image|fonts|icons|icon\\.svg|apple-icon\\.png|manifest\\.webmanifest|sw\\.js|favicon\\.ico|robots\\.txt).*)',
   ],
 };
