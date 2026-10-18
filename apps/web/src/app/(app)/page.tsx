@@ -26,6 +26,7 @@ import {
 } from '@madar/ui';
 
 import { PageHeader } from '@/components/app-shell';
+import { InstallCard } from '@/components/pwa/install';
 import { NewTaskButton } from '@/components/work/new-task-button';
 import { QuickAdd } from '@/components/work/quick-add';
 import { useCan, useDepartments, useMembers } from '@/hooks/queries';
@@ -52,6 +53,7 @@ export default function TodayPage() {
       />
       <div className="flex flex-col gap-6 pb-20 md:pb-0">
         {can('department.manage') && can('member.create') && <SetupChecklist />}
+        <InstallCard />
         {isPending || !today ? <TodaySkeleton /> : <TodayPlan today={today} />}
       </div>
     </>

@@ -5,6 +5,8 @@ import { NOTIFICATION_KINDS, type NotificationKind } from '@madar/shared';
 import { Card, CardContent, CheckboxField, Skeleton, useToast } from '@madar/ui';
 
 import { PageHeader } from '@/components/app-shell';
+import { DevicePushCard } from '@/components/pwa/device-push-card';
+import { InstallSection } from '@/components/pwa/install';
 import { useNotificationPreferences, useSaveNotificationPreferences } from '@/hooks/notifications';
 import { errorMessage } from '@/lib/errors';
 
@@ -35,6 +37,7 @@ export default function NotificationSettingsPage() {
         <Skeleton className="h-80 rounded-2xl" />
       ) : (
         <div className="flex flex-col gap-6">
+          <DevicePushCard />
           <Card>
             <CardContent className="flex flex-col gap-1">
               <h2 className="mb-2 text-lg font-bold text-ink">
@@ -66,6 +69,7 @@ export default function NotificationSettingsPage() {
               />
             </CardContent>
           </Card>
+          <InstallSection />
         </div>
       )}
     </>

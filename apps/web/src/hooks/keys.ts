@@ -19,3 +19,7 @@ export const notificationKeys = {
   preferences: ['notification-preferences'] as const,
   calendar: ['work-calendar'] as const,
 };
+
+export const pushKeys = {
+  config: ['push-config'] as const,
+};

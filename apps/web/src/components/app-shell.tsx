@@ -3,6 +3,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import {
   BellRing,
+  Download,
   Building2,
   ChartNetwork,
   Clock,
@@ -35,10 +36,12 @@ import {
   NotificationLink,
   NotificationPopover,
 } from '@/components/notifications/notification-bell';
+import { useInstall } from '@/hooks/pwa';
 import { useCan } from '@/hooks/queries';
 import { useRealtime } from '@/hooks/realtime';
 import { useMe } from '@/hooks/use-me';
 import { auth } from '@/lib/auth';
+import { removeDevicePush } from '@/lib/pwa';
 
 const NextLink: LinkComponent = ({ href, children, ...props }) => (
   <Link href={href} {...props}>
@@ -143,11 +146,15 @@ export function AppShell({ children }: { children: ReactNode }) {
     pathname === '/org' || orgItems.some((i) => i.key === activeKey) ? '/org' : activeKey;
 
   async function signOut() {
+    // Shared phones: the next person must not get this member's notifications.
+    await removeDevicePush();
     await auth.signOut().catch(() => undefined);
     queryClient.clear();
     router.replace('/login');
   }
 
+  const install = useInstall();
+  const installable = install.canPrompt || install.iosManual;
   const name = me?.member?.displayName ?? me?.user.name ?? '';
   const online = useRealtime(Boolean(me?.member), me?.tenant?.id);
   const offline = !online && (
@@ -193,6 +200,19 @@ export function AppShell({ children }: { children: ReactNode }) {
           icon: <BellRing aria-hidden />,
           onSelect: () => router.push('/settings/notifications'),
         },
+        ...(installable
+          ? [
+              {
+                key: 'install',
+                label: t('pwa.install.menu'),
+                icon: <Download aria-hidden />,
+                onSelect: () =>
+                  void (install.canPrompt
+                    ? install.install()
+                    : router.push('/settings/notifications#install')),
+              },
+            ]
+          : []),
         {
           key: 'sign-out',
           label: t('auth.signOut'),
