@@ -12,6 +12,8 @@ import {
   calendarDateIn,
   calendarDateOfJalali,
   DEFAULT_WORK_CALENDAR,
+  weekStartOf,
+  zonedInstant,
   type SystemRole,
 } from '@madar/shared';
 import { eq } from 'drizzle-orm';
@@ -27,6 +29,7 @@ import { DepartmentsService } from '../departments/departments.service.js';
 import { GoalsService } from '../goals/goals.service.js';
 import { KeyResultsService } from '../goals/key-results.service.js';
 import { MembersService } from '../members/members.service.js';
+import { buildWeeklyReport } from '../reports/builder.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { TenantsService } from '../tenants/tenants.service.js';
 import { ProjectsService } from '../work/projects.service.js';
@@ -328,6 +331,35 @@ async function main(): Promise<void> {
       await projects
         .update(await as(project.owner), projectId, { keyResultId })
         .catch((error: unknown) => logger.warn(`link project ${projectKey}: ${String(error)}`));
+    }
+
+    // Weekly reports for the last three finished weeks, as the worker would have stored them.
+    const thisWeek = weekStartOf(today);
+    const reportDepartments = SEED_DEPARTMENTS.map((d) => ({
+      id: departmentIds.get(d.key) ?? '',
+      name: d.name,
+    }));
+    for (let back = 3; back >= 1; back--) {
+      const weekStart = addDays(thisWeek, -7 * back);
+      const builtAt = zonedInstant(addDays(weekStart, 7), '09:30', 'Asia/Tehran');
+      await withTenant(handle.db, { tenantId }, async (tx) => {
+        for (const department of [null, ...reportDepartments]) {
+          const data = await buildWeeklyReport(tx, {
+            tenantId,
+            scope: department ? 'department' : 'company',
+            department,
+            weekStart,
+            now: builtAt,
+          });
+          await tx.insert(s.weeklyReports).values({
+            scope: data.scope,
+            departmentId: department?.id ?? null,
+            weekStart,
+            data: data as unknown as Record<string, unknown>,
+            createdAt: builtAt,
+          });
+        }
+      });
     }
 
     // Work calendar (docs/pilot-assumptions.md §2): Thursday half day, fixed solar holidays.
