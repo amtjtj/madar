@@ -3,6 +3,7 @@ import type { Redis } from 'ioredis';
 
 import { NotificationsConsumer } from '../notifications/notifications.consumer.js';
 import { NotificationsCoreModule } from '../notifications/notifications.module.js';
+import { RealtimeConsumer } from '../realtime/realtime.consumer.js';
 import { ConsumerRunner } from './consumer-runner.service.js';
 import { EVENT_CONSUMERS, REDIS, type EventConsumer } from './consumer.js';
 import { redisProvider } from './redis.provider.js';
@@ -16,9 +17,10 @@ import { SchedulerService } from './scheduler.service.js';
     redisProvider,
     {
       provide: EVENT_CONSUMERS,
-      inject: [NotificationsConsumer],
+      inject: [NotificationsConsumer, RealtimeConsumer],
       useFactory: (...consumers: EventConsumer[]) => consumers,
     },
+    RealtimeConsumer,
     RelayService,
     ConsumerRunner,
     SchedulerService,

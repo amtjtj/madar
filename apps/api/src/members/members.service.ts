@@ -18,6 +18,7 @@ import { AccountsService, generateTemporaryPassword } from '../auth/accounts.ser
 import type { TenantContext } from '../common/context.js';
 import { ApiError, forbidden, notFound } from '../common/errors.js';
 import { TenantDb } from '../database/tenant-db.service.js';
+import { RealtimePublisher } from '../realtime/realtime.publisher.js';
 import { setHeadMembership } from '../departments/departments.service.js';
 import { assertCanAssignRoles, assertCanManage } from './authority.js';
 
@@ -34,6 +35,7 @@ export class MembersService {
   constructor(
     private readonly db: TenantDb,
     private readonly accounts: AccountsService,
+    private readonly realtime: RealtimePublisher,
   ) {}
 
   list(ctx: TenantContext, query: ListMembersQuery = {}): Promise<Member[]> {
@@ -246,7 +248,10 @@ export class MembersService {
       });
       return { member: await this.getIn(tx, ctx, id), userId: before.userId };
     });
-    if (status === 'suspended') await this.accounts.revokeSessions(result.userId);
+    if (status === 'suspended') {
+      await this.accounts.revokeSessions(result.userId);
+      await this.realtime.disconnectMember(ctx.tenantId, id);
+    }
     return result.member;
   }
 

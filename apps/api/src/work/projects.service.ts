@@ -148,7 +148,8 @@ export class ProjectsService {
       .insert(s.projectMembers)
       .values([...members].map(([memberId, role]) => ({ projectId, memberId, role })));
     const existing = new Set(before.map((m) => m.memberId));
-    const added = ids.filter((id) => !existing.has(id) && id !== ctx.memberId);
+    // Includes the actor: they join the project's live room; the notifier never notifies the actor.
+    const added = ids.filter((id) => !existing.has(id));
     if (added.length) {
       await emitEvent(tx, 'project.member_added', { projectId, memberIds: added }, ctx.memberId);
     }

@@ -3,6 +3,7 @@ import { toNodeHandler } from 'better-auth/node';
 
 import type { Auth } from './auth/auth.js';
 import type { Env } from './config/env.js';
+import { RedisIoAdapter } from './realtime/redis-io.adapter.js';
 
 /**
  * Shared HTTP setup for the real server and integration tests.
@@ -11,7 +12,7 @@ import type { Env } from './config/env.js';
  */
 export function configureApp(
   app: NestExpressApplication,
-  env: Pick<Env, 'API_CORS_ORIGINS'>,
+  env: Pick<Env, 'API_CORS_ORIGINS'> & Partial<Pick<Env, 'REDIS_URL'>>,
   auth?: Auth,
 ): void {
   const server = app.getHttpAdapter().getInstance();
@@ -21,6 +22,8 @@ export function configureApp(
   app.useBodyParser('json', { limit: '1mb' });
   app.setGlobalPrefix('api');
   app.enableShutdownHooks();
+  // Realtime gateway (Socket.IO) shares rooms with the worker through Redis.
+  if (env.REDIS_URL) app.useWebSocketAdapter(new RedisIoAdapter(app, env.REDIS_URL));
   if (env.API_CORS_ORIGINS.length > 0) {
     app.enableCors({ origin: env.API_CORS_ORIGINS, credentials: true });
   }

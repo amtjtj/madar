@@ -36,3 +36,6 @@ next-env.d.ts
 # commercial fonts (licensed, never committed) — install with `pnpm fonts:install <dir>`
 apps/web/public/fonts/abar/*.woff2
 apps/web/public/fonts/abar/*.ttf
+
+# Local Redis snapshots
+*.rdb
