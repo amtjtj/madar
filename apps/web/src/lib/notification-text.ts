@@ -4,7 +4,8 @@ import { formatCalendarDate, formatNumber, type Notification } from '@madar/shar
 /** The Persian sentence for a notification (all text from i18n). */
 export function notificationText(n: Notification): string {
   const actor = n.actor?.displayName ?? t('notifications.someone');
-  const date = typeof n.data.dueOn === 'string' ? formatCalendarDate(n.data.dueOn) : '';
+  const day = typeof n.data.dueOn === 'string' ? n.data.dueOn : n.data.week;
+  const date = typeof day === 'string' ? formatCalendarDate(day) : '';
   const days = typeof n.data.days === 'number' ? formatNumber(n.data.days) : '';
   if (n.kind === 'task_overdue_escalation') {
     const assignee = typeof n.data.assignee === 'string' ? n.data.assignee : '';
@@ -17,5 +18,11 @@ export function notificationText(n: Notification): string {
 
 export function notificationHref(n: Notification): string {
   if (n.subjectType === 'goal') return `/goals/${n.subjectId}`;
+  if (n.subjectType === 'report') {
+    const params = new URLSearchParams({ scope: String(n.data.scope ?? 'company') });
+    if (typeof n.data.departmentId === 'string') params.set('departmentId', n.data.departmentId);
+    if (typeof n.data.week === 'string') params.set('week', n.data.week);
+    return `/reports?${params.toString()}`;
+  }
   return n.subjectType === 'project' ? `/projects/${n.subjectId}` : `/tasks/${n.subjectId}`;
 }

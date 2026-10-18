@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { calendarDate } from './work.js';
 
-export const NOTIFICATION_SUBJECTS = ['task', 'project', 'goal'] as const;
+export const NOTIFICATION_SUBJECTS = ['task', 'project', 'goal', 'report'] as const;
 export type NotificationSubject = (typeof NOTIFICATION_SUBJECTS)[number];
 
 export const NOTIFICATION_KINDS = [
@@ -13,6 +13,7 @@ export const NOTIFICATION_KINDS = [
   'task_overdue_escalation',
   'project_member_added',
   'key_result_checkin_due',
+  'weekly_report_ready',
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 

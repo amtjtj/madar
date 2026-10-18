@@ -540,6 +540,7 @@ export const fa = {
         '«{title}» {days} روز کاری از سررسیدش گذشته است و مسئول ندارد',
       project_member_added: '{actor} تو را به پروژه «{title}» اضافه کرد',
       key_result_checkin_due: 'وقت ثبت پیشرفت هفتگی «{title}» است',
+      weekly_report_ready: 'گزارش هفته {date} «{title}» آماده است',
     },
   },
   notificationSettings: {
@@ -554,6 +555,7 @@ export const fa = {
       task_overdue_escalation: 'کار عقب‌افتاده در دپارتمانی که مدیرش هستم',
       project_member_added: 'به پروژه‌ای اضافه شدم',
       key_result_checkin_due: 'یادآوری هفتگی ثبت پیشرفت اهدافم',
+      weekly_report_ready: 'گزارش هفتگی آماده شد (صبح شنبه)',
     },
     offHours: 'خارج از ساعت کاری هم خبرم کن',
     offHoursHint:
@@ -608,6 +610,7 @@ export const fa = {
         task_overdue_escalation: 'کاری در دپارتمانت از سررسیدش عقب افتاده است',
         project_member_added: 'به یک پروژه تازه اضافه شدی',
         key_result_checkin_due: 'وقت ثبت پیشرفت هفتگی یکی از اهدافت است',
+        weekly_report_ready: 'گزارش هفته گذشته آماده است',
       },
     },
   },

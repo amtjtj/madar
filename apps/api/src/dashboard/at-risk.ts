@@ -1,15 +1,25 @@
 import { schema as s, type Tx } from '@madar/db';
 import { calendarDateIn, isProjectAtRisk, type Actor } from '@madar/shared';
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 
 import { visibleProjects, visibleTasks } from '../work/access.js';
+
+/** Which projects and tasks count: a viewer's visibility, or a report's shared view. */
+export interface AtRiskScope {
+  projects: SQL | undefined;
+  tasks: SQL | undefined;
+}
+
+export function viewerScope(actor: Actor): AtRiskScope {
+  return { projects: visibleProjects(actor), tasks: visibleTasks(actor) };
+}
 
 /**
  * Active projects the viewer can see that trail their schedule or carry overdue tasks. Counts use
  * top-level tasks the viewer can see, like the project page, so a card never shows hidden work.
  * The rule runs per project in code; fine at pilot scale (tens of projects).
  */
-export async function atRiskProjects(tx: Tx, actor: Actor, today: string, timeZone: string) {
+export async function atRiskProjects(tx: Tx, scope: AtRiskScope, today: string, timeZone: string) {
   const projects = await tx
     .select({
       id: s.projects.id,
@@ -22,7 +32,7 @@ export async function atRiskProjects(tx: Tx, actor: Actor, today: string, timeZo
     })
     .from(s.projects)
     .leftJoin(s.departments, eq(s.departments.id, s.projects.departmentId))
-    .where(and(eq(s.projects.status, 'active'), visibleProjects(actor)))
+    .where(and(eq(s.projects.status, 'active'), scope.projects))
     .orderBy(sql`${s.projects.dueOn} asc nulls last`, asc(s.projects.name));
   if (projects.length === 0) return [];
   const counts = await tx
@@ -41,7 +51,7 @@ export async function atRiskProjects(tx: Tx, actor: Actor, today: string, timeZo
         ),
         isNull(s.tasks.deletedAt),
         isNull(s.tasks.parentId),
-        visibleTasks(actor),
+        scope.tasks,
       ),
     )
     .groupBy(s.tasks.projectId);

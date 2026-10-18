@@ -14,6 +14,7 @@ import { MembersModule } from './members/members.module.js';
 import { NotificationsModule } from './notifications/notifications-http.module.js';
 import { PushModule } from './push/push-http.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
+import { ReportsModule } from './reports/reports.module.js';
 import { TenantsModule } from './tenants/tenants.module.js';
 import { WorkModule } from './work/work.module.js';
 
@@ -30,6 +31,7 @@ import { WorkModule } from './work/work.module.js';
     WorkModule,
     GoalsModule,
     DashboardModule,
+    ReportsModule,
     NotificationsModule,
     PushModule,
     RealtimeModule,

@@ -11,7 +11,7 @@ import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import type { TenantContext } from '../common/context.js';
 import { forbidden, notFound } from '../common/errors.js';
-import { atRiskProjects } from '../dashboard/at-risk.js';
+import { atRiskProjects, viewerScope } from '../dashboard/at-risk.js';
 import { TenantDb } from '../database/tenant-db.service.js';
 import { keyResultRefs, requireLinkableKeyResult } from '../goals/links.js';
 import { loadWorkCalendar } from '../notifications/calendar.js';
@@ -49,7 +49,7 @@ export class ProjectsService {
       const { timeZone } = await loadWorkCalendar(tx, ctx.tenantId);
       const rows = await atRiskProjects(
         tx,
-        ctx.actor,
+        viewerScope(ctx.actor),
         calendarDateIn(new Date(), timeZone),
         timeZone,
       );
