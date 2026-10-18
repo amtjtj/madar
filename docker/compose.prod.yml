@@ -112,6 +112,33 @@ services:
         condition: service_healthy
     logging: *logging
 
+  # Nightly pg_dump with a restore check after every backup (docker/backup/backup.sh).
+  backup:
+    image: ${BASE_REGISTRY:-docker.io/library}/postgres:18-alpine
+    restart: unless-stopped
+    entrypoint: ['/bin/sh', '/scripts/backup.sh']
+    command: ['loop']
+    environment:
+      TZ: Asia/Tehran
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:-madar}
+      BACKUP_AT: ${BACKUP_AT:-03:30}
+      KEEP_DAILY: ${BACKUP_KEEP_DAILY:-7}
+      KEEP_WEEKLY: ${BACKUP_KEEP_WEEKLY:-4}
+      BACKUP_S3_ENDPOINT: ${BACKUP_S3_ENDPOINT:-}
+      BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-}
+      BACKUP_S3_ACCESS_KEY: ${BACKUP_S3_ACCESS_KEY:-}
+      BACKUP_S3_SECRET_KEY: ${BACKUP_S3_SECRET_KEY:-}
+    volumes:
+      - ./backup/backup.sh:/scripts/backup.sh:ro
+      - ../backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging: *logging
+
   caddy:
     image: ${BASE_REGISTRY:-docker.io/library}/caddy:2-alpine
     restart: unless-stopped
