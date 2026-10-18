@@ -9,6 +9,7 @@ export * from './contracts/members.js';
 export * from './contracts/notifications.js';
 export * from './contracts/push.js';
 export * from './contracts/realtime.js';
+export * from './contracts/reports.js';
 export * from './contracts/tenants.js';
 export * from './contracts/work.js';
 export * from './locale/digits.js';

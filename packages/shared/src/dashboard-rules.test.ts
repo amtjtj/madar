@@ -5,6 +5,8 @@ import {
   helpReasons,
   isDepartmentBehind,
   isProjectAtRisk,
+  weekEndOf,
+  weekStartOf,
   weekStarts,
   workingDaysBefore,
 } from './dashboard-rules.js';
@@ -30,6 +32,15 @@ describe('workingDaysBefore', () => {
 describe('weekStarts', () => {
   it('lists Saturday-based weeks ending with this one', () => {
     expect(weekStarts('2026-10-18', 3)).toEqual(['2026-10-03', '2026-10-10', '2026-10-17']);
+  });
+});
+
+describe('weekStartOf / weekEndOf', () => {
+  it('runs Saturday to Friday', () => {
+    expect(weekStartOf('2026-10-18')).toBe('2026-10-17'); // Sunday → Saturday before
+    expect(weekStartOf('2026-10-17')).toBe('2026-10-17');
+    expect(weekStartOf('2026-10-23')).toBe('2026-10-17'); // Friday
+    expect(weekEndOf('2026-10-17')).toBe('2026-10-23');
   });
 });
 

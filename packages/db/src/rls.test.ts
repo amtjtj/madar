@@ -48,10 +48,17 @@ const DATA_PLANE = [
   'goals',
   'key_results',
   'key_result_checkins',
+  'weekly_reports',
 ] as const;
 
 /** Tables the app may only append to (no UPDATE/DELETE grant). */
-const APPEND_ONLY = ['audit_logs', 'activities', 'processed_events', 'key_result_checkins'];
+const APPEND_ONLY = [
+  'audit_logs',
+  'activities',
+  'processed_events',
+  'key_result_checkins',
+  'weekly_reports',
+];
 /** Tables the app may update but never delete from. */
 const NO_DELETE = [
   'domain_events',

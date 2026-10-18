@@ -149,6 +149,12 @@ export async function createTenantFixture(handle: DbHandle, label = 't'): Promis
     await tx
       .insert(s.keyResultCheckins)
       .values({ keyResultId: kr.id, value: 3, status: 'on_track', authorId: member.id });
+    await tx.insert(s.weeklyReports).values({
+      scope: 'department',
+      departmentId: department.id,
+      weekStart: '2026-10-10',
+      data: { version: 1 },
+    });
     await tx.insert(s.pushSubscriptions).values({
       memberId: member.id,
       endpoint: `https://fcm.googleapis.com/fcm/send/${suffix}`,

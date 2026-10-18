@@ -44,7 +44,7 @@ export function workingDaysBefore(calendar: WorkCalendar, today: string, days: n
 
 /** Saturday-based week starts, oldest first, ending with the week of `today`. */
 export function weekStarts(today: string, weeks: number): string[] {
-  const current = addDays(today, -persianWeekdayOfCalendarDate(today));
+  const current = weekStartOf(today);
   return Array.from({ length: weeks }, (_, i) => addDays(current, -7 * (weeks - 1 - i)));
 }
 
@@ -90,4 +90,14 @@ export function helpReasons(load: { open: number; overdue: number; stuck: number
   if (load.stuck > 0) reasons.push({ kind: 'stuck', count: load.stuck });
   if (load.open > DASHBOARD_RULES.helpOpen) reasons.push({ kind: 'overloaded', count: load.open });
   return reasons;
+}
+
+/** Saturday of the week that contains `date`. */
+export function weekStartOf(date: string): string {
+  return addDays(date, -persianWeekdayOfCalendarDate(date));
+}
+
+/** Friday that ends the week starting on `weekStart`. */
+export function weekEndOf(weekStart: string): string {
+  return addDays(weekStart, 6);
 }
