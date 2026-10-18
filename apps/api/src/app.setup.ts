@@ -2,6 +2,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { toNodeHandler } from 'better-auth/node';
 
 import type { Auth } from './auth/auth.js';
+import { requestLog } from './common/logging.js';
 import type { Env } from './config/env.js';
 import { RedisIoAdapter } from './realtime/redis-io.adapter.js';
 
@@ -18,6 +19,7 @@ export function configureApp(
   const server = app.getHttpAdapter().getInstance();
   // Behind the web proxy / Caddy: trust loopback and private networks for the client IP.
   server.set('trust proxy', 'loopback, uniquelocal');
+  server.use(requestLog);
   if (auth) server.all('/api/auth/{*path}', toNodeHandler(auth));
   app.useBodyParser('json', { limit: '1mb' });
   app.setGlobalPrefix('api');

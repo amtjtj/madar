@@ -9,6 +9,7 @@ import { PushConsumer } from '../push/push.consumer.js';
 import { RealtimeConsumer } from '../realtime/realtime.consumer.js';
 import { ConsumerRunner } from './consumer-runner.service.js';
 import { EVENT_CONSUMERS, REDIS, type EventConsumer } from './consumer.js';
+import { HeartbeatService } from './heartbeat.service.js';
 import { redisProvider } from './redis.provider.js';
 import { RelayService } from './relay.service.js';
 import { SchedulerService } from './scheduler.service.js';
@@ -30,8 +31,16 @@ import { SchedulerService } from './scheduler.service.js';
     RelayService,
     ConsumerRunner,
     SchedulerService,
+    HeartbeatService,
   ],
-  exports: [RelayService, ConsumerRunner, SchedulerService, PushDeliveries, REDIS],
+  exports: [
+    RelayService,
+    ConsumerRunner,
+    SchedulerService,
+    PushDeliveries,
+    HeartbeatService,
+    REDIS,
+  ],
 })
 export class EventsModule implements OnApplicationShutdown {
   constructor(@Inject(REDIS) private readonly redis: Redis) {}

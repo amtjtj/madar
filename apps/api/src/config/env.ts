@@ -3,6 +3,15 @@ import { resolve } from 'node:path';
 
 import { z } from 'zod';
 
+const flag = z
+  .enum(['true', 'false', '1', '0', ''])
+  .default('')
+  .transform((value) => value === 'true' || value === '1');
+
+/** Values that only belong in development, CI or the example file. */
+const WEAK_SECRET = /change-me|ci-only|not-for-production/i;
+const DEV_PASSWORD = /_dev_password|_ci_password/;
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   API_PORT: z.coerce.number().int().positive().default(4000),
@@ -51,9 +60,28 @@ const envSchema = z.object({
   PUSH_BATCH_MS: z.coerce.number().int().min(0).default(10_000),
   /** Required to register a company in production; empty means signup is open (development). */
   TENANT_SIGNUP_CODE: z.string().default(''),
+  /** Demo server (plan phase-1-step-9 §5): the demo company may be seeded and reset. */
+  DEMO_MODE: flag,
 });
 
-export type Env = z.infer<typeof envSchema>;
+/** Production refuses to start with development defaults (plan phase-1-step-9 §4). */
+const productionSchema = envSchema.superRefine((env, ctx) => {
+  if (env.NODE_ENV !== 'production') return;
+  const fail = (path: string, message: string) =>
+    ctx.addIssue({ code: 'custom', path: [path], message });
+  if (WEAK_SECRET.test(env.AUTH_SECRET)) fail('AUTH_SECRET', 'Use a random secret in production');
+  if (!env.AUTH_BASE_URL.startsWith('https://')) {
+    fail('AUTH_BASE_URL', 'Must be an https:// origin in production');
+  }
+  if (env.TENANT_SIGNUP_CODE.length < 12) {
+    fail('TENANT_SIGNUP_CODE', 'Required in production (at least 12 characters)');
+  }
+  for (const key of ['APP_DATABASE_URL', 'WORKER_DATABASE_URL'] as const) {
+    if (env[key] && DEV_PASSWORD.test(env[key])) fail(key, 'Uses a development password');
+  }
+});
+
+export type Env = z.infer<typeof productionSchema>;
 
 /** Loads the repo-root .env (if present) without overriding real environment variables, then validates. */
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
@@ -61,7 +89,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   if (source === process.env && existsSync(rootEnv)) {
     process.loadEnvFile(rootEnv);
   }
-  const parsed = envSchema.safeParse(source);
+  const parsed = productionSchema.safeParse(source);
   if (!parsed.success) {
     throw new Error(`Invalid environment:\n${z.prettifyError(parsed.error)}`);
   }
