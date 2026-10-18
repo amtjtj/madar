@@ -84,19 +84,26 @@ export class RelayService implements OnModuleDestroy {
   start(tenantIds?: string[]): void {
     if (this.running) return;
     this.running = true;
+    // While the database is unreachable, wait longer each time (up to 30 s) instead of logging
+    // the same error twice a second.
+    let failures = 0;
     const loop = async () => {
       if (!this.running) return;
       let relayed = 0;
       try {
         relayed = await this.runOnce(tenantIds);
+        failures = 0;
       } catch (error) {
+        failures++;
         this.logger.error(error);
       }
       if (this.running) {
-        this.timer = setTimeout(
-          () => void loop(),
-          relayed === BATCH ? 0 : this.env.RELAY_INTERVAL_MS,
-        );
+        const delay = failures
+          ? Math.min(30_000, this.env.RELAY_INTERVAL_MS * 2 ** failures)
+          : relayed === BATCH
+            ? 0
+            : this.env.RELAY_INTERVAL_MS;
+        this.timer = setTimeout(() => void loop(), delay);
       }
     };
     void loop();

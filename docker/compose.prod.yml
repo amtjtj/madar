@@ -1,0 +1,140 @@
+# Production stack (ADR 0016). Run from the repo root through scripts/deploy/deploy.sh, which
+# builds the images first. Reads the repo-root .env written by scripts/deploy/init-env.sh.
+#   docker compose --env-file .env -f docker/compose.prod.yml up -d
+name: madar
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: '5'
+
+x-app-env: &app-env
+  NODE_ENV: production
+  APP_DATABASE_URL: ${APP_DATABASE_URL}
+  WORKER_DATABASE_URL: ${WORKER_DATABASE_URL}
+  REDIS_URL: redis://redis:6379
+  AUTH_SECRET: ${AUTH_SECRET}
+  AUTH_BASE_URL: https://${MADAR_DOMAIN}
+  AUTH_TRUSTED_ORIGINS: ${AUTH_TRUSTED_ORIGINS:-}
+  TENANT_SIGNUP_CODE: ${TENANT_SIGNUP_CODE}
+  VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+  VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+  VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+  PUSH_PROXY_URL: ${PUSH_PROXY_URL:-}
+  DEMO_MODE: ${DEMO_MODE:-}
+  SEED_PASSWORD: ${DEMO_PASSWORD:-}
+  TZ: Asia/Tehran
+
+services:
+  postgres:
+    image: ${BASE_REGISTRY:-docker.io/library}/postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-madar}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    shm_size: 256mb
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging: *logging
+
+  redis:
+    image: ${BASE_REGISTRY:-docker.io/library}/redis:8-alpine
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes', '--maxmemory-policy', 'noeviction']
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging: *logging
+
+  # Applies migrations (and creates the app and worker roles) before api and worker start.
+  migrate:
+    image: madar-api:${MADAR_TAG:-latest}
+    restart: 'no'
+    command: ['node', 'node_modules/@madar/db/dist/migrate.js']
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      APP_DATABASE_URL: ${APP_DATABASE_URL}
+      WORKER_DATABASE_URL: ${WORKER_DATABASE_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging: *logging
+
+  api:
+    image: madar-api:${MADAR_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      API_PORT: '4000'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    logging: *logging
+
+  worker:
+    image: madar-api:${MADAR_TAG:-latest}
+    restart: unless-stopped
+    command: ['node', '--enable-source-maps', 'dist/worker.js']
+    environment: *app-env
+    healthcheck:
+      test: ['CMD', 'node', 'dist/scripts/healthcheck.js', 'worker']
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    logging: *logging
+
+  web:
+    image: madar-web:${MADAR_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Tehran
+    depends_on:
+      api:
+        condition: service_healthy
+    logging: *logging
+
+  caddy:
+    image: ${BASE_REGISTRY:-docker.io/library}/caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    environment:
+      MADAR_DOMAIN: ${MADAR_DOMAIN}
+      CADDY_TLS: ${CADDY_TLS:-}
+      CADDY_GLOBAL_OPTIONS: ${CADDY_GLOBAL_OPTIONS:-}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/certs:/certs:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+    logging: *logging
+
+volumes:
+  postgres-data:
+  redis-data:
+  caddy-data:
+  caddy-config:

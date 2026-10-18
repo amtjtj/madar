@@ -1,0 +1,48 @@
+# Madar behind one domain (ADR 0006, ADR 0016): /api/* (and the /api/socket WebSocket) go to the
+# API, everything else to the web app. Caddy obtains and renews the HTTPS certificate itself.
+{
+	# Global options from .env: `email you@example.com` for certificate notices (recommended),
+	# or `local_certs` for a local smoke test.
+	{$CADDY_GLOBAL_OPTIONS}
+}
+
+{$MADAR_DOMAIN} {
+	# Optional: `tls /certs/fullchain.pem /certs/privkey.pem` for your own certificate,
+	# or `tls internal` for a local test. Empty = automatic certificate.
+	{$CADDY_TLS}
+
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		# Report-only first, so nothing breaks; enforce after a quiet period.
+		Content-Security-Policy-Report-Only "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' wss:; font-src 'self' data:; worker-src 'self'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+		-Server
+		-X-Powered-By
+	}
+
+	# One id per request, logged by Caddy and by the API.
+	request_header X-Request-Id {http.request.uuid}
+
+	handle /api/* {
+		reverse_proxy api:4000
+	}
+	handle {
+		reverse_proxy web:3000
+	}
+
+	log {
+		output stdout
+		format filter {
+			wrap json
+			fields {
+				# Paths only: query strings may carry ids and filters.
+				request>uri regexp "\?.*$" ""
+			}
+		}
+	}
+}

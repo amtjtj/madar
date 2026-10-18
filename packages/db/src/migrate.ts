@@ -3,7 +3,9 @@
  * APP_DATABASE_URL (and the worker role from WORKER_DATABASE_URL, when set) exists with its password.
  * Neither is ever the table owner or bypasses RLS (ADR 0002, ADR 0011).
  */
+import { realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
@@ -62,7 +64,9 @@ export async function runMigrations(
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Run when executed directly (also through a relative or symlinked path, as in the image).
+const entry = process.argv[1] ? pathToFileURL(realpathSync(process.argv[1])).href : '';
+if (import.meta.url === entry) {
   loadRootEnv();
   runMigrations(
     requireEnv('DATABASE_URL'),

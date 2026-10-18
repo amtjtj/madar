@@ -39,3 +39,8 @@ apps/web/public/fonts/abar/*.ttf
 
 # Local Redis snapshots
 *.rdb
+
+# Production: own TLS certificates and database backups stay on the server
+docker/caddy/certs/*.pem
+docker/caddy/certs/*.key
+backups/
