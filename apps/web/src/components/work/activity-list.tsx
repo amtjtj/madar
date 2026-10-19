@@ -1,7 +1,7 @@
 'use client';
 
 import { t, type MessageKey } from '@madar/i18n';
-import { formatPercent, formatRelativeTime, type Activity } from '@madar/shared';
+import { formatPercent, formatRelativeTime, toPersianDigits, type Activity } from '@madar/shared';
 
 import { useActivity } from '@/hooks/work';
 
@@ -14,6 +14,8 @@ const KNOWN_VERBS = [
   'progress',
   'attachments_added',
   'attachment_removed',
+  'evidence_pinned',
+  'evidence_unpinned',
 ];
 // Fields with a `task.fields.*` name; an unknown field is skipped instead of breaking the page.
 const KNOWN_FIELDS = [
@@ -57,6 +59,14 @@ function describe(entry: Activity): string {
       files: Array.isArray(names)
         ? names.map((n) => `«${String(n)}»`).join(t('ui.listSeparator'))
         : '',
+    });
+  }
+  if (entry.verb === 'evidence_pinned' || entry.verb === 'evidence_unpinned') {
+    const change = entry.changes?.evidence;
+    const number = entry.verb === 'evidence_pinned' ? change?.to : change?.from;
+    return t(`task.verbs.${entry.verb}`, {
+      actor,
+      number: typeof number === 'string' ? toPersianDigits(number) : '',
     });
   }
   return t(`task.verbs.${entry.verb}` as MessageKey, { actor });

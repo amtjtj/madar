@@ -1,6 +1,14 @@
 'use client';
 
-import { Archive, ArchiveRestore, ArrowRight, CornerUpLeft, Forward, ReplyAll } from 'lucide-react';
+import {
+  Archive,
+  ArchiveRestore,
+  ArrowRight,
+  CornerUpLeft,
+  Forward,
+  ReplyAll,
+  Stamp,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
@@ -30,6 +38,8 @@ import { useMe } from '@/hooks/use-me';
 import { ApiClientError } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { letterDate } from '@/lib/letters';
+
+import { PinToTask } from '@/components/evidence/pin-to-task';
 
 import { ReferDialog } from './refer-dialog';
 
@@ -233,6 +243,7 @@ export function LetterView({ id }: { id: string }) {
             </Button>
           )}
           {letter.can.refer && <ReferDialog letter={letter} />}
+          {letter.can.pin && <PinToTask letter={letter} />}
           {sentAt && (
             <Button
               variant="ghost"
@@ -245,6 +256,27 @@ export function LetterView({ id }: { id: string }) {
             </Button>
           )}
         </div>
+
+        {letter.pinnedTo.length > 0 && (
+          <section aria-label={t('evidence.pinnedTo')} className="flex flex-col gap-2">
+            <h2 className="flex items-center gap-1.5 font-bold text-ink [&_svg]:size-4">
+              <Stamp aria-hidden />
+              {t('evidence.pinnedTo')}
+            </h2>
+            <ul className="flex flex-col divide-y divide-line rounded-2xl border border-line bg-surface p-1">
+              {letter.pinnedTo.map((p) => (
+                <li key={p.evidenceId}>
+                  <Link
+                    href={`/tasks/${p.taskId}`}
+                    className="flex min-h-11 items-center rounded-xl px-3 py-2 font-medium text-ink hover:bg-sunken focus-visible:outline-2 focus-visible:outline-focus"
+                  >
+                    {p.title}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {letter.thread.length > 0 && (
           <section aria-label={t('letters.thread')} className="flex flex-col gap-2">

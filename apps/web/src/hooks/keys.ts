@@ -64,3 +64,12 @@ export const letterKeys = {
   unread: ['letters', 'unread'] as const,
   letter: (id: string) => ['letters', 'detail', id] as const,
 };
+
+/** «شاهد کار» (ADR 0021); under ['task', id] so realtime work hints refresh it. */
+export const evidenceKeys = {
+  task: (taskId: string) => ['task', taskId, 'evidence'] as const,
+  audience: (taskId: string) => ['task', taskId, 'evidence', 'audience'] as const,
+  candidates: (taskId: string, q: string) => ['task', taskId, 'evidence', 'candidates', q] as const,
+  detail: (taskId: string, id: string) => ['task', taskId, 'evidence', 'detail', id] as const,
+  editableTasks: (q: string) => ['tasks', 'editable', q] as const,
+};

@@ -1,6 +1,14 @@
 'use client';
 
-import { AlarmClock, FolderKanban, Forward, Mail, MessageCircle, UserPlus } from 'lucide-react';
+import {
+  AlarmClock,
+  FolderKanban,
+  Forward,
+  Mail,
+  MessageCircle,
+  Stamp,
+  UserPlus,
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 import { t } from '@madar/i18n';
@@ -14,6 +22,7 @@ const kindIcon: Partial<Record<Notification['kind'], typeof AlarmClock>> = {
   task_commented: MessageCircle,
   letter_received: Mail,
   letter_referred: Forward,
+  task_evidence_pinned: Stamp,
   task_due_soon: AlarmClock,
   task_overdue: AlarmClock,
   task_overdue_escalation: AlarmClock,
