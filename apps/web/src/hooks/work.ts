@@ -8,6 +8,7 @@ import type {
   CreateTaskRequest,
   ListTasksQuery,
   MoveTaskRequest,
+  PriorityWeights,
   Project,
   SetProjectMembersRequest,
   Task,
@@ -281,6 +282,102 @@ function planMutation(path: (taskId: string) => string, method: 'POST' | 'DELETE
 }
 
 export const useAddToToday = planMutation((id) => `/api/today/items/${id}`, 'POST');
+
+/** Today in the member's own order (drag and drop); the list moves at once. */
+export function useReorderToday() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (taskIds: string[]) =>
+      api<Today>('/api/today/items', { method: 'PUT', body: { taskIds } }),
+    onMutate: async (taskIds) => {
+      await client.cancelQueries({ queryKey: workKeys.today });
+      const previous = client.getQueryData<Today>(workKeys.today);
+      if (previous) {
+        const byId = new Map(previous.items.map((t) => [t.id, t]));
+        const items = taskIds.flatMap((id) => byId.get(id) ?? []);
+        client.setQueryData<Today>(workKeys.today, { ...previous, items, ordered: true });
+      }
+      return previous;
+    },
+    onError: (_error, _ids, previous) => client.setQueryData(workKeys.today, previous),
+    onSuccess: (today) => client.setQueryData(workKeys.today, today),
+  });
+}
+
+/** Back to the automatic (priority) order for today. */
+export function useAutoOrderToday() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<Today>('/api/today/auto-order', { method: 'POST' }),
+    onSuccess: (today) => client.setQueryData(workKeys.today, today),
+  });
+}
+
+/** Ids in the member's own order of «my tasks»; empty while it follows priority. */
+export function useTaskOrder() {
+  return useQuery({
+    queryKey: workKeys.taskOrder,
+    queryFn: () => api<{ taskIds: string[] }>('/api/me/task-order'),
+  });
+}
+
+/** Save the member's own order of «my tasks»; the list moves at once. */
+export function useSetTaskOrder(listKey: readonly unknown[]) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (taskIds: string[]) =>
+      api<{ taskIds: string[] }>('/api/me/task-order', { method: 'PUT', body: { taskIds } }),
+    onMutate: async (taskIds) => {
+      await client.cancelQueries({ queryKey: listKey });
+      const previous = client.getQueryData<Task[]>(listKey);
+      if (previous) {
+        const byId = new Map(previous.map((t) => [t.id, t]));
+        const moved = taskIds.flatMap((id) => byId.get(id) ?? []);
+        const rest = previous.filter((t) => !taskIds.includes(t.id));
+        client.setQueryData<Task[]>(listKey, [...moved, ...rest]);
+      }
+      return previous;
+    },
+    onError: (_error, _ids, previous) => client.setQueryData(listKey, previous),
+    onSettled: () => {
+      void client.invalidateQueries({ queryKey: workKeys.taskOrder });
+      void client.invalidateQueries({ queryKey: workKeys.allTasks });
+    },
+  });
+}
+
+/** Back to the automatic (priority) order for «my tasks». */
+export function useClearTaskOrder() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<undefined>('/api/me/task-order', { method: 'DELETE' }),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: workKeys.taskOrder });
+      void client.invalidateQueries({ queryKey: workKeys.allTasks });
+    },
+  });
+}
+
+/** The company's priority weights (everyone reads them; the owner changes them). */
+export function usePriorityWeights() {
+  return useQuery({
+    queryKey: workKeys.priorityWeights,
+    queryFn: () => api<PriorityWeights>('/api/settings/priority'),
+  });
+}
+
+export function useSavePriorityWeights() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (body: PriorityWeights) =>
+      api<PriorityWeights>('/api/settings/priority', { method: 'PUT', body }),
+    onSuccess: (weights) => {
+      client.setQueryData(workKeys.priorityWeights, weights);
+      void client.invalidateQueries({ queryKey: workKeys.allTasks });
+      void client.invalidateQueries({ queryKey: workKeys.today });
+    },
+  });
+}
 export const useRemoveFromToday = planMutation((id) => `/api/today/items/${id}`, 'DELETE');
 
 /** Board drag and drop: the card moves at once; the server assigns the final position. */

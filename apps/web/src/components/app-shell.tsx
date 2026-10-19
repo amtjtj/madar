@@ -2,6 +2,7 @@
 
 import { useQueryClient } from '@tanstack/react-query';
 import {
+  ArrowDownWideNarrow,
   BellRing,
   Download,
   Building2,
@@ -102,6 +103,12 @@ export function useOrgNavItems(): NavItem[] {
             label: t('workCalendar.short'),
             href: '/org/work-calendar',
             icon: <Clock aria-hidden />,
+          },
+          {
+            key: '/org/priority',
+            label: t('priorityWeights.short'),
+            href: '/org/priority',
+            icon: <ArrowDownWideNarrow aria-hidden />,
           },
         ]
       : []),

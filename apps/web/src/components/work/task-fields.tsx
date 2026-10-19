@@ -8,7 +8,7 @@ import {
   type TaskPriority,
   type UpdateTaskRequest,
 } from '@madar/shared';
-import { Avatar, DatePicker, SelectField, useToast } from '@madar/ui';
+import { Avatar, DatePicker, SelectField, SourceBadge, rankText, useToast } from '@madar/ui';
 
 import { KeyResultSelect } from '@/components/goals/key-result-select';
 import { useMembers } from '@/hooks/queries';
@@ -107,6 +107,20 @@ export function TaskFields({ task }: { task: Task }) {
         onChange={(keyResultId) => save({ keyResultId })}
       />
       <dl className="flex flex-col gap-3 border-t border-line pt-4 text-sm">
+        {task.source && (
+          <div className="flex items-center justify-between gap-3">
+            <dt className="text-ink-muted">{t('task.source')}</dt>
+            <dd className="min-w-0">
+              <SourceBadge source={task.source} full />
+            </dd>
+          </div>
+        )}
+        {task.statusCategory !== 'done' && task.statusCategory !== 'canceled' && (
+          <div className="flex items-center justify-between gap-3">
+            <dt className="text-ink-muted">{t('task.rank')}</dt>
+            <dd className="text-end font-medium text-ink">{rankText(task.rank.reasons)}</dd>
+          </div>
+        )}
         <div className="flex items-center justify-between gap-3">
           <dt className="text-ink-muted">{t('task.reporter')}</dt>
           <dd className="flex items-center gap-2 font-medium text-ink">

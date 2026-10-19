@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, Check, Plus, Sparkles, X } from 'lucide-react';
+import { ArrowLeft, Check, Plus, Sparkles, Wand2, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
@@ -21,6 +21,7 @@ import {
   EmptyState,
   ProgressBar,
   Skeleton,
+  SortableList,
   TaskCard,
   cn,
   useToast,
@@ -37,7 +38,15 @@ import { Segmented } from '@/components/work/task-views';
 import { QuickAdd } from '@/components/work/quick-add';
 import { useCan, useDepartments, useMembers } from '@/hooks/queries';
 import { useMe } from '@/hooks/use-me';
-import { isDraft, useAddToToday, useRemoveFromToday, useToday, useToggleDone } from '@/hooks/work';
+import {
+  isDraft,
+  useAddToToday,
+  useAutoOrderToday,
+  useRemoveFromToday,
+  useReorderToday,
+  useToday,
+  useToggleDone,
+} from '@/hooks/work';
 import { errorMessage } from '@/lib/errors';
 
 type HomeTab = 'today' | 'team' | 'company';
@@ -180,6 +189,8 @@ function TodayPlan({ today }: { today: Today }) {
   const toggle = useToggleDone();
   const add = useAddToToday();
   const remove = useRemoveFromToday();
+  const reorder = useReorderToday();
+  const autoOrder = useAutoOrderToday();
   const { toast } = useToast();
   const { done, total } = today.progress;
   const allDone = total > 0 && done === total;
@@ -195,6 +206,18 @@ function TodayPlan({ today }: { today: Today }) {
         <CardContent className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-bold text-ink">{t('today.planTitle')}</h2>
+            {today.ordered && !allDone && (
+              <Button
+                size="sm"
+                variant="ghost"
+                icon={<Wand2 aria-hidden />}
+                title={t('tasks.autoOrderHint')}
+                loading={autoOrder.isPending}
+                onClick={() => autoOrder.mutate(undefined, { onError })}
+              >
+                {t('today.autoOrder')}
+              </Button>
+            )}
             {allDone && (
               <Badge tone="accent" size="md">
                 <Sparkles aria-hidden />
@@ -222,9 +245,19 @@ function TodayPlan({ today }: { today: Today }) {
             <EmptyState title={t('today.emptyTitle')} description={t('today.emptyDescription')} />
           </Card>
         ) : (
-          <ul className="flex flex-col gap-2">
-            {today.items.map((task) => (
-              <li key={task.id} className={cn(isDraft(task) && 'opacity-60')}>
+          <SortableList
+            label={t('today.planList')}
+            items={today.items}
+            itemTitle={(task) => task.title}
+            // A task still being saved has no id yet: it keeps its place.
+            onReorder={(ids) =>
+              reorder.mutate(
+                ids.filter((id) => !id.startsWith('draft-')),
+                { onError },
+              )
+            }
+            renderItem={(task, handle, { dragging }) => (
+              <div className={cn(isDraft(task) && 'opacity-60')}>
                 <TaskCard
                   title={task.title}
                   done={task.statusCategory === 'done'}
@@ -237,6 +270,10 @@ function TodayPlan({ today }: { today: Today }) {
                   subtasks={task.subtasks}
                   commentCount={task.commentCount}
                   tag={task.keyResult ? <GoalTag keyResult={task.keyResult} /> : undefined}
+                  source={task.source}
+                  reasons={isDraft(task) ? undefined : task.rank.reasons}
+                  dragHandle={isDraft(task) || today.items.length < 2 ? undefined : handle}
+                  dragging={dragging}
                   action={
                     isDraft(task) ? null : (
                       <button
@@ -251,9 +288,9 @@ function TodayPlan({ today }: { today: Today }) {
                     )
                   }
                 />
-              </li>
-            ))}
-          </ul>
+              </div>
+            )}
+          />
         )}
       </section>
 
@@ -276,6 +313,7 @@ function TodayPlan({ today }: { today: Today }) {
                   dueOn={reason === 'overdue' || reason === 'due_today' ? null : task.dueOn}
                   today={today.date}
                   projectName={task.project?.name}
+                  source={task.source}
                   className="bg-canvas"
                   tag={
                     <Badge

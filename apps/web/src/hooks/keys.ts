@@ -10,6 +10,9 @@ export const workKeys = {
   activity: (taskId: string) => ['task', taskId, 'activity'] as const,
   projects: ['projects'] as const,
   project: (id: string) => ['projects', id] as const,
+  /** The member's own order of «my tasks» (ADR 0017). */
+  taskOrder: ['task-order'] as const,
+  priorityWeights: ['settings', 'priority'] as const,
 };
 
 export const notificationKeys = {

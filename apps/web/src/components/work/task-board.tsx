@@ -41,9 +41,13 @@ const COLUMNS = ['todo', 'in_progress', 'done'] as const;
 type Column = (typeof COLUMNS)[number];
 type Columns = Record<Column, string[]>;
 
+/** Columns keep the shared board order (`sortKey`), whatever order the list arrived in. */
 function columnsOf(tasks: Task[]): Columns {
   const columns: Columns = { todo: [], in_progress: [], done: [] };
-  for (const task of tasks) {
+  const byBoardOrder = [...tasks].sort((a, b) =>
+    a.sortKey < b.sortKey ? -1 : a.sortKey > b.sortKey ? 1 : 0,
+  );
+  for (const task of byBoardOrder) {
     if ((COLUMNS as readonly string[]).includes(task.statusCategory)) {
       columns[task.statusCategory as Column].push(task.id);
     }
@@ -330,6 +334,7 @@ function SortableTask({
       today={today}
       dueOn={task.dueOn}
       priority={task.priority}
+      source={task.source}
       projectName={hideProject ? undefined : task.project?.name}
       subtasks={task.subtasks}
       commentCount={task.commentCount}

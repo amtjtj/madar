@@ -216,6 +216,8 @@ export const fa = {
     account: 'حساب کاربری',
   },
   today: {
+    autoOrder: 'مرتب‌سازی خودکار',
+    planList: 'کارهای امروز',
     planTitle: 'برنامه امروز',
     progress: '{done} از {total} کار امروز',
     progressEmpty: 'هنوز کاری برای امروز نچیده‌ای',
@@ -250,6 +252,19 @@ export const fa = {
     saving: 'در حال ذخیره…',
   },
   tasks: {
+    /** Filter by where tasks came from (ADR 0017). */
+    sourceFilter: {
+      label: 'منبع کار',
+      all: 'همه',
+      personal: 'شخصی',
+      assigned: 'ابلاغی',
+      request: 'درخواست همکار',
+      meeting: 'مصوبه جلسه',
+    },
+    autoOrder: 'مرتب‌سازی خودکار',
+    autoOrderHint: 'ترتیبی که خودت چیده‌ای کنار می‌رود و کارها بر اساس اولویت مرتب می‌شوند.',
+    orderedByHand: 'به ترتیب خودت',
+    orderList: 'کارهای باز، به ترتیب اولویت',
     filters: {
       label: 'فیلتر:',
       overdue: 'گذشته از سررسید',
@@ -282,6 +297,7 @@ export const fa = {
       later: 'بعدتر',
       noDate: 'بدون سررسید',
       done: 'انجام‌شده',
+      open: 'کارهای باز',
     },
     emptyTitle: 'کاری پیدا نشد',
     emptyMine: 'فعلاً کاری به تو سپرده نشده. از «کار تازه» یکی بساز.',
@@ -293,6 +309,8 @@ export const fa = {
     moved: '«{title}» به {status} رفت',
   },
   task: {
+    source: 'منبع',
+    rank: 'جایگاه در اولویت‌ها',
     back: 'بازگشت',
     titleLabel: 'عنوان',
     descriptionLabel: 'شرح',
@@ -612,6 +630,38 @@ export const fa = {
         key_result_checkin_due: 'وقت ثبت پیشرفت هفتگی یکی از اهدافت است',
         weekly_report_ready: 'گزارش هفته گذشته آماده است',
       },
+    },
+  },
+  /** Company priority weights (ADR 0017), owner only. */
+  priorityWeights: {
+    title: 'اولویت‌بندی کارها',
+    short: 'اولویت‌بندی',
+    subtitle:
+      'کارها در «امروز» و «کارهای من» با این وزن‌ها مرتب می‌شوند. هر کس می‌تواند ترتیب خودش را بچیند.',
+    fields: {
+      due: 'سررسید',
+      priority: 'اولویت ثبت‌شده',
+      source: 'منبع کار (ابلاغ مدیرعامل، ابلاغ مدیر، …)',
+      keyResult: 'وصل بودن به نتیجه کلیدی',
+      weight: 'وزن کار',
+    },
+    hints: {
+      due: 'گذشته از سررسید، امروز، فردا، این هفته، بعدتر',
+      priority: 'فوری، زیاد، عادی، کم',
+      source: 'ابلاغ مدیرعامل، ابلاغ مدیر، مصوبه جلسه، درخواست همکار، شخصی',
+      keyResult: 'کاری که به هدف شرکت کمک می‌کند',
+      weight: 'وزنی که مدیر به کار داده (۱ تا ۵)',
+    },
+    total: 'جمع وزن‌ها: {total}',
+    save: 'ذخیره',
+    saved: 'وزن‌های اولویت ذخیره شد',
+    reset: 'بازگشت به پیش‌فرض',
+    preview: 'پیش‌نمایش ترتیب',
+    sample: {
+      ceoTomorrow: 'گزارش هیئت‌مدیره (ابلاغ مدیرعامل، سررسید فردا)',
+      overdueMine: 'پاسخ به ایمیل‌ها (شخصی، گذشته از سررسید)',
+      urgentRequest: 'بررسی قرارداد (درخواست همکار، فوری)',
+      goalWeek: 'کمپین پاییز (وصل به هدف، این هفته)',
     },
   },
   workCalendar: {

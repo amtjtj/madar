@@ -1,20 +1,29 @@
 'use client';
 
-import { KanbanSquare, List, Search } from 'lucide-react';
+import { KanbanSquare, List, Search, Sparkles } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { t } from '@madar/i18n';
-import type { ListTasksQuery } from '@madar/shared';
-import { Card, EmptyState, Skeleton, TextField, cn } from '@madar/ui';
+import type { ListTasksQuery, TaskSource } from '@madar/shared';
+import { Button, Card, EmptyState, Skeleton, TextField, cn, useToast } from '@madar/ui';
 
 import { workKeys } from '@/hooks/keys';
-import { useTasks, useTodayDate } from '@/hooks/work';
+import {
+  useClearTaskOrder,
+  useSetTaskOrder,
+  useTaskOrder,
+  useTasks,
+  useTodayDate,
+} from '@/hooks/work';
+import { errorMessage } from '@/lib/errors';
 
 import { TaskBoard } from './task-board';
 import { TaskList } from './task-list';
 
 type Mode = 'list' | 'board';
 type StatusFilter = 'open' | 'done' | 'all';
+type SourceFilter = 'all' | Exclude<TaskSource, 'meeting'>;
+const SOURCE_FILTERS: readonly SourceFilter[] = ['all', 'personal', 'assigned', 'request'];
 const MODE_KEY = 'madar.tasks.mode';
 
 function readMode(): Mode {
@@ -40,6 +49,8 @@ export function TaskViews({ params, showAssignee, emptyDescription, toolbar }: T
   // Rendered only on the client (behind the app gate), so reading storage here is safe.
   const [mode, setMode] = useState<Mode>(readMode);
   const [status, setStatus] = useState<StatusFilter>('open');
+  const [source, setSource] = useState<SourceFilter>('all');
+  const { toast } = useToast();
   const [q, setQ] = useState('');
   const [query, setQuery] = useState('');
 
@@ -61,9 +72,16 @@ export function TaskViews({ params, showAssignee, emptyDescription, toolbar }: T
     ...params,
     status: mode === 'board' ? 'all' : status,
     ...(query ? { q: query } : {}),
+    ...(source !== 'all' ? { source } : {}),
   };
   const { data: tasks, isPending } = useTasks(listParams);
-  const filtered = Boolean(query) || status !== 'open';
+  const filtered = Boolean(query) || status !== 'open' || source !== 'all';
+  // «My tasks», unfiltered: the member's own order (ADR 0017).
+  const personal = params.view === 'mine' && mode === 'list' && !query && source === 'all';
+  const { data: order } = useTaskOrder();
+  const setOrder = useSetTaskOrder(workKeys.tasks(listParams));
+  const clearOrder = useClearTaskOrder();
+  const onError = (error: unknown) => toast({ tone: 'error', title: errorMessage(error) });
 
   return (
     <div className="flex flex-col gap-4">
@@ -88,6 +106,27 @@ export function TaskViews({ params, showAssignee, emptyDescription, toolbar }: T
               label: t(`tasks.statusFilter.${value}`),
             }))}
           />
+        )}
+        <Segmented
+          label={t('tasks.sourceFilter.label')}
+          value={source}
+          onChange={setSource}
+          options={SOURCE_FILTERS.map((value) => ({
+            value,
+            label: t(`tasks.sourceFilter.${value}`),
+          }))}
+        />
+        {personal && (order?.taskIds.length ?? 0) > 0 && (
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<Sparkles aria-hidden />}
+            title={t('tasks.autoOrderHint')}
+            loading={clearOrder.isPending}
+            onClick={() => clearOrder.mutate(undefined, { onError })}
+          >
+            {t('tasks.autoOrder')}
+          </Button>
         )}
         <TextField
           label={t('tasks.search')}
@@ -127,6 +166,7 @@ export function TaskViews({ params, showAssignee, emptyDescription, toolbar }: T
           today={today}
           showAssignee={showAssignee}
           hideProject={Boolean(params.projectId)}
+          onReorder={personal ? (ids) => setOrder.mutate(ids, { onError }) : undefined}
         />
       )}
     </div>
