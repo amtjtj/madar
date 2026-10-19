@@ -86,15 +86,18 @@ export default function TaskPage() {
       </div>
       {!task.can.edit && <p className="mb-4 text-sm text-ink-muted">{t('task.readOnly')}</p>}
 
+      {/* Phones: progress, then the fields, then the body. Desktop: fields in the side column. */}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <div className="flex min-w-0 flex-col gap-6">
+        <div className="order-first min-w-0 empty:hidden lg:col-start-1 lg:row-start-1">
           <TaskProgress task={task} />
+        </div>
+        <div className="flex min-w-0 flex-col gap-6 lg:col-start-1 lg:row-start-2">
           <DescriptionEditor task={task} />
           {!task.parentId && <Subtasks task={task} />}
           <CommentThread taskId={task.id} />
           <ActivityList taskId={task.id} />
         </div>
-        <aside className="order-first flex flex-col gap-4 lg:order-last">
+        <aside className="order-first flex flex-col gap-4 lg:order-none lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start">
           <Card>
             <CardContent>
               <TaskFields task={task} />
