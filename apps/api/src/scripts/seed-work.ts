@@ -124,6 +124,22 @@ export const SEED_TASKS: SeedTask[] = [
     yesterday: true,
   },
   {
+    title: 'گزارش رضایت مشتریان برای جلسه هیئت‌مدیره',
+    // Assigned by the CEO: shows the «ابلاغ مدیرعامل» badge and sits near the top (ADR 0017).
+    by: 'reza.karimi',
+    assignee: 'ali.rezaei',
+    dueIn: 1,
+    today: true,
+    description: 'خلاصه شکایت‌ها و رضایت مشتریان در ماه گذشته، در یک صفحه.',
+  },
+  {
+    title: 'بررسی تیکت‌های مشترک با تیم فنی',
+    // A colleague's request (same level, not a manager).
+    by: 'zahra.mohammadi',
+    assignee: 'ali.rezaei',
+    dueIn: 3,
+  },
+  {
     title: 'به‌روزرسانی پاسخ‌های آماده',
     by: 'maryam.ahmadi',
     assignee: 'zahra.mohammadi',
@@ -189,6 +205,13 @@ export const SEED_TASKS: SeedTask[] = [
   },
 
   // ---------- فنی ----------
+  {
+    title: 'برنامه پایداری سامانه در روزهای پرنوسان بازار',
+    by: 'reza.karimi',
+    assignee: 'amir.hosseini',
+    dueIn: 4,
+    priority: 'high',
+  },
   {
     title: 'طراحی API کیف پول طلا',
     by: 'amir.hosseini',
