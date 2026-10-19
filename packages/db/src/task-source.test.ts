@@ -61,6 +61,8 @@ describe.skipIf(!hasDatabase)('task source backfill (migration 0013)', () => {
       return {
         personal: await task(worker, worker),
         ceo: await task(ceo, worker),
+        // Nobody set the colleague's manager yet: the CEO is still above them.
+        ceoOutsideChain: await task(ceo, colleague),
         // The fixture member heads the task's department.
         head: await task(f.memberId, worker),
         request: await task(colleague, worker),
@@ -78,6 +80,7 @@ describe.skipIf(!hasDatabase)('task source backfill (migration 0013)', () => {
     const of = (id: string) => rows.find((r) => r.id === id);
     expect(of(ids.personal)).toMatchObject({ source: 'personal', ceo: false });
     expect(of(ids.ceo)).toMatchObject({ source: 'assigned', ceo: true });
+    expect(of(ids.ceoOutsideChain)).toMatchObject({ source: 'assigned', ceo: true });
     expect(of(ids.head)).toMatchObject({ source: 'assigned', ceo: false });
     expect(of(ids.request)).toMatchObject({ source: 'request', ceo: false });
     expect(of(ids.unassigned)).toMatchObject({ source: null });

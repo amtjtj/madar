@@ -29,10 +29,12 @@ export interface SourceInput {
 /** Decided once, when a task first gets an assignee; never changes afterwards. */
 export function deriveTaskSource(input: SourceInput): { source: TaskSource; ceo: boolean } {
   if (input.actorId === input.assigneeId) return { source: 'personal', ceo: false };
+  // The CEO is above everyone, also when the org chart is not filled in yet (a new company).
+  if (input.actorIsTop) return { source: 'assigned', ceo: true };
   const above =
     input.assigneeManagers.includes(input.actorId) ||
     input.departmentManagers.includes(input.actorId);
-  if (above) return { source: 'assigned', ceo: input.actorIsTop };
+  if (above) return { source: 'assigned', ceo: false };
   return { source: 'request', ceo: false };
 }
 

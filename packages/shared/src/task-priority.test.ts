@@ -32,19 +32,23 @@ describe('deriveTaskSource', () => {
     expect(deriveTaskSource({ ...base, actorId: 'head' }).source).toBe('assigned');
   });
 
-  it('marks the CEO, who has no manager above them', () => {
+  it('marks the CEO, who has no manager above them, also outside a chain not filled in yet', () => {
     expect(deriveTaskSource({ ...base, actorIsTop: true })).toEqual({
       source: 'assigned',
       ceo: true,
     });
+    expect(deriveTaskSource({ ...base, actorId: 'reza', actorIsTop: true })).toEqual({
+      source: 'assigned',
+      ceo: true,
+    });
+    expect(deriveTaskSource({ ...base, actorId: 'ali', actorIsTop: true }).source).toBe('personal');
   });
 
-  it('is a request from a colleague, even a top person outside the chain', () => {
+  it('is a request from a colleague', () => {
     expect(deriveTaskSource({ ...base, actorId: 'zahra' })).toEqual({
       source: 'request',
       ceo: false,
     });
-    expect(deriveTaskSource({ ...base, actorId: 'zahra', actorIsTop: true }).ceo).toBe(false);
   });
 });
 

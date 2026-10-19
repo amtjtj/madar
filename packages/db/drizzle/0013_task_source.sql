@@ -38,13 +38,26 @@ WITH RECURSIVE chain (tenant_id, member_id, manager_id, depth) AS (
   JOIN members m ON m.tenant_id = c.tenant_id AND m.id = c.manager_id
   WHERE m.manager_id IS NOT NULL AND c.depth < 20
 ),
+top AS (
+  -- The CEO: no manager above, and the owner or executive role.
+  SELECT DISTINCT m.tenant_id, m.id
+  FROM members m
+  JOIN member_roles mr ON mr.tenant_id = m.tenant_id AND mr.member_id = m.id
+  JOIN roles r ON r.tenant_id = mr.tenant_id AND r.id = mr.role_id
+  WHERE m.manager_id IS NULL AND r.key IN ('owner', 'executive')
+),
 derived AS (
   SELECT
     t.tenant_id,
     t.id,
+    EXISTS (
+      SELECT 1 FROM top WHERE top.tenant_id = t.tenant_id AND top.id = t.reporter_id
+    ) AND t.reporter_id <> t.assignee_id AS ceo,
     CASE
       WHEN t.reporter_id = t.assignee_id THEN 'personal'
       WHEN EXISTS (
+        SELECT 1 FROM top WHERE top.tenant_id = t.tenant_id AND top.id = t.reporter_id
+      ) OR EXISTS (
         SELECT 1 FROM chain c
         WHERE c.tenant_id = t.tenant_id AND c.member_id = t.assignee_id AND c.manager_id = t.reporter_id
       ) OR EXISTS (
@@ -61,12 +74,6 @@ UPDATE tasks t
 SET
   source = d.source,
   source_member_id = t.reporter_id,
-  source_ceo = d.source = 'assigned' AND EXISTS (
-    SELECT 1 FROM members m
-    JOIN member_roles mr ON mr.tenant_id = m.tenant_id AND mr.member_id = m.id
-    JOIN roles r ON r.tenant_id = mr.tenant_id AND r.id = mr.role_id
-    WHERE m.tenant_id = t.tenant_id AND m.id = t.reporter_id AND m.manager_id IS NULL
-      AND r.key IN ('owner', 'executive')
-  )
+  source_ceo = d.ceo
 FROM derived d
 WHERE t.tenant_id = d.tenant_id AND t.id = d.id;
