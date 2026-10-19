@@ -168,6 +168,41 @@ describe.skipIf(!hasDatabase)('notifications', () => {
     expect(forAgent.some((n) => n.subjectId === task.id)).toBe(true);
   });
 
+  it('tells whoever assigned a task about progress, once a day', async () => {
+    const task = (
+      await lead.c.post('/api/tasks', { title: 'پیگیری قرارداد', assigneeId: agent.memberId })
+    ).body;
+    let current = (
+      await agent.c.post(`/api/tasks/${task.id}/progress`, {
+        value: 50,
+        note: 'تماس گرفتم',
+        version: task.version,
+      })
+    ).body;
+    const [n] = await eventually(() => notificationsOf(lead.memberId, 'task_progress'));
+    expect(n).toMatchObject({ subjectId: task.id, payload: { data: { progress: 50 } } });
+    current = (
+      await agent.c.post(`/api/tasks/${task.id}/progress`, {
+        value: 70,
+        version: current.version,
+      })
+    ).body;
+    expect(current.progress).toBe(70);
+    await settle();
+    expect(
+      (await notificationsOf(lead.memberId, 'task_progress')).filter(
+        (x) => x.subjectId === task.id,
+      ),
+    ).toHaveLength(1);
+    // Your own task: nobody to tell.
+    const own = (await agent.c.post('/api/tasks', { title: 'کار شخصی' })).body;
+    await agent.c.post(`/api/tasks/${own.id}/progress`, { value: 20, version: own.version });
+    await settle();
+    expect(
+      (await notificationsOf(agent.memberId, 'task_progress')).some((x) => x.subjectId === own.id),
+    ).toBe(false);
+  });
+
   it('respects muted kinds', async () => {
     await withTenant(handle.db, { tenantId }, (tx) =>
       tx

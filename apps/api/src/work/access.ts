@@ -76,6 +76,18 @@ export function visibleProjects(actor: Actor): SQL {
   return sql`(${member} or ${s.projects.visibility} = 'tenant' or (${s.projects.visibility} = 'department' and ${departmentVisible}))`;
 }
 
+/**
+ * SQL condition on `projects`: where the actor may add work. Observers of a private project see it
+ * but add nothing (plan phase-2-step-10b); other projects follow their visibility.
+ */
+export function usableProjects(actor: Actor): SQL {
+  if (managesAll(actor)) return sql`true`;
+  const me = actor.memberId;
+  return sql`(${s.projects.visibility} <> 'private' or ${s.projects.ownerId} = ${me} or exists (
+    select 1 from project_members pm where pm.project_id = ${s.projects.id} and pm.member_id = ${me}
+      and pm.role in ('owner', 'member')))`;
+}
+
 export interface TaskForAccess {
   departmentId: string;
   assigneeId: string | null;

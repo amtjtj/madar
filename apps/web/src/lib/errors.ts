@@ -21,6 +21,8 @@ const API_CODES = new Set([
   'push_disabled',
   'goal_archived',
   'goal_has_children',
+  'progress_auto',
+  'progress_closed',
 ]);
 
 /** Persian message for any error thrown by `api()` or the auth helpers. */

@@ -165,6 +165,9 @@ export const fa = {
       'این کار همین الان توسط شخص دیگری تغییر کرد. نسخه تازه را ببینید و دوباره امتحان کنید.',
     no_department: 'برای این کار باید عضو یک دپارتمان باشید. با مدیرتان صحبت کنید.',
     goal_archived: 'این هدف بایگانی شده است و دیگر تغییر نمی‌کند.',
+    progress_auto:
+      'پیشرفت این کار از زیرکارهایش حساب می‌شود. برای ثبت دستی، اول «تغییر به دستی» را بزنید.',
+    progress_closed: 'این کار بسته شده است؛ برای ثبت پیشرفت اول آن را دوباره باز کنید.',
     goal_has_children:
       'این هدف هدف‌های زیرمجموعه فعال دارد؛ اول آن‌ها را بایگانی کنید یا زیر هدف دیگری ببرید.',
     push_endpoint_not_allowed: 'این مرورگر اعلان را از سرویسی می‌فرستد که مدار نمی‌شناسد.',
@@ -557,6 +560,8 @@ export const fa = {
       task_overdue_escalation_unassigned:
         '«{title}» {days} روز کاری از سررسیدش گذشته است و مسئول ندارد',
       project_member_added: '{actor} تو را به پروژه «{title}» اضافه کرد',
+      task_progress: '{actor} پیشرفت «{title}» را {progress} ثبت کرد',
+      project_observer_added: '{actor} تو را به‌عنوان ناظر به پروژه «{title}» اضافه کرد',
       key_result_checkin_due: 'وقت ثبت پیشرفت هفتگی «{title}» است',
       weekly_report_ready: 'گزارش هفته {date} «{title}» آماده است',
     },
@@ -572,6 +577,7 @@ export const fa = {
       task_overdue: 'سررسید گذشته',
       task_overdue_escalation: 'کار عقب‌افتاده در دپارتمانی که مدیرش هستم',
       project_member_added: 'به پروژه‌ای اضافه شدم',
+      task_progress: 'پیشرفت کاری که ابلاغ کرده یا خواسته‌ام ثبت شد (روزی یک بار برای هر کار)',
       key_result_checkin_due: 'یادآوری هفتگی ثبت پیشرفت اهدافم',
       weekly_report_ready: 'گزارش هفتگی آماده شد (صبح شنبه)',
     },
@@ -627,6 +633,7 @@ export const fa = {
         task_overdue: 'سررسید یکی از کارهایت گذشته است',
         task_overdue_escalation: 'کاری در دپارتمانت از سررسیدش عقب افتاده است',
         project_member_added: 'به یک پروژه تازه اضافه شدی',
+        task_progress: 'پیشرفت کاری که ابلاغ کرده‌ای ثبت شد',
         key_result_checkin_due: 'وقت ثبت پیشرفت هفتگی یکی از اهدافت است',
         weekly_report_ready: 'گزارش هفته گذشته آماده است',
       },

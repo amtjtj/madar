@@ -18,6 +18,7 @@ import {
   listTasksQuery,
   moveTaskRequest,
   setCollaboratorsRequest,
+  setTaskProgressRequest,
   updateTaskRequest,
   type Activity,
   type Comment,
@@ -27,6 +28,7 @@ import {
   type MoveTaskRequest,
   type SetCollaboratorsRequest,
   type Task,
+  type SetTaskProgressRequest,
   type UpdateTaskRequest,
 } from '@madar/shared';
 
@@ -67,6 +69,16 @@ export class TasksController {
     @Body(new ZodPipe(updateTaskRequest)) body: UpdateTaskRequest,
   ): Promise<Task> {
     return this.tasks.update(ctx, id, body);
+  }
+
+  @Post(':id/progress')
+  @HttpCode(HttpStatus.OK)
+  setProgress(
+    @Tenant() ctx: TenantContext,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodPipe(setTaskProgressRequest)) body: SetTaskProgressRequest,
+  ): Promise<Task> {
+    return this.tasks.setProgress(ctx, id, body);
   }
 
   @Delete(':id')

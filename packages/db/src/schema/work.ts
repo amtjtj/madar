@@ -5,6 +5,7 @@
 import { sql } from 'drizzle-orm';
 import {
   boolean,
+  check,
   date,
   foreignKey,
   index,
@@ -27,7 +28,7 @@ import { departments, members } from './org.js';
 
 export const projectVisibility = pgEnum('project_visibility', ['department', 'tenant', 'private']);
 export const projectStatus = pgEnum('project_status', ['active', 'archived']);
-export const projectRole = pgEnum('project_role', ['owner', 'member']);
+export const projectRole = pgEnum('project_role', ['owner', 'member', 'observer']);
 export const statusCategory = pgEnum('status_category', [
   'todo',
   'in_progress',
@@ -38,6 +39,8 @@ export const taskPriority = pgEnum('task_priority', ['low', 'normal', 'high', 'u
 export const collaboratorKind = pgEnum('collaborator_kind', ['collaborator', 'watcher']);
 /** Where a task came from (plan phase-2-step-10a, ADR 0017); set once, never changed. */
 export const taskSource = pgEnum('task_source', ['personal', 'assigned', 'request', 'meeting']);
+/** With subtasks: progress computed from them, or recorded by hand (ADR 0018). */
+export const taskProgressMode = pgEnum('task_progress_mode', ['auto', 'manual']);
 
 export const projects = pgTable(
   'projects',
@@ -139,11 +142,15 @@ export const tasks = pgTable(
     sourceMemberId: uuid('source_member_id'),
     /** That person was the CEO at the time (no manager above, executive or owner role). */
     sourceCeo: boolean('source_ceo').notNull().default(false),
+    /** 0..100 in steps of 5, as last recorded (a finished task shows 100; ADR 0018). */
+    progress: smallint('progress').notNull().default(0),
+    progressMode: taskProgressMode('progress_mode').notNull().default('auto'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
     unique('tasks_tenant_id_id_key').on(t.tenantId, t.id),
+    check('tasks_progress_step', sql`${t.progress} between 0 and 100 and ${t.progress} % 5 = 0`),
     index('tasks_tenant_source_idx').on(t.tenantId, t.source),
     foreignKey({
       name: 'tasks_source_member_fk',

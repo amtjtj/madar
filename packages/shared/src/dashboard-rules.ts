@@ -63,18 +63,21 @@ export function isDepartmentBehind(input: {
   return goalsBehind || overdueHeavy;
 }
 
+/**
+ * Behind schedule: overdue work, or weighted progress (0..1, ADR 0018) more than the allowed gap
+ * behind the share of time elapsed. `progress` is null when no task counts.
+ */
 export function isProjectAtRisk(input: {
   startOn: string;
   dueOn: string | null;
   today: string;
-  done: number;
-  total: number;
+  progress: number | null;
   overdue: number;
 }): boolean {
   if (input.overdue > 0) return true;
-  if (!input.dueOn || input.total === 0) return false;
+  if (!input.dueOn || input.progress === null) return false;
   const expected = elapsedShare(input.startOn, input.dueOn, input.today);
-  return input.done / input.total < expected - DASHBOARD_RULES.atRiskProgressGap;
+  return input.progress < expected - DASHBOARD_RULES.atRiskProgressGap;
 }
 
 export type HelpReason =

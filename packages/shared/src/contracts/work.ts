@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { RANK_REASONS, TASK_SOURCES } from '../task-priority.js';
+import { PROGRESS_STEP, TASK_PROGRESS_MODES } from '../task-progress.js';
 
 /** Core default workflow until department templates provide their own (ADR 0004). */
 export const STATUS_CATEGORIES = ['todo', 'in_progress', 'done', 'canceled'] as const;
@@ -50,6 +51,10 @@ export const task = z.object({
   sortKey: z.string(),
   version: z.number().int(),
   subtasks: z.object({ total: z.number().int(), done: z.number().int() }),
+  /** 0..100 as people see it (a finished task is 100; ADR 0018). */
+  progress: z.number().int().min(0).max(100),
+  /** With subtasks: computed from them (auto) or recorded by hand (manual). */
+  progressMode: z.enum(TASK_PROGRESS_MODES),
   commentCount: z.number().int(),
   keyResult: keyResultRef,
   /** Where the task came from (ADR 0017); null until it first has an assignee. */
@@ -102,8 +107,17 @@ export const updateTaskRequest = z.object({
   weight: z.number().int().min(1).max(5).optional(),
   statusKey: z.string().max(40).optional(),
   keyResultId: z.uuid().nullable().optional(),
+  progressMode: z.enum(TASK_PROGRESS_MODES).optional(),
 });
 export type UpdateTaskRequest = z.infer<typeof updateTaskRequest>;
+
+/** Record progress (ADR 0018): steps of 5, with an optional short note for the history. */
+export const setTaskProgressRequest = z.object({
+  version: z.number().int().positive(),
+  value: z.number().int().min(0).max(100).multipleOf(PROGRESS_STEP),
+  note: z.string().trim().max(280).optional(),
+});
+export type SetTaskProgressRequest = z.infer<typeof setTaskProgressRequest>;
 
 /** Change status and/or position on a board: place between two neighbours (either may be null). */
 export const moveTaskRequest = z.object({
@@ -166,6 +180,9 @@ export const activity = z.object({
 export type Activity = z.infer<typeof activity>;
 
 export const PROJECT_VISIBILITIES = ['department', 'tenant', 'private'] as const;
+/** Observers see the project (also a private one) and comment, but add no work to it. */
+export const PROJECT_ROLES = ['owner', 'member', 'observer'] as const;
+export type ProjectRole = (typeof PROJECT_ROLES)[number];
 
 export const project = z.object({
   id: z.uuid(),
@@ -178,10 +195,11 @@ export const project = z.object({
   color: z.string().nullable(),
   startOn: calendarDate.nullable(),
   dueOn: calendarDate.nullable(),
-  tasks: z.object({ total: z.number().int(), done: z.number().int() }),
-  members: z.array(personRef.extend({ role: z.enum(['owner', 'member']) })),
+  /** Top-level tasks the viewer sees; `progress` is their weighted progress, 0..1 (ADR 0018). */
+  tasks: z.object({ total: z.number().int(), done: z.number().int(), progress: z.number() }),
+  members: z.array(personRef.extend({ role: z.enum(PROJECT_ROLES) })),
   keyResult: keyResultRef,
-  can: z.object({ edit: z.boolean() }),
+  can: z.object({ edit: z.boolean(), createTask: z.boolean() }),
 });
 export type Project = z.infer<typeof project>;
 
@@ -204,7 +222,7 @@ export const updateProjectRequest = createProjectRequest
 export type UpdateProjectRequest = z.infer<typeof updateProjectRequest>;
 
 export const setProjectMembersRequest = z.object({
-  members: z.array(z.object({ memberId: z.uuid(), role: z.enum(['owner', 'member']) })).max(200),
+  members: z.array(z.object({ memberId: z.uuid(), role: z.enum(PROJECT_ROLES) })).max(200),
 });
 export type SetProjectMembersRequest = z.infer<typeof setProjectMembersRequest>;
 

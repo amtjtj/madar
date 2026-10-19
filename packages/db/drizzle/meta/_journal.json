@@ -99,6 +99,13 @@
       "when": 1792418583545,
       "tag": "0013_task_source",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792422711333,
+      "tag": "0014_progress_observer",
+      "breakpoints": true
     }
   ]
 }

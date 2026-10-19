@@ -190,6 +190,8 @@ function draftTask(id: string, body: CreateTaskRequest): Task {
     sortKey: 'zz',
     version: 0,
     subtasks: { total: 0, done: 0 },
+    progress: 0,
+    progressMode: 'auto',
     commentCount: 0,
     keyResult: null,
     // The server decides source and rank; the placeholder shows neither.

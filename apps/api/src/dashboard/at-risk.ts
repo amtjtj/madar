@@ -41,6 +41,10 @@ export async function atRiskProjects(tx: Tx, scope: AtRiskScope, today: string, 
       total: sql<number>`count(*) filter (where ${s.tasks.statusCategory} <> 'canceled')::int`,
       done: sql<number>`count(*) filter (where ${s.tasks.statusCategory} = 'done')::int`,
       overdue: sql<number>`count(*) filter (where ${s.tasks.statusCategory} in ('todo', 'in_progress') and ${s.tasks.dueOn} < ${today})::int`,
+      // Weighted progress (ADR 0018): finished = 100, canceled left out; null without tasks.
+      progress: sql<
+        number | null
+      >`(sum(case when ${s.tasks.statusCategory} = 'done' then 100 else ${s.tasks.progress} end * ${s.tasks.weight}) filter (where ${s.tasks.statusCategory} <> 'canceled'))::float / nullif(sum(${s.tasks.weight}) filter (where ${s.tasks.statusCategory} <> 'canceled'), 0) / 100`,
     })
     .from(s.tasks)
     .where(
@@ -59,15 +63,20 @@ export async function atRiskProjects(tx: Tx, scope: AtRiskScope, today: string, 
   return projects
     .map((p) => {
       const c = counts.find((row) => row.projectId === p.id);
-      return { ...p, total: c?.total ?? 0, done: c?.done ?? 0, overdue: c?.overdue ?? 0 };
+      return {
+        ...p,
+        total: c?.total ?? 0,
+        done: c?.done ?? 0,
+        overdue: c?.overdue ?? 0,
+        progress: c?.progress === null || c?.progress === undefined ? null : Number(c.progress),
+      };
     })
     .filter((p) =>
       isProjectAtRisk({
         startOn: p.startOn ?? calendarDateIn(p.createdAt, timeZone),
         dueOn: p.dueOn,
         today,
-        done: p.done,
-        total: p.total,
+        progress: p.progress,
         overdue: p.overdue,
       }),
     )

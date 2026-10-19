@@ -20,3 +20,4 @@ export * from './dashboard-rules.js';
 export * from './goal-progress.js';
 export * from './permissions.js';
 export * from './task-priority.js';
+export * from './task-progress.js';

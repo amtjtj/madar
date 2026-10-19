@@ -56,21 +56,15 @@ describe('isDepartmentBehind', () => {
 });
 
 describe('isProjectAtRisk', () => {
-  const base = {
-    startOn: '2026-10-01',
-    dueOn: '2026-10-10',
-    today: '2026-10-06',
-    total: 10,
-    overdue: 0,
-  };
-  it('compares done share with elapsed time', () => {
-    expect(isProjectAtRisk({ ...base, done: 2 })).toBe(true); // 20 % done, 50 % elapsed
-    expect(isProjectAtRisk({ ...base, done: 4 })).toBe(false);
+  const base = { startOn: '2026-10-01', dueOn: '2026-10-10', today: '2026-10-06', overdue: 0 };
+  it('compares weighted progress with elapsed time', () => {
+    expect(isProjectAtRisk({ ...base, progress: 0.2 })).toBe(true); // 20 % done, 50 % elapsed
+    expect(isProjectAtRisk({ ...base, progress: 0.4 })).toBe(false);
   });
-  it('is at risk with overdue tasks, never without a due date otherwise', () => {
-    expect(isProjectAtRisk({ ...base, done: 9, overdue: 1 })).toBe(true);
-    expect(isProjectAtRisk({ ...base, dueOn: null, done: 0 })).toBe(false);
-    expect(isProjectAtRisk({ ...base, total: 0, done: 0 })).toBe(false);
+  it('is at risk with overdue tasks, never without a due date or tasks otherwise', () => {
+    expect(isProjectAtRisk({ ...base, progress: 0.9, overdue: 1 })).toBe(true);
+    expect(isProjectAtRisk({ ...base, dueOn: null, progress: 0 })).toBe(false);
+    expect(isProjectAtRisk({ ...base, progress: null })).toBe(false);
   });
 });
 

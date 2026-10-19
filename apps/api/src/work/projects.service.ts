@@ -6,6 +6,7 @@ import {
   type Project,
   type SetProjectMembersRequest,
   type UpdateProjectRequest,
+  type ProjectRole,
 } from '@madar/shared';
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
@@ -15,7 +16,7 @@ import { atRiskProjects, viewerScope } from '../dashboard/at-risk.js';
 import { TenantDb } from '../database/tenant-db.service.js';
 import { keyResultRefs, requireLinkableKeyResult } from '../goals/links.js';
 import { loadWorkCalendar } from '../notifications/calendar.js';
-import { canCreateIn, canEditProject, visibleProjects } from './access.js';
+import { canCreateIn, canEditProject, managesAll, visibleProjects } from './access.js';
 
 type ProjectRow = typeof s.projects.$inferSelect;
 
@@ -95,7 +96,7 @@ export class ProjectsService {
         })
         .returning();
       if (!row) throw new Error('project insert failed');
-      const members = new Map<string, 'owner' | 'member'>([[ctx.memberId, 'owner']]);
+      const members = new Map<string, ProjectRole>([[ctx.memberId, 'owner']]);
       for (const memberId of input.memberIds ?? []) {
         if (!members.has(memberId)) members.set(memberId, 'member');
       }
@@ -144,7 +145,7 @@ export class ProjectsService {
   setMembers(ctx: TenantContext, id: string, input: SetProjectMembersRequest): Promise<Project> {
     return this.db.run(ctx, async (tx) => {
       const current = await this.requireEditable(tx, ctx, id);
-      const members = new Map(input.members.map((m) => [m.memberId, m.role]));
+      const members = new Map<string, ProjectRole>(input.members.map((m) => [m.memberId, m.role]));
       // The owner always stays a member.
       members.set(current.ownerId, 'owner');
       await this.writeMembers(tx, ctx, id, members);
@@ -157,11 +158,11 @@ export class ProjectsService {
     tx: Tx,
     ctx: TenantContext,
     projectId: string,
-    members: Map<string, 'owner' | 'member'>,
+    members: Map<string, ProjectRole>,
   ) {
     const ids = [...members.keys()];
     const before = await tx
-      .select({ memberId: s.projectMembers.memberId })
+      .select({ memberId: s.projectMembers.memberId, role: s.projectMembers.role })
       .from(s.projectMembers)
       .where(eq(s.projectMembers.projectId, projectId));
     const active = await tx
@@ -177,7 +178,27 @@ export class ProjectsService {
     // Includes the actor: they join the project's live room; the notifier never notifies the actor.
     const added = ids.filter((id) => !existing.has(id));
     if (added.length) {
-      await emitEvent(tx, 'project.member_added', { projectId, memberIds: added }, ctx.memberId);
+      const roles = Object.fromEntries(added.map((id) => [id, members.get(id) ?? 'member']));
+      await emitEvent(
+        tx,
+        'project.member_added',
+        { projectId, memberIds: added, roles },
+        ctx.memberId,
+      );
+    }
+    // Who may open a private project changed: a permission change (ADR 0009). Creating a project
+    // with its first members is not logged; changing them later is.
+    const roleOf = (list: Array<{ memberId: string; role: string }>) =>
+      Object.fromEntries(list.map((m) => [m.memberId, m.role]));
+    const after = [...members].map(([memberId, role]) => ({ memberId, role }));
+    if (before.length && JSON.stringify(roleOf(before)) !== JSON.stringify(roleOf(after))) {
+      await this.db.audit(tx, ctx, {
+        action: 'project.members_updated',
+        subjectType: 'project',
+        subjectId: projectId,
+        before: roleOf(before),
+        after: roleOf(after),
+      });
     }
     const kept = new Set(ids);
     const removed = [...existing].filter((id) => !kept.has(id));
@@ -223,6 +244,8 @@ export class ProjectsService {
         ownerName: s.members.displayName,
         taskTotal: sql<number>`(select count(*)::int from tasks t where t.project_id = ${s.projects.id} and t.deleted_at is null and t.parent_id is null and t.status_category <> 'canceled')`,
         taskDone: sql<number>`(select count(*)::int from tasks t where t.project_id = ${s.projects.id} and t.deleted_at is null and t.parent_id is null and t.status_category = 'done')`,
+        // Weighted progress of the same tasks (ADR 0018): finished = 100, canceled left out.
+        taskProgress: sql<number>`(select coalesce(sum(case when t.status_category = 'done' then 100 else t.progress end * t.weight)::float / nullif(sum(t.weight), 0) / 100, 0) from tasks t where t.project_id = ${s.projects.id} and t.deleted_at is null and t.parent_id is null and t.status_category <> 'canceled')`,
       })
       .from(s.projects)
       .leftJoin(s.departments, eq(s.departments.id, s.projects.departmentId))
@@ -262,7 +285,7 @@ export class ProjectsService {
           color: r.project.color,
           startOn: r.project.startOn,
           dueOn: r.project.dueOn,
-          tasks: { total: r.taskTotal, done: r.taskDone },
+          tasks: { total: r.taskTotal, done: r.taskDone, progress: Number(r.taskProgress) },
           members: projectMembers.map(({ id, displayName, role }) => ({ id, displayName, role })),
           keyResult: (r.project.keyResultId && keyResults.get(r.project.keyResultId)) || null,
           can: {
@@ -270,6 +293,15 @@ export class ProjectsService {
               ...r.project,
               ownerMemberIds: projectMembers.filter((m) => m.role === 'owner').map((m) => m.id),
             }),
+            // Same rule as usableProjects (observers of a private project add no work).
+            createTask:
+              r.project.status === 'active' &&
+              (r.project.visibility !== 'private' ||
+                r.project.ownerId === ctx.memberId ||
+                managesAll(ctx.actor) ||
+                projectMembers.some(
+                  (m) => m.id === ctx.memberId && (m.role === 'owner' || m.role === 'member'),
+                )),
           },
         };
         return [project.id, project] as const;

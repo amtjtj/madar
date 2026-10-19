@@ -12,6 +12,7 @@ export const NOTIFICATION_KINDS = [
   'task_overdue',
   'task_overdue_escalation',
   'project_member_added',
+  'task_progress',
   'key_result_checkin_due',
   'weekly_report_ready',
 ] as const;

@@ -4,6 +4,7 @@ import {
   calendarDateIn,
   categoryOf,
   mergeManualOrder,
+  displayProgress,
   type Activity,
   type Comment,
   type CommentBody,
@@ -11,6 +12,7 @@ import {
   type ListTasksQuery,
   type MoveTaskRequest,
   type SetCollaboratorsRequest,
+  type SetTaskProgressRequest,
   type SetTaskOrderRequest,
   type StatusCategory,
   type Task,
@@ -30,9 +32,11 @@ import {
   canDeleteTask,
   canEditTask,
   canSetWeight,
+  usableProjects,
   visibleProjects,
   visibleTasks,
 } from './access.js';
+import { hasSubtasks, recomputeParentProgress } from './progress.js';
 import { loadRanking, rankOf, sourceFor, type Ranking } from './ranking.js';
 
 type TaskRow = typeof s.tasks.$inferSelect;
@@ -253,8 +257,37 @@ export class TasksService {
           ctx.memberId,
         );
       }
+      if (row.parentId) await this.subtaskAdded(tx, row.parentId, row.id);
       return this.one(tx, ctx, row.id);
     });
+  }
+
+  /**
+   * A parent whose progress was recorded by hand keeps it when its first subtask arrives (it
+   * switches to manual); otherwise it follows its subtasks (ADR 0018).
+   */
+  private async subtaskAdded(tx: Tx, parentId: string, childId: string) {
+    const [parent] = await tx
+      .select({ progress: s.tasks.progress, mode: s.tasks.progressMode })
+      .from(s.tasks)
+      .where(eq(s.tasks.id, parentId));
+    if (!parent) return;
+    const [sibling] = await tx
+      .select({ id: s.tasks.id })
+      .from(s.tasks)
+      .where(
+        and(
+          eq(s.tasks.parentId, parentId),
+          isNull(s.tasks.deletedAt),
+          sql`${s.tasks.id} <> ${childId}`,
+        ),
+      )
+      .limit(1);
+    if (!sibling && parent.mode === 'auto' && parent.progress > 0) {
+      await tx.update(s.tasks).set({ progressMode: 'manual' }).where(eq(s.tasks.id, parentId));
+      return;
+    }
+    await recomputeParentProgress(tx, parentId);
   }
 
   update(ctx: TenantContext, id: string, input: UpdateTaskRequest): Promise<Task> {
@@ -298,6 +331,10 @@ export class TasksService {
         Object.assign(patch, statusFields(input.statusKey, current));
         changes.status = { from: current.statusKey, to: input.statusKey };
       }
+      if (input.progressMode !== undefined && input.progressMode !== current.progressMode) {
+        patch.progressMode = input.progressMode;
+        changes.progressMode = { from: current.progressMode, to: input.progressMode };
+      }
       // The first assignee decides the source; later reassignments keep it (ADR 0017).
       if (patch.assigneeId && current.source === null) {
         Object.assign(
@@ -328,6 +365,72 @@ export class TasksService {
       if (Object.keys(changes).length) {
         await this.afterChange(tx, ctx, current, updated, changes);
       }
+      // Progress computed from subtasks follows them (ADR 0018).
+      if (changes.status || changes.weight) await recomputeParentProgress(tx, current.parentId);
+      if (changes.progressMode?.to === 'auto') await recomputeParentProgress(tx, id);
+      return this.one(tx, ctx, id);
+    });
+  }
+
+  /**
+   * Record progress (ADR 0018), with an optional note in the history. The first progress moves a
+   * task out of «to do»; 100 % changes nothing by itself (the app asks whether it is done).
+   */
+  setProgress(ctx: TenantContext, id: string, input: SetTaskProgressRequest): Promise<Task> {
+    return this.db.run(ctx, async (tx) => {
+      const current = await this.requireVisible(tx, ctx, id);
+      const collaboratorIds = await collaboratorsOf(tx, id, 'collaborator');
+      if (!canEditTask(ctx.actor, { ...current, collaboratorIds })) throw forbidden();
+      if (current.statusCategory === 'done' || current.statusCategory === 'canceled') {
+        throw new ApiError(HttpStatus.BAD_REQUEST, 'progress_closed', 'The task is closed');
+      }
+      if (current.progressMode === 'auto' && (await hasSubtasks(tx, id))) {
+        throw new ApiError(
+          HttpStatus.BAD_REQUEST,
+          'progress_auto',
+          'Progress comes from the subtasks; switch to manual first',
+        );
+      }
+      const note = input.note?.trim() || null;
+      if (input.value === current.progress && !note) return this.one(tx, ctx, id);
+
+      const patch: Partial<typeof s.tasks.$inferInsert> = { progress: input.value };
+      const statusChanges: ActivityChanges = {};
+      if (input.value > 0 && current.statusCategory === 'todo') {
+        Object.assign(patch, statusFields('in_progress', current));
+        statusChanges.status = { from: current.statusKey, to: 'in_progress' };
+      }
+      const [updated] = await tx
+        .update(s.tasks)
+        .set({ ...patch, version: sql`${s.tasks.version} + 1` })
+        .where(and(eq(s.tasks.id, id), eq(s.tasks.version, input.version)))
+        .returning();
+      if (!updated) {
+        throw new ApiError(
+          HttpStatus.CONFLICT,
+          'version_conflict',
+          'The task was changed by someone else',
+          { task: await this.one(tx, ctx, id) },
+        );
+      }
+      await recordActivity(tx, {
+        subjectType: 'task',
+        subjectId: id,
+        actorId: ctx.memberId,
+        verb: 'progress',
+        changes: {
+          progress: { from: current.progress, to: input.value },
+          ...(note ? { note: { from: null, to: note } } : {}),
+        },
+      });
+      await emitEvent(
+        tx,
+        'task.progress_updated',
+        { taskId: id, from: current.progress, to: input.value },
+        ctx.memberId,
+      );
+      if (statusChanges.status) await this.afterChange(tx, ctx, current, updated, statusChanges);
+      await recomputeParentProgress(tx, current.parentId);
       return this.one(tx, ctx, id);
     });
   }
@@ -367,7 +470,10 @@ export class TasksService {
         .where(eq(s.tasks.id, id))
         .returning();
       if (!updated) throw notFound('Task');
-      if (Object.keys(changes).length) await this.afterChange(tx, ctx, current, updated, changes);
+      if (Object.keys(changes).length) {
+        await this.afterChange(tx, ctx, current, updated, changes);
+        await recomputeParentProgress(tx, current.parentId);
+      }
       return this.one(tx, ctx, id);
     });
   }
@@ -394,6 +500,7 @@ export class TasksService {
         verb: 'deleted',
       });
       await emitEvent(tx, 'task.deleted', { taskId: id }, ctx.memberId);
+      await recomputeParentProgress(tx, current.parentId);
       await this.db.audit(tx, ctx, {
         action: 'task.deleted',
         subjectType: 'task',
@@ -578,6 +685,7 @@ export class TasksService {
           eq(s.projects.id, projectId),
           eq(s.projects.status, 'active'),
           visibleProjects(ctx.actor),
+          usableProjects(ctx.actor),
         ),
       );
     if (!row) throw notFound('Project');
@@ -749,6 +857,8 @@ export class TasksService {
           sortKey: r.task.sortKey,
           version: r.task.version,
           subtasks: { total: r.subtaskTotal, done: r.subtaskDone },
+          progress: displayProgress(r.task.statusCategory, r.task.progress),
+          progressMode: r.task.progressMode,
           commentCount: r.commentCount,
           keyResult: (r.task.keyResultId && keyResults.get(r.task.keyResultId)) || null,
           source: r.task.source

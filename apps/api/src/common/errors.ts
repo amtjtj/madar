@@ -27,6 +27,8 @@ export type ErrorCode =
   | 'push_disabled'
   | 'goal_archived'
   | 'goal_has_children'
+  | 'progress_auto'
+  | 'progress_closed'
   | 'conflict';
 
 export class ApiError extends HttpException {

@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 import { t } from '@madar/i18n';
-import { formatNumber, type Project } from '@madar/shared';
+import { formatNumber, type Project, type ProjectRole } from '@madar/shared';
 import {
   Avatar,
   AvatarGroup,
@@ -147,7 +147,7 @@ function MembersButton({ project }: { project: Project }) {
   const setMembers = useSetProjectMembers();
   const { toast } = useToast();
 
-  const save = (next: Array<{ memberId: string; role: 'owner' | 'member' }>) =>
+  const save = (next: Array<{ memberId: string; role: ProjectRole }>) =>
     setMembers.mutate(
       { id: project.id, members: next },
       { onError: (error) => toast({ tone: 'error', title: errorMessage(error) }) },
