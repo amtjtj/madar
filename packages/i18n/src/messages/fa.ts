@@ -366,6 +366,7 @@ export const fa = {
       status_changed: '{actor} وضعیت را از «{from}» به «{to}» تغییر داد',
       collaborators_changed: '{actor} همکاران را تغییر داد',
       deleted: '{actor} کار را حذف کرد',
+      progress: '{actor} پیشرفت را {value} ثبت کرد',
     },
     fields: {
       title: 'عنوان',
@@ -377,6 +378,7 @@ export const fa = {
       weight: 'وزن',
       status: 'وضعیت',
       keyResultId: 'نتیجه کلیدی',
+      progressMode: 'نحوه حساب پیشرفت',
     },
     changedFields: 'تغییر در: {fields}',
     someone: 'کسی',
@@ -1034,8 +1036,6 @@ export const fa = {
       doneBody: 'پیشرفت به ۱۰۰٪ رسید. اگر کار تمام است، علامتش بزن.',
       doneYes: 'بله، انجام شد',
       doneNo: 'فعلاً نه',
-      history: '{value}',
-      historyWithNote: '{value}، {note}',
     },
     sortable: {
       handle: 'جابه‌جا کردن «{title}»',

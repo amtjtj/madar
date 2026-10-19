@@ -10,7 +10,16 @@ import {
   type CheckinStatus,
   type KeyResult,
 } from '@madar/shared';
-import { Button, CheckboxField, Modal, TextAreaField, TextField, cn, useToast } from '@madar/ui';
+import {
+  Button,
+  CheckboxField,
+  Modal,
+  Slider,
+  TextAreaField,
+  TextField,
+  cn,
+  useToast,
+} from '@madar/ui';
 
 import { useCheckIn } from '@/hooks/goals';
 import { errorMessage } from '@/lib/errors';
@@ -79,6 +88,14 @@ export function CheckinSheet({ goalId, kr }: { goalId: string; kr: KeyResult }) 
             label={t('goals.checkin.done')}
             checked={done}
             onChange={(e) => setDone(e.target.checked)}
+          />
+        ) : kr.kind === 'percent' ? (
+          // The same slider as task progress (ADR 0018), in steps of one.
+          <Slider
+            label={t('goals.checkin.value')}
+            value={Number.isFinite(parsed) ? Math.min(100, Math.max(0, parsed)) : 0}
+            onChange={(v) => setValue(String(v))}
+            step={1}
           />
         ) : (
           <TextField

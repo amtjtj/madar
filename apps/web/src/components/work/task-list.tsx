@@ -56,6 +56,7 @@ export function TaskList({ tasks, today, showAssignee, hideProject, onReorder }:
       assigneeName={showAssignee ? task.assignee?.displayName : undefined}
       tag={task.keyResult ? <GoalTag keyResult={task.keyResult} /> : undefined}
       source={task.source}
+      progress={task.progress}
       reasons={task.rank.reasons}
       {...extra}
     />

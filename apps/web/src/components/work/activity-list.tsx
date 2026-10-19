@@ -1,11 +1,18 @@
 'use client';
 
 import { t, type MessageKey } from '@madar/i18n';
-import { formatRelativeTime, type Activity } from '@madar/shared';
+import { formatPercent, formatRelativeTime, type Activity } from '@madar/shared';
 
 import { useActivity } from '@/hooks/work';
 
-const KNOWN_VERBS = ['created', 'updated', 'status_changed', 'collaborators_changed', 'deleted'];
+const KNOWN_VERBS = [
+  'created',
+  'updated',
+  'status_changed',
+  'collaborators_changed',
+  'deleted',
+  'progress',
+];
 // Fields with a `task.fields.*` name; an unknown field is skipped instead of breaking the page.
 const KNOWN_FIELDS = [
   'title',
@@ -17,6 +24,7 @@ const KNOWN_FIELDS = [
   'weight',
   'status',
   'keyResultId',
+  'progressMode',
 ];
 const statusName = (key: unknown) =>
   typeof key === 'string' ? t(`work.status.${key}` as MessageKey) : '';
@@ -32,7 +40,20 @@ function describe(entry: Activity): string {
       to: statusName(status?.to),
     });
   }
+  if (entry.verb === 'progress') {
+    const to = entry.changes?.progress?.to;
+    return t('task.verbs.progress', {
+      actor,
+      value: typeof to === 'number' ? formatPercent(to / 100) : '',
+    });
+  }
   return t(`task.verbs.${entry.verb}` as MessageKey, { actor });
+}
+
+/** The note someone wrote with their progress («با واحد حقوقی تماس گرفتم»). */
+function progressNote(entry: Activity): string | null {
+  const note = entry.verb === 'progress' ? entry.changes?.note?.to : null;
+  return typeof note === 'string' && note ? note : null;
 }
 
 function changedFields(entry: Activity): string | null {
@@ -55,6 +76,7 @@ export function ActivityList({ taskId }: { taskId: string }) {
       <ol className="flex flex-col gap-3 border-s-2 border-line ps-4">
         {activity.map((entry) => {
           const fields = changedFields(entry);
+          const note = progressNote(entry);
           return (
             <li key={entry.id} className="relative flex flex-col gap-0.5 text-sm">
               <span
@@ -63,6 +85,7 @@ export function ActivityList({ taskId }: { taskId: string }) {
               />
               <span className="text-ink">{describe(entry)}</span>
               {fields && <span className="text-ink-muted">{fields}</span>}
+              {note && <q className="text-ink-muted">{note}</q>}
               <time dateTime={entry.createdAt} className="text-xs text-ink-subtle">
                 {formatRelativeTime(new Date(entry.createdAt))}
               </time>

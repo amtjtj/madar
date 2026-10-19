@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type {
   Activity,
+  SetTaskProgressRequest,
   Comment,
   CreateProjectRequest,
   CreateTaskRequest,
@@ -152,6 +153,44 @@ export function useUpdateTask() {
       patchTaskEverywhere(client, task.id, () => task);
       client.setQueryData(workKeys.task(task.id), task);
       void client.invalidateQueries({ queryKey: workKeys.activity(task.id) });
+      // A subtask's status or weight moves its parent's computed progress.
+      if (task.parentId) void client.invalidateQueries({ queryKey: workKeys.task(task.parentId) });
+      void client.invalidateQueries({ queryKey: workKeys.allTasks });
+      void client.invalidateQueries({ queryKey: workKeys.projects });
+    },
+  });
+}
+
+/** Record progress (ADR 0018): optimistic, rolled back on error; a parent follows its subtasks. */
+export function useSetTaskProgress() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: SetTaskProgressRequest & { id: string }) =>
+      api<Task>(`/api/tasks/${id}/progress`, { method: 'POST', body }),
+    onMutate: async ({ id, value }) => {
+      await client.cancelQueries({ queryKey: workKeys.today });
+      await client.cancelQueries({ queryKey: workKeys.allTasks });
+      const snap = snapshot(client);
+      patchTaskEverywhere(client, id, (task) => ({
+        ...task,
+        progress: value,
+        ...(value > 0 && task.statusCategory === 'todo'
+          ? { statusKey: 'in_progress', statusCategory: 'in_progress' as const }
+          : {}),
+      }));
+      return snap;
+    },
+    onError: (error, _vars, snap) => {
+      restore(client, snap);
+      if (error instanceof ApiClientError && error.code === 'version_conflict') {
+        void invalidateWork(client);
+      }
+    },
+    onSuccess: (task) => {
+      patchTaskEverywhere(client, task.id, () => task);
+      client.setQueryData(workKeys.task(task.id), task);
+      void client.invalidateQueries({ queryKey: workKeys.activity(task.id) });
+      if (task.parentId) void client.invalidateQueries({ queryKey: workKeys.task(task.parentId) });
       void client.invalidateQueries({ queryKey: workKeys.allTasks });
       void client.invalidateQueries({ queryKey: workKeys.projects });
     },

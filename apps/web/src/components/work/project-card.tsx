@@ -6,7 +6,7 @@ import { formatCalendarDate, formatNumber, type Project } from '@madar/shared';
 import { AvatarGroup, Badge, Card, ProgressBar } from '@madar/ui';
 
 export function ProjectCard({ project }: { project: Project }) {
-  const { done, total } = project.tasks;
+  const { done, total, progress } = project.tasks;
   return (
     <Card interactive className="p-0">
       <Link href={`/projects/${project.id}`} className="flex flex-col gap-4 p-5">
@@ -26,8 +26,9 @@ export function ProjectCard({ project }: { project: Project }) {
             </div>
           </div>
         </div>
+        {/* Weighted progress of the project's tasks (ADR 0018); the count stays below it. */}
         <ProgressBar
-          value={total ? done / total : 0}
+          value={progress}
           label={t('projects.progress', { done: formatNumber(done), total: formatNumber(total) })}
           showValue={total > 0}
         />

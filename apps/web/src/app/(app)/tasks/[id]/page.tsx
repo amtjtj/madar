@@ -22,6 +22,7 @@ import { ActivityList } from '@/components/work/activity-list';
 import { CommentThread } from '@/components/work/comment-thread';
 import { Subtasks } from '@/components/work/subtasks';
 import { TaskFields } from '@/components/work/task-fields';
+import { TaskProgress } from '@/components/work/task-progress';
 import { TitleEditor, DescriptionEditor } from '@/components/work/task-text';
 import { useDeleteTask, useTask, useToggleDone } from '@/hooks/work';
 import { errorMessage } from '@/lib/errors';
@@ -87,6 +88,7 @@ export default function TaskPage() {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="flex min-w-0 flex-col gap-6">
+          <TaskProgress task={task} />
           <DescriptionEditor task={task} />
           {!task.parentId && <Subtasks task={task} />}
           <CommentThread taskId={task.id} />

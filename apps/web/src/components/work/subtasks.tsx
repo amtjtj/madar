@@ -88,6 +88,7 @@ export function Subtasks({ task }: { task: Task }) {
               onOpen={() => router.push(`/tasks/${sub.id}`)}
               today={today}
               dueOn={sub.dueOn}
+              progress={sub.progress}
               priority={sub.priority}
               assigneeName={sub.assignee?.displayName}
             />

@@ -84,14 +84,16 @@ export default function ProjectPage() {
             <p className="max-w-prose whitespace-pre-line text-ink-muted">{project.description}</p>
           )}
         </div>
-        <NewTaskButton today={today} addToToday={false} projectId={project.id} />
+        {project.can.createTask && (
+          <NewTaskButton today={today} addToToday={false} projectId={project.id} />
+        )}
       </div>
 
       <Card className="mb-6">
         <CardContent className="flex flex-col gap-4 md:flex-row md:items-center">
           <ProgressBar
             className="flex-1"
-            value={total ? done / total : 0}
+            value={project.tasks.progress}
             label={t('projects.progress', { done: formatNumber(done), total: formatNumber(total) })}
             showValue={total > 0}
           />
