@@ -21,6 +21,7 @@ import {
   weekStartOf,
   weeklyReport,
   zonedInstant,
+  type SaveLetterRequest,
   type SystemRole,
 } from '@madar/shared';
 import { eq } from 'drizzle-orm';
@@ -28,6 +29,7 @@ import { eq } from 'drizzle-orm';
 import { AppModule } from '../app.module.js';
 import { AccountsService } from '../auth/accounts.service.js';
 import { AttachmentsService } from '../files/attachments.service.js';
+import { LettersService } from '../letters/letters.service.js';
 import { FILE_STORAGE, objectKeyFor, type FileStorage } from '../files/storage.js';
 import { TenantContextService } from '../auth/tenant-context.service.js';
 import type { TenantContext } from '../common/context.js';
@@ -395,6 +397,106 @@ async function main(): Promise<void> {
         attachmentIds: [screenshot],
       });
     }
+
+    // Letters (ADR 0020): a thread with a referral and a reply, a confidential letter, a draft.
+    const letters = app.get(LettersService);
+    const text = (...lines: string[]) => ({ format: 'lite' as const, text: lines.join('\n') });
+    const sendAs = async (
+      by: string,
+      input: Omit<SaveLetterRequest, 'cc' | 'uploadIds' | 'urgency' | 'confidential'> &
+        Partial<SaveLetterRequest>,
+    ) => {
+      const ctxOf = await as(by);
+      const draft = await letters.create(ctxOf, {
+        cc: [],
+        uploadIds: [],
+        urgency: 'normal',
+        confidential: false,
+        ...input,
+      });
+      return letters.send(ctxOf, draft.id);
+    };
+    const limits = await sendAs('ali.rezaei', {
+      subject: 'درخواست افزایش سقف برداشت روزانه طلا برای مشتریان ویژه',
+      body: text(
+        'سلام خانم صادقی،',
+        '',
+        'در یک ماه گذشته **۴۸ تیکت** درباره سقف برداشت روزانه از مشتریان ویژه داشته‌ایم. پیشنهاد تیم پشتیبانی:',
+        '',
+        '- سقف برداشت روزانه برای سطح طلایی از ۵۰ به ۱۰۰ گرم برسد',
+        '- برداشت بالای سقف با تایید دو مرحله‌ای انجام شود',
+        '- گزارش هفتگی برداشت‌های بزرگ برای واحد ریسک ارسال شود',
+        '',
+        'گزارش کامل تیکت‌ها پیوست است.',
+      ),
+      to: [idOf('leila.sadeghi')],
+      cc: [idOf('maryam.ahmadi')],
+      urgency: 'urgent',
+      uploadIds: [
+        await stage(
+          'ali.rezaei',
+          'گزارش تیکت‌های سقف برداشت.pdf',
+          samplePdf('Withdrawal limit tickets'),
+        ),
+      ],
+    });
+    await letters.get(await as('leila.sadeghi'), limits.id);
+    await letters.refer(await as('leila.sadeghi'), limits.id, {
+      memberIds: [idOf('amir.hosseini')],
+      note: 'لطفاً امکان فنی و زمان پیاده‌سازی را بررسی کنید و تا شنبه نظر بدهید.',
+    });
+    await letters.get(await as('amir.hosseini'), limits.id);
+    await sendAs('amir.hosseini', {
+      subject: 'پاسخ: درخواست افزایش سقف برداشت روزانه طلا برای مشتریان ویژه',
+      body: text(
+        'سلام،',
+        '',
+        'تغییر سقف در تنظیمات سامانه **کمتر از یک روز** کار دارد. تایید دو مرحله‌ای حدود دو هفته زمان می‌برد و در اسپرینت بعد جا می‌شود.',
+      ),
+      to: [idOf('ali.rezaei')],
+      cc: [idOf('leila.sadeghi')],
+      replyToId: limits.id,
+    });
+    await sendAs('fatemeh.najafi', {
+      subject: 'پیشنهاد بازنگری حقوق کارشناسان پشتیبانی',
+      body: text(
+        'آقای کریمی،',
+        '',
+        'بر اساس بررسی بازار، پیشنهاد بازنگری حقوق کارشناسان پشتیبانی از ابتدای دی ماه پیوست است. لطفاً پیش از جلسه هیئت‌مدیره ملاحظه فرمایید.',
+      ),
+      to: [idOf('reza.karimi')],
+      confidential: true,
+    });
+    await sendAs('elham.akbari', {
+      subject: 'هماهنگی کمپین یلدا با تیم پشتیبانی',
+      body: text(
+        'سلام مریم جان،',
+        '',
+        'کمپین یلدا از ۲۵ آذر شروع می‌شود. برای پاسخ‌گویی به سوال‌های پرتکرار، یک جلسه کوتاه با تیم پشتیبانی لازم داریم:',
+        '',
+        '- معرفی کد تخفیف و شرایط آن',
+        '- سوال‌های پرتکرار و پاسخ آماده',
+      ),
+      to: [idOf('maryam.ahmadi')],
+      cc: [idOf('ali.rezaei')],
+    });
+    await sendAs('kian.nouri', {
+      subject: 'انتشار نسخه ۲٫۳ اپ: تغییرات صفحه برداشت',
+      body: text(
+        'نسخه ۲٫۳ اپ **امشب ساعت ۲۳** منتشر می‌شود و صفحه برداشت تغییر می‌کند. لطفاً تیم پشتیبانی راهنمای تازه را پیش از شیفت صبح ببیند.',
+      ),
+      to: [idOf('maryam.ahmadi'), idOf('ali.rezaei')],
+      urgency: 'immediate',
+    });
+    await letters.create(await as('ali.rezaei'), {
+      subject: 'گزارش ماهانه صف تیکت‌ها',
+      body: text('سلام،', '', '- میانگین زمان پاسخ:', '- تیکت‌های باز:'),
+      to: [idOf('maryam.ahmadi')],
+      cc: [],
+      uploadIds: [],
+      urgency: 'normal',
+      confidential: false,
+    });
 
     for (const [title, krKey] of Object.entries(SEED_TASK_LINKS)) {
       const task = taskRefs.get(title);

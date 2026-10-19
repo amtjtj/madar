@@ -177,7 +177,13 @@ export function LetterView({ id }: { id: string }) {
                       to: r.displayName,
                     })}
                     {r.readAt !== undefined && (
-                      <RecipientChip name={r.displayName} read={r.readAt !== null} />
+                      <span
+                        className={
+                          r.readAt ? 'text-xs text-success-ink' : 'text-xs text-ink-subtle'
+                        }
+                      >
+                        {t(r.readAt ? 'ui.letter.read' : 'ui.letter.notRead')}
+                      </span>
                     )}
                     {r.referredAt && (
                       <span className="text-xs text-ink-subtle">
@@ -199,7 +205,7 @@ export function LetterView({ id }: { id: string }) {
         <div
           role="toolbar"
           aria-label={t('letters.actions')}
-          className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 flex gap-2 overflow-x-auto border-t border-line bg-surface/95 p-3 backdrop-blur md:static md:z-auto md:flex-wrap md:border-0 md:bg-transparent md:p-0 print:hidden"
+          className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 flex gap-2 border-t border-line bg-surface/95 px-3 py-2.5 backdrop-blur md:static md:z-auto md:flex-wrap md:border-0 md:bg-transparent md:p-0 print:hidden [&>*]:max-md:h-10 [&>*]:max-md:px-3 [&>*]:max-md:text-sm"
         >
           {letter.can.reply && (
             <Button
@@ -225,7 +231,9 @@ export function LetterView({ id }: { id: string }) {
               icon={letter.archived ? <ArchiveRestore aria-hidden /> : <Archive aria-hidden />}
               onClick={toggleArchive}
             >
-              {t(letter.archived ? 'letters.unarchive' : 'letters.archive')}
+              <span className="sr-only md:not-sr-only">
+                {t(letter.archived ? 'letters.unarchive' : 'letters.archive')}
+              </span>
             </Button>
           )}
         </div>

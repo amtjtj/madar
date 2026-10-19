@@ -46,7 +46,7 @@ export function LetterList() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <nav aria-label={t('letters.foldersLabel')} className="-mx-1 overflow-x-auto px-1">
-          <ul className="flex w-max gap-1 rounded-lg bg-sunken p-1">
+          <ul className="grid w-full grid-cols-4 gap-1 rounded-lg bg-sunken p-1 sm:flex sm:w-max">
             {LETTER_FOLDERS.map((f) => {
               const Icon = ICONS[f];
               const active = f === folder;
@@ -56,7 +56,7 @@ export function LetterList() {
                     href={f === 'inbox' ? '/letters' : `/letters?folder=${f}`}
                     aria-current={active ? 'page' : undefined}
                     className={cn(
-                      'flex h-9 items-center gap-1.5 rounded-md px-3 text-sm font-semibold whitespace-nowrap transition-colors [&_svg]:size-4',
+                      'flex h-9 items-center justify-center gap-1.5 rounded-md px-2 text-sm font-semibold whitespace-nowrap transition-colors sm:px-3 [&_svg]:hidden sm:[&_svg]:block [&_svg]:size-4',
                       active ? 'bg-surface text-ink shadow-xs' : 'text-ink-muted hover:text-ink',
                     )}
                   >
