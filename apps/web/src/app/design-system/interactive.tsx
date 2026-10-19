@@ -21,6 +21,9 @@ import {
   Sidebar,
   Slider,
   FileTile,
+  LetterRow,
+  LiteText,
+  RecipientChip,
   UploadProgress,
   SortableList,
   SourceBadge,
@@ -389,6 +392,60 @@ export function SliderDemo({ today }: { today: string }) {
 }
 
 /** Attached files and an upload on its way (ADR 0019). */
+export function LettersDemo() {
+  const [chips, setChips] = useState([
+    t('designSystem.letters.sender'),
+    t('designSystem.letters.sender2'),
+  ]);
+  return (
+    <div className="flex max-w-xl flex-col gap-4">
+      <div className="divide-y divide-line rounded-2xl border border-line bg-surface p-1">
+        <LetterRow
+          href="#letters"
+          person={t('designSystem.letters.sender')}
+          subject={t('designSystem.letters.subject')}
+          preview={t('designSystem.letters.preview')}
+          number="1405/00042"
+          date={t('designSystem.letters.date')}
+          urgency="urgent"
+          confidential={false}
+          attachmentCount={1}
+          unread
+        />
+        <LetterRow
+          href="#letters"
+          person={t('designSystem.letters.sender2')}
+          subject={t('designSystem.letters.subject2')}
+          number="1405/00039"
+          date={t('designSystem.letters.date2')}
+          urgency="immediate"
+          confidential
+          attachmentCount={0}
+          tag={t('designSystem.letters.referral')}
+        />
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {chips.map((name) => (
+          <RecipientChip
+            key={name}
+            name={name}
+            onRemove={() => setChips((all) => all.filter((n) => n !== name))}
+          />
+        ))}
+        <RecipientChip name={t('designSystem.letters.sender')} read />
+        <RecipientChip
+          name={t('designSystem.letters.sender2')}
+          read={false}
+          note={t('designSystem.letters.cc')}
+        />
+      </div>
+      <div className="rounded-2xl border border-line bg-surface p-4">
+        <LiteText text={t('designSystem.letters.body')} />
+      </div>
+    </div>
+  );
+}
+
 export function FilesDemo() {
   return (
     <div className="flex max-w-xl flex-col gap-2">

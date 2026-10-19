@@ -10,6 +10,7 @@ import { TextField } from './components/input.js';
 import { ProgressBar } from './components/progress.js';
 import { Slider } from './components/slider.js';
 import { ThemeToggle } from './components/theme.js';
+import { LetterRow, LiteText, RecipientChip, UrgencyBadge } from './components/letter.js';
 
 afterEach(cleanup);
 
@@ -187,5 +188,54 @@ describe('TaskCard progress', () => {
     );
     rerender(<TaskCard title="کار" done={false} today="2026-10-19" progress={0} />);
     expect(screen.queryByRole('progressbar')).toBeNull();
+  });
+});
+
+describe('LiteText', () => {
+  it('renders lists, bold and paragraphs as elements, never as HTML', () => {
+    const { container } = render(
+      <LiteText text={'سلام **مهم**\nخط دوم\n\n- بند اول\n- <script>alert(1)</script>'} />,
+    );
+    expect(container.querySelector('strong')?.textContent).toBe('مهم');
+    expect(container.querySelectorAll('li')).toHaveLength(2);
+    expect(container.querySelector('br')).not.toBeNull();
+    expect(container.querySelector('script')).toBeNull();
+    expect(screen.getByText('<script>alert(1)</script>')).toBeDefined();
+  });
+});
+
+describe('Letter parts', () => {
+  it('shows urgency only when the letter is not normal', () => {
+    const { container } = render(<UrgencyBadge urgency="normal" />);
+    expect(container.textContent).toBe('');
+    render(<UrgencyBadge urgency="immediate" />);
+    expect(screen.getByText('آنی')).toBeDefined();
+  });
+
+  it('a row links to the letter with its number in Persian digits', () => {
+    render(
+      <LetterRow
+        href="/letters/1"
+        person="علی رضایی"
+        subject="پیگیری قرارداد"
+        number="1405/00042"
+        date="۲۸ مهر"
+        urgency="urgent"
+        confidential
+        attachmentCount={2}
+        unread
+      />,
+    );
+    expect(screen.getByRole('link').getAttribute('href')).toBe('/letters/1');
+    expect(screen.getByText('۱۴۰۵/۰۰۰۴۲')).toBeDefined();
+    expect(screen.getByText('خوانده‌نشده')).toBeDefined();
+    expect(screen.getByText('محرمانه')).toBeDefined();
+  });
+
+  it('a recipient chip can be removed', () => {
+    const onRemove = vi.fn();
+    render(<RecipientChip name="مریم احمدی" onRemove={onRemove} />);
+    fireEvent.click(screen.getByRole('button', { name: 'برداشتن مریم احمدی' }));
+    expect(onRemove).toHaveBeenCalled();
   });
 });

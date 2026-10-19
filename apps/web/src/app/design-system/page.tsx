@@ -44,6 +44,7 @@ import {
   OrderingDemo,
   SliderDemo,
   FilesDemo,
+  LettersDemo,
   WorkDemo,
 } from './interactive';
 import { Code, Panel, Section } from './section';
@@ -434,6 +435,12 @@ export default function DesignSystemPage() {
         <Section id="files" title={t('designSystem.sections.files')}>
           <Panel>
             <FilesDemo />
+          </Panel>
+        </Section>
+
+        <Section id="letters" title={t('designSystem.sections.letters')}>
+          <Panel>
+            <LettersDemo />
           </Panel>
         </Section>
 
