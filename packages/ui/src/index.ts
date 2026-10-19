@@ -62,6 +62,14 @@ export {
   type TaskCardProps,
 } from './components/task-card.js';
 export { BoardColumn, type BoardColumnProps } from './components/board-column.js';
+export { SortableList, type SortableListProps } from './components/sortable-list.js';
+export {
+  RankHint,
+  SourceBadge,
+  type RankHintProps,
+  type SourceBadgeProps,
+} from './components/task-source.js';
+export { rankText, sourceLabel, type TaskSourceInfo } from './components/task-source-text.js';
 export { dueTone, priorityTone, statusDot } from './components/task-meta.js';
 export { Popover, type PopoverProps } from './components/popover.js';
 export { NotificationBell, type NotificationBellProps } from './components/notification-bell.js';

@@ -37,7 +37,13 @@ import {
   cn,
 } from '@madar/ui';
 
-import { CelebrationDemo, FeedbackDemo, NavigationDemo, WorkDemo } from './interactive';
+import {
+  CelebrationDemo,
+  FeedbackDemo,
+  NavigationDemo,
+  OrderingDemo,
+  WorkDemo,
+} from './interactive';
 import { Code, Panel, Section } from './section';
 
 export const metadata: Metadata = { title: t('designSystem.title') };
@@ -414,6 +420,12 @@ export default function DesignSystemPage() {
         <Section id="work" title={t('designSystem.sections.work')}>
           <Panel>
             <WorkDemo today={calendarDateIn(new Date())} />
+          </Panel>
+        </Section>
+
+        <Section id="ordering" title={t('designSystem.sections.ordering')}>
+          <Panel>
+            <OrderingDemo today={calendarDateIn(new Date())} />
           </Panel>
         </Section>
 

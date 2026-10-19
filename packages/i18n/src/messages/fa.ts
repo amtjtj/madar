@@ -921,6 +921,50 @@ export const fa = {
     comments: '{count} نظر',
     noAssignee: 'بدون مسئول',
     emptyColumn: 'کاری اینجا نیست',
+    /** Where a task came from (ADR 0017). */
+    source: {
+      personal: 'شخصی',
+      assigned: 'ابلاغ {name}',
+      assignedFull: 'ابلاغ از طرف {name}',
+      assignedWithTitle: 'ابلاغ از طرف {name}، {title}',
+      ceo: 'ابلاغ مدیرعامل',
+      ceoFull: 'ابلاغ مدیرعامل، {name}',
+      request: 'درخواست {name}',
+      meeting: 'مصوبه جلسه',
+      someone: 'ابلاغی',
+    },
+    /** Why a task sits where it does in an automatic order. */
+    rank: {
+      label: 'چرا این‌جا؟',
+      none: 'اولویت عادی؛ بر اساس زمان ثبت',
+      and: '{first} و {second}',
+      reasons: {
+        due: {
+          overdue: 'گذشته از سررسید',
+          today: 'سررسید امروز',
+          tomorrow: 'سررسید فردا',
+          week: 'سررسید این هفته',
+        },
+        priority: { urgent: 'اولویت فوری', high: 'اولویت زیاد' },
+        source: {
+          ceo: 'ابلاغ مدیرعامل',
+          assigned: 'ابلاغ مدیر',
+          meeting: 'مصوبه جلسه',
+          request: 'درخواست همکار',
+        },
+        keyResult: 'وصل به هدف',
+        weight: 'وزن زیاد',
+      },
+    },
+    /** Drag and drop in personal lists (keyboard and screen readers). */
+    sortable: {
+      handle: 'جابه‌جا کردن «{title}»',
+      picked:
+        '«{title}» برداشته شد، جایگاه {position} از {total}. با کلیدهای بالا و پایین جابه‌جا کنید و با فاصله رها کنید.',
+      moved: '«{title}» به جایگاه {position} از {total} رفت.',
+      dropped: '«{title}» در جایگاه {position} از {total} گذاشته شد.',
+      canceled: 'جابه‌جایی «{title}» لغو شد.',
+    },
   },
   designSystem: {
     title: 'دیزاین‌سیستم مدار',
@@ -943,6 +987,7 @@ export const fa = {
       celebration: 'تکمیل کار',
       charts: 'نمودارها',
       work: 'کارها: تاریخ، کارت و برد',
+      ordering: 'منبع کار و ترتیب دستی',
       locale: 'تاریخ شمسی و اعداد',
       themes: 'مقایسه دو پوسته',
     },
@@ -960,6 +1005,15 @@ export const fa = {
       person1: 'آرش طاهری',
       person2: 'مریم احمدی',
       week: 'هفته {n}',
+    },
+    ordering: {
+      hint: 'کارت‌ها را از دستگیره بکشید، یا با صفحه‌کلید: فاصله روی دستگیره، کلیدهای بالا و پایین، و فاصله برای رها کردن.',
+      list: 'نمونه ترتیب دستی',
+      tasks: {
+        audit: 'آماده کردن گزارش حسابرسی',
+        refund: 'پیگیری بازپرداخت مشتری',
+        notes: 'مرتب کردن یادداشت‌های جلسه',
+      },
     },
     work: {
       dateLabel: 'سررسید',

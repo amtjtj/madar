@@ -191,6 +191,9 @@ function draftTask(id: string, body: CreateTaskRequest): Task {
     subtasks: { total: 0, done: 0 },
     commentCount: 0,
     keyResult: null,
+    // The server decides source and rank; the placeholder shows neither.
+    source: null,
+    rank: { score: 0, reasons: [] },
     createdAt: now,
     updatedAt: now,
     can: { edit: false, setWeight: false, delete: false },

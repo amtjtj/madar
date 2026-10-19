@@ -1,7 +1,13 @@
 'use client';
 
 import { t } from '@madar/i18n';
-import { dueStatus, formatCalendarDate, formatNumber, type TaskPriority } from '@madar/shared';
+import {
+  dueStatus,
+  formatCalendarDate,
+  formatNumber,
+  type RankReason,
+  type TaskPriority,
+} from '@madar/shared';
 import { CalendarDays, Flag, FolderKanban, ListChecks, MessageCircle } from 'lucide-react';
 import type { HTMLAttributes, ReactNode, Ref } from 'react';
 
@@ -10,6 +16,8 @@ import { Avatar } from './avatar.js';
 import { Badge } from './badge.js';
 import { CompleteCheck } from './complete-check.js';
 import { dueTone, priorityTone } from './task-meta.js';
+import { RankHint, SourceBadge } from './task-source.js';
+import type { TaskSourceInfo } from './task-source-text.js';
 
 export interface TaskCardProps extends Omit<HTMLAttributes<HTMLDivElement>, 'title'> {
   title: string;
@@ -32,6 +40,12 @@ export interface TaskCardProps extends Omit<HTMLAttributes<HTMLDivElement>, 'tit
   tag?: ReactNode;
   /** Trailing action (e.g. «به امروز اضافه کن»). */
   action?: ReactNode;
+  /** Where the task came from (ADR 0017). */
+  source?: TaskSourceInfo | null;
+  /** Shows «چرا این‌جا؟» with these reasons (automatic order). */
+  reasons?: readonly RankReason[];
+  /** A drag handle at the start (personal lists). */
+  dragHandle?: ReactNode;
   /** Lifted while being dragged on a board. */
   dragging?: boolean;
   compact?: boolean;
@@ -55,6 +69,9 @@ export function TaskCard({
   xp,
   tag,
   action,
+  source,
+  reasons,
+  dragHandle,
   dragging,
   compact,
   className,
@@ -78,6 +95,7 @@ export function TaskCard({
       )}
       {...rest}
     >
+      {dragHandle}
       {onDoneChange ? (
         <CompleteCheck checked={done} onCheckedChange={onDoneChange} label={title} xp={xp} />
       ) : null}
@@ -97,6 +115,7 @@ export function TaskCard({
           <span className={titleClass}>{title}</span>
         )}
         <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
+          {source ? <SourceBadge source={source} /> : null}
           {tag}
           {due && dueOn && !done ? (
             <Badge tone={dueTone[due]}>
@@ -131,6 +150,7 @@ export function TaskCard({
               {t('work.comments', { count: formatNumber(commentCount) })}
             </span>
           ) : null}
+          {reasons && !done ? <RankHint reasons={reasons} /> : null}
         </div>
       </div>
       {action}

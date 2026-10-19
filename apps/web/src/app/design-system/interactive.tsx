@@ -19,6 +19,9 @@ import {
   OrbitIllustration,
   ProgressBar,
   Sidebar,
+  SortableList,
+  SourceBadge,
+  type TaskSourceInfo,
   cn,
   useToast,
   type LinkComponent,
@@ -301,6 +304,63 @@ export function WorkDemo({ today }: { today: string }) {
         </BoardColumn>
         <BoardColumn title={t('work.status.done')} category="done" count={0} />
       </div>
+    </div>
+  );
+}
+
+const DEMO_SOURCES: Record<string, TaskSourceInfo> = {
+  audit: {
+    kind: 'assigned',
+    ceo: true,
+    by: { id: 'ceo', displayName: 'لیلا صادقی', title: 'مدیرعامل' },
+  },
+  refund: {
+    kind: 'assigned',
+    ceo: false,
+    by: { id: 'm', displayName: 'مریم احمدی', title: 'مدیر پشتیبانی' },
+  },
+  notes: { kind: 'request', ceo: false, by: { id: 'z', displayName: 'زهرا محمدی', title: null } },
+};
+
+/** Task sources and a personal, hand-ordered list (ADR 0017). */
+export function OrderingDemo({ today }: { today: string }) {
+  const [items, setItems] = useState([
+    { id: 'audit', dueOn: addDays(today, 1), reasons: ['due.tomorrow', 'source.ceo'] as const },
+    { id: 'refund', dueOn: today, reasons: ['due.today', 'source.assigned'] as const },
+    { id: 'notes', dueOn: null, reasons: ['source.request'] as const },
+  ]);
+  const title = (id: string) => t(`designSystem.ordering.tasks.${id as 'audit'}`);
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap gap-2">
+        <SourceBadge source={{ kind: 'personal', ceo: false, by: null }} />
+        {Object.values(DEMO_SOURCES).map((source) => (
+          <SourceBadge key={source.by?.id} source={source} />
+        ))}
+        {DEMO_SOURCES.refund ? <SourceBadge source={DEMO_SOURCES.refund} full /> : null}
+      </div>
+      <p className="text-sm text-ink-muted">{t('designSystem.ordering.hint')}</p>
+      <SortableList
+        className="max-w-md"
+        label={t('designSystem.ordering.list')}
+        items={items}
+        itemTitle={(item) => title(item.id)}
+        onReorder={(ids) =>
+          setItems((current) => ids.flatMap((id) => current.filter((i) => i.id === id)))
+        }
+        renderItem={(item, handle, { dragging }) => (
+          <TaskCard
+            title={title(item.id)}
+            done={false}
+            today={today}
+            dueOn={item.dueOn}
+            source={DEMO_SOURCES[item.id]}
+            reasons={item.reasons}
+            dragHandle={handle}
+            dragging={dragging}
+          />
+        )}
+      />
     </div>
   );
 }
