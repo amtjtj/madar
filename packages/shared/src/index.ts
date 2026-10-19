@@ -17,6 +17,7 @@ export * from './locale/jalali.js';
 export * from './locale/quarters.js';
 export * from './locale/work-calendar.js';
 export * from './dashboard-rules.js';
+export * from './files.js';
 export * from './goal-progress.js';
 export * from './permissions.js';
 export * from './task-priority.js';

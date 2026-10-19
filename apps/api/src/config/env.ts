@@ -64,6 +64,20 @@ const envSchema = z.object({
   DEMO_MODE: flag,
   /** Password of every seeded demo account (compose passes DEMO_PASSWORD here). */
   SEED_PASSWORD: z.string().default(''),
+  /** Where attachments live (ADR 0019): the server's disk (default) or an S3-compatible service. */
+  STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
+  /** Folder for the local driver; empty means `.data/files` in the repo (development). */
+  STORAGE_DIR: z.string().default(''),
+  S3_ENDPOINT: z.string().default(''),
+  S3_REGION: z.string().default('us-east-1'),
+  S3_BUCKET: z.string().default(''),
+  S3_ACCESS_KEY: z.string().default(''),
+  S3_SECRET_KEY: z.string().default(''),
+  /** Most Iranian S3 services and MinIO want path-style addresses. */
+  S3_FORCE_PATH_STYLE: z
+    .enum(['true', 'false', '1', '0', ''])
+    .default('true')
+    .transform((value) => value !== 'false' && value !== '0'),
 });
 
 /** Production refuses to start with development defaults (plan phase-1-step-9 §4). */
@@ -81,6 +95,14 @@ const productionSchema = envSchema.superRefine((env, ctx) => {
   if (!env.WORKER_DATABASE_URL) fail('WORKER_DATABASE_URL', 'Required in production');
   if (env.DEMO_MODE && (env.SEED_PASSWORD.length < 12 || env.SEED_PASSWORD === 'madar-demo-1234')) {
     fail('SEED_PASSWORD', 'A demo server needs its own DEMO_PASSWORD (at least 12 characters)');
+  }
+  if (env.STORAGE_DRIVER === 'local' && !env.STORAGE_DIR) {
+    fail('STORAGE_DIR', 'Required in production with the local file storage');
+  }
+  if (env.STORAGE_DRIVER === 's3') {
+    for (const key of ['S3_ENDPOINT', 'S3_BUCKET', 'S3_ACCESS_KEY', 'S3_SECRET_KEY'] as const) {
+      if (!env[key]) fail(key, 'Required with STORAGE_DRIVER=s3');
+    }
   }
   for (const key of ['APP_DATABASE_URL', 'WORKER_DATABASE_URL'] as const) {
     if (env[key] && DEV_PASSWORD.test(env[key])) fail(key, 'Uses a development password');

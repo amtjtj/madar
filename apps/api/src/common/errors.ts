@@ -29,6 +29,8 @@ export type ErrorCode =
   | 'goal_has_children'
   | 'progress_auto'
   | 'progress_closed'
+  | 'file_too_large'
+  | 'file_type_not_allowed'
   | 'conflict';
 
 export class ApiError extends HttpException {

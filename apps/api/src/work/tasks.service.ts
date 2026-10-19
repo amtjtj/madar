@@ -6,8 +6,10 @@ import {
   mergeManualOrder,
   displayProgress,
   type Activity,
+  type Attachment,
   type Comment,
   type CommentBody,
+  type CreateCommentRequest,
   type CreateTaskRequest,
   type ListTasksQuery,
   type MoveTaskRequest,
@@ -36,6 +38,7 @@ import {
   visibleProjects,
   visibleTasks,
 } from './access.js';
+import { attachmentRows, bindUploads, toAttachment } from '../files/attachments-db.js';
 import { hasSubtasks, recomputeParentProgress } from './progress.js';
 import { loadRanking, rankOf, sourceFor, type Ranking } from './ranking.js';
 
@@ -557,20 +560,54 @@ export class TasksService {
 
   listComments(ctx: TenantContext, taskId: string): Promise<Comment[]> {
     return this.db.run(ctx, async (tx) => {
-      await this.requireVisible(tx, ctx, taskId);
+      const task = await this.requireVisible(tx, ctx, taskId);
       const rows = await tx
         .select({ comment: s.comments, authorName: s.members.displayName })
         .from(s.comments)
         .innerJoin(s.members, eq(s.members.id, s.comments.authorId))
         .where(and(eq(s.comments.subjectType, 'task'), eq(s.comments.subjectId, taskId)))
         .orderBy(asc(s.comments.createdAt));
-      return rows.map(({ comment, authorName }) => toComment(comment, authorName, ctx.memberId));
+      const files = await this.commentFiles(
+        tx,
+        ctx,
+        task,
+        rows.map((r) => r.comment.id),
+      );
+      return rows.map(({ comment, authorName }) =>
+        toComment(comment, authorName, ctx.memberId, files.get(comment.id) ?? []),
+      );
     });
   }
 
-  addComment(ctx: TenantContext, taskId: string, input: CommentBody): Promise<Comment> {
+  /** Files on these comments (a deleted comment shows none), by comment id. */
+  private async commentFiles(
+    tx: Tx,
+    ctx: TenantContext,
+    task: TaskRow,
+    commentIds: string[],
+  ): Promise<Map<string, Attachment[]>> {
+    const byComment = new Map<string, Attachment[]>();
+    if (commentIds.length === 0) return byComment;
+    const rows = await attachmentRows(
+      tx,
+      and(eq(s.attachments.subjectType, 'comment'), inArray(s.attachments.subjectId, commentIds)),
+    );
+    if (rows.length === 0) return byComment;
+    const editsTask = canEditTask(ctx.actor, {
+      ...task,
+      collaboratorIds: await collaboratorsOf(tx, task.id, 'collaborator'),
+    });
+    for (const { row, uploaderName } of rows) {
+      const list = byComment.get(row.subjectId ?? '') ?? [];
+      list.push(toAttachment(row, uploaderName, editsTask || row.uploadedBy === ctx.memberId));
+      byComment.set(row.subjectId ?? '', list);
+    }
+    return byComment;
+  }
+
+  addComment(ctx: TenantContext, taskId: string, input: CreateCommentRequest): Promise<Comment> {
     return this.db.run(ctx, async (tx) => {
-      await this.requireVisible(tx, ctx, taskId);
+      const task = await this.requireVisible(tx, ctx, taskId);
       const [row] = await tx
         .insert(s.comments)
         .values({
@@ -581,12 +618,17 @@ export class TasksService {
         })
         .returning();
       if (!row) throw new Error('comment insert failed');
+      // The person's own fresh uploads go with the comment (ADR 0019).
+      if (input.attachmentIds?.length) {
+        await bindUploads(tx, ctx, input.attachmentIds, { type: 'comment', id: row.id });
+      }
       await emitEvent(tx, 'comment.created', { commentId: row.id, taskId }, ctx.memberId);
       const [author] = await tx
         .select({ name: s.members.displayName })
         .from(s.members)
         .where(eq(s.members.id, ctx.memberId));
-      return toComment(row, author?.name ?? '', ctx.memberId);
+      const files = await this.commentFiles(tx, ctx, task, [row.id]);
+      return toComment(row, author?.name ?? '', ctx.memberId, files.get(row.id) ?? []);
     });
   }
 
@@ -595,7 +637,7 @@ export class TasksService {
     return this.db.run(ctx, async (tx) => {
       const [current] = await tx.select().from(s.comments).where(eq(s.comments.id, id));
       if (!current || current.deletedAt) throw notFound('Comment');
-      await this.requireVisible(tx, ctx, current.subjectId);
+      const task = await this.requireVisible(tx, ctx, current.subjectId);
       if (current.authorId !== ctx.memberId)
         throw forbidden('Only the author can change a comment');
       const [row] = await tx
@@ -608,7 +650,8 @@ export class TasksService {
         .select({ name: s.members.displayName })
         .from(s.members)
         .where(eq(s.members.id, ctx.memberId));
-      return toComment(row, author?.name ?? '', ctx.memberId);
+      const files = row.deletedAt ? new Map() : await this.commentFiles(tx, ctx, task, [row.id]);
+      return toComment(row, author?.name ?? '', ctx.memberId, files.get(row.id) ?? []);
     });
   }
 
@@ -800,6 +843,8 @@ export class TasksService {
         subtaskTotal: sql<number>`(select count(*)::int from tasks st where st.parent_id = ${s.tasks.id} and st.deleted_at is null)`,
         subtaskDone: sql<number>`(select count(*)::int from tasks st where st.parent_id = ${s.tasks.id} and st.deleted_at is null and st.status_category = 'done')`,
         commentCount: sql<number>`(select count(*)::int from comments c where c.subject_type = 'task' and c.subject_id = ${s.tasks.id} and c.deleted_at is null)`,
+        // Files on the task and on its live comments (ADR 0019).
+        attachmentCount: sql<number>`(select count(*)::int from attachments a where a.status = 'ready' and a.deleted_at is null and ((a.subject_type = 'task' and a.subject_id = ${s.tasks.id}) or (a.subject_type = 'comment' and a.subject_id in (select c.id from comments c where c.subject_type = 'task' and c.subject_id = ${s.tasks.id} and c.deleted_at is null))))`,
       })
       .from(s.tasks)
       .innerJoin(s.departments, eq(s.departments.id, s.tasks.departmentId))
@@ -865,6 +910,7 @@ export class TasksService {
           progress: displayProgress(r.task.statusCategory, r.task.progress),
           progressMode: r.task.progressMode,
           commentCount: r.commentCount,
+          attachmentCount: r.attachmentCount,
           keyResult: (r.task.keyResultId && keyResults.get(r.task.keyResultId)) || null,
           source: r.task.source
             ? {
@@ -909,7 +955,12 @@ function taskEventPayload(task: TaskRow) {
   };
 }
 
-function toComment(row: typeof s.comments.$inferSelect, authorName: string, me: string): Comment {
+function toComment(
+  row: typeof s.comments.$inferSelect,
+  authorName: string,
+  me: string,
+  attachments: Attachment[],
+): Comment {
   const deleted = row.deletedAt !== null;
   return {
     id: row.id,
@@ -918,6 +969,7 @@ function toComment(row: typeof s.comments.$inferSelect, authorName: string, me: 
     createdAt: row.createdAt.toISOString(),
     editedAt: row.editedAt?.toISOString() ?? null,
     deleted,
+    attachments: deleted ? [] : attachments,
     can: { edit: !deleted && row.authorId === me },
   };
 }

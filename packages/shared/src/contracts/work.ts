@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { attachment } from '../files.js';
 import { RANK_REASONS, TASK_SOURCES } from '../task-priority.js';
 import { PROGRESS_STEP, TASK_PROGRESS_MODES } from '../task-progress.js';
 
@@ -56,6 +57,8 @@ export const task = z.object({
   /** With subtasks: computed from them (auto) or recorded by hand (manual). */
   progressMode: z.enum(TASK_PROGRESS_MODES),
   commentCount: z.number().int(),
+  /** Files on the task itself and on its comments (ADR 0019). */
+  attachmentCount: z.number().int(),
   keyResult: keyResultRef,
   /** Where the task came from (ADR 0017); null until it first has an assignee. */
   source: z
@@ -163,11 +166,17 @@ export const comment = z.object({
   createdAt: z.iso.datetime(),
   editedAt: z.iso.datetime().nullable(),
   deleted: z.boolean(),
+  attachments: z.array(attachment),
   can: z.object({ edit: z.boolean() }),
 });
 export type Comment = z.infer<typeof comment>;
 
 export const commentBody = z.object({ body: z.string().trim().min(1).max(5000) });
+/** A new comment may carry the person's own fresh uploads (ADR 0019). */
+export const createCommentRequest = commentBody.extend({
+  attachmentIds: z.array(z.uuid()).max(10).optional(),
+});
+export type CreateCommentRequest = z.infer<typeof createCommentRequest>;
 export type CommentBody = z.infer<typeof commentBody>;
 
 export const activity = z.object({

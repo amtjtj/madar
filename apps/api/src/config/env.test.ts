@@ -25,6 +25,7 @@ describe('loadEnv', () => {
       AUTH_SECRET: 'Zm9vYmFyYmF6cXV4cXV1eGNvcmdlZ3JhdWx0Z2FycGx5',
       AUTH_BASE_URL: 'https://demo.madar.test',
       TENANT_SIGNUP_CODE: 'k2Hq8VbN4xZp',
+      STORAGE_DIR: '/data/files',
     };
 
     it('starts with real secrets', () => {
@@ -39,6 +40,16 @@ describe('loadEnv', () => {
       ['AUTH_BASE_URL', { AUTH_BASE_URL: 'http://demo.madar.test' }],
       ['TENANT_SIGNUP_CODE', { TENANT_SIGNUP_CODE: '' }],
       ['WORKER_DATABASE_URL', { WORKER_DATABASE_URL: undefined }],
+      ['STORAGE_DIR', { STORAGE_DIR: '' }],
+      [
+        'S3_BUCKET',
+        {
+          STORAGE_DRIVER: 's3',
+          S3_ENDPOINT: 'https://s3.ir',
+          S3_ACCESS_KEY: 'k',
+          S3_SECRET_KEY: 's',
+        },
+      ],
       ['SEED_PASSWORD', { DEMO_MODE: 'true', SEED_PASSWORD: 'madar-demo-1234' }],
       [
         'APP_DATABASE_URL',

@@ -170,6 +170,8 @@ export const fa = {
     progress_auto:
       'پیشرفت این کار از زیرکارهایش حساب می‌شود. برای ثبت دستی، اول «تغییر به دستی» را بزنید.',
     progress_closed: 'این کار بسته شده است؛ برای ثبت پیشرفت اول آن را دوباره باز کنید.',
+    file_too_large: 'حجم فایل بیش از سقف مجاز است.',
+    file_type_not_allowed: 'این نوع فایل پذیرفته نمی‌شود.',
     goal_has_children:
       'این هدف هدف‌های زیرمجموعه فعال دارد؛ اول آن‌ها را بایگانی کنید یا زیر هدف دیگری ببرید.',
     push_endpoint_not_allowed: 'این مرورگر اعلان را از سرویسی می‌فرستد که مدار نمی‌شناسد.',
@@ -948,6 +950,8 @@ export const fa = {
     actions: {
       priority_weights_updated: 'تغییر وزن‌های اولویت‌بندی',
       project_members_updated: 'تغییر اعضای پروژه',
+      attachment_deleted: 'حذف فایل پیوست',
+      file_settings_updated: 'تغییر سقف حجم فایل',
       tenant_created: 'ثبت شرکت',
       member_created: 'افزودن عضو',
       member_updated: 'ویرایش مشخصات عضو',

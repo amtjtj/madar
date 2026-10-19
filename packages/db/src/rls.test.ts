@@ -45,6 +45,7 @@ const DATA_PLANE = [
   'notification_preferences',
   'processed_events',
   'push_subscriptions',
+  'attachments',
   'goal_periods',
   'goals',
   'key_results',
@@ -69,6 +70,7 @@ const NO_DELETE = [
   'goal_periods',
   'goals',
   'key_results',
+  'attachments',
 ];
 
 describe.skipIf(!hasDatabase)('tenant isolation (RLS)', () => {

@@ -16,6 +16,8 @@ const WORK = [
   'task.reopened',
   'task.deleted',
   'task.progress_updated',
+  'attachment.added',
+  'attachment.removed',
   'comment.created',
 ];
 const HANDLED = [

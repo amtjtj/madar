@@ -158,6 +158,18 @@ export async function createTenantFixture(handle: DbHandle, label = 't'): Promis
       weekStart: '2026-10-10',
       data: { version: 1 },
     });
+    await tx.insert(s.attachments).values({
+      subjectType: 'task',
+      subjectId: task.id,
+      uploadedBy: member.id,
+      fileName: 'قرارداد.pdf',
+      extension: 'pdf',
+      mime: 'application/pdf',
+      size: 10,
+      checksum: '0'.repeat(64),
+      objectKey: `tenants/${tenant.id}/2026/10/${uuidv7()}`,
+      status: 'ready',
+    });
     await tx.insert(s.pushSubscriptions).values({
       memberId: member.id,
       endpoint: `https://fcm.googleapis.com/fcm/send/${suffix}`,

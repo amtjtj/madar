@@ -1,3 +1,6 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
 import type { NestExpressApplication } from '@nestjs/platform-express';
@@ -30,7 +33,13 @@ export async function createTestApp(
   overrides: Partial<Env> = {},
   providers: [token: symbol, value: unknown][] = [],
 ) {
-  const env = { ...loadEnv(), ...overrides };
+  // Each test app keeps its files in its own temp folder (ADR 0019).
+  const env = {
+    ...loadEnv(),
+    STORAGE_DRIVER: 'local' as const,
+    STORAGE_DIR: mkdtempSync(join(tmpdir(), 'madar-test-files-')),
+    ...overrides,
+  };
   let builder = Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(ENV)
     .useValue(env);
@@ -71,6 +80,23 @@ export function client(app: NestExpressApplication, env: Env) {
         .set('Origin', origin)
         .send(body ?? {}),
     delete: (url: string) => agent.delete(url).set('Origin', origin),
+    /** A multipart upload of one file (ADR 0019). */
+    upload: (url: string, content: Buffer | string, fileName: string) =>
+      agent
+        .post(url)
+        .set('Origin', origin)
+        .attach('file', Buffer.from(content), { filename: fileName }),
+    /** Raw bytes of a download. */
+    download: (url: string) =>
+      agent
+        .get(url)
+        .set('Origin', origin)
+        .buffer(true)
+        .parse((res, done) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (c: Buffer) => chunks.push(c));
+          res.on('end', () => done(null, Buffer.concat(chunks)));
+        }),
   };
 }
 export type Client = ReturnType<typeof client>;

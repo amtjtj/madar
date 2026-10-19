@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import {
   commentBody,
+  createCommentRequest,
   createTaskRequest,
   listTasksQuery,
   moveTaskRequest,
@@ -23,6 +24,7 @@ import {
   type Activity,
   type Comment,
   type CommentBody,
+  type CreateCommentRequest,
   type CreateTaskRequest,
   type ListTasksQuery,
   type MoveTaskRequest,
@@ -117,7 +119,7 @@ export class TasksController {
   addComment(
     @Tenant() ctx: TenantContext,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body(new ZodPipe(commentBody)) body: CommentBody,
+    @Body(new ZodPipe(createCommentRequest)) body: CreateCommentRequest,
   ): Promise<Comment> {
     return this.tasks.addComment(ctx, id, body);
   }

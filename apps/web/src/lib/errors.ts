@@ -23,6 +23,8 @@ const API_CODES = new Set([
   'goal_has_children',
   'progress_auto',
   'progress_closed',
+  'file_too_large',
+  'file_type_not_allowed',
 ]);
 
 /** Persian message for any error thrown by `api()` or the auth helpers. */

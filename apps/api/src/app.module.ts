@@ -16,6 +16,7 @@ import { PushModule } from './push/push-http.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
 import { ReportsModule } from './reports/reports.module.js';
 import { TenantsModule } from './tenants/tenants.module.js';
+import { FilesModule } from './files/files.module.js';
 import { WorkModule } from './work/work.module.js';
 
 @Module({
@@ -29,6 +30,7 @@ import { WorkModule } from './work/work.module.js';
     DepartmentsModule,
     MembersModule,
     WorkModule,
+    FilesModule,
     GoalsModule,
     DashboardModule,
     ReportsModule,
