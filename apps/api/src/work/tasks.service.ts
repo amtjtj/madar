@@ -33,6 +33,7 @@ import {
   canCreateIn,
   canDeleteTask,
   canEditTask,
+  editableTasks,
   canSetWeight,
   usableProjects,
   visibleProjects,
@@ -111,6 +112,7 @@ export class TasksService {
       if (query.assigneeId) filters.push(eq(s.tasks.assigneeId, query.assigneeId));
       if (query.status === 'open') filters.push(inArray(s.tasks.statusCategory, OPEN));
       if (query.status === 'done') filters.push(eq(s.tasks.statusCategory, 'done'));
+      if (query.editable) filters.push(editableTasks(ctx.actor));
       if (query.q) {
         filters.push(ilike(s.tasks.title, `%${query.q.replace(/[%_\\]/g, (c) => `\\${c}`)}%`));
       }
@@ -715,6 +717,14 @@ export class TasksService {
     }
   }
 
+  /** A task the person may see and edit (assignee, reporter, collaborator, manager). */
+  async requireEditable(tx: Tx, ctx: TenantContext, id: string): Promise<TaskRow> {
+    const task = await this.requireVisible(tx, ctx, id);
+    const collaboratorIds = await collaboratorsOf(tx, id, 'collaborator');
+    if (!canEditTask(ctx.actor, { ...task, collaboratorIds })) throw forbidden();
+    return task;
+  }
+
   async requireVisible(tx: Tx, ctx: TenantContext, id: string): Promise<TaskRow> {
     const [row] = await tx
       .select()
@@ -844,6 +854,7 @@ export class TasksService {
         subtaskDone: sql<number>`(select count(*)::int from tasks st where st.parent_id = ${s.tasks.id} and st.deleted_at is null and st.status_category = 'done')`,
         commentCount: sql<number>`(select count(*)::int from comments c where c.subject_type = 'task' and c.subject_id = ${s.tasks.id} and c.deleted_at is null)`,
         // Files on the task and on its live comments (ADR 0019).
+        evidenceCount: sql<number>`(select count(*)::int from task_evidence e where e.task_id = ${s.tasks.id} and e.unpinned_at is null)`,
         attachmentCount: sql<number>`(select count(*)::int from attachments a where a.status = 'ready' and a.deleted_at is null and ((a.subject_type = 'task' and a.subject_id = ${s.tasks.id}) or (a.subject_type = 'comment' and a.subject_id in (select c.id from comments c where c.subject_type = 'task' and c.subject_id = ${s.tasks.id} and c.deleted_at is null))))`,
       })
       .from(s.tasks)
@@ -911,6 +922,7 @@ export class TasksService {
           progressMode: r.task.progressMode,
           commentCount: r.commentCount,
           attachmentCount: r.attachmentCount,
+          evidenceCount: r.evidenceCount,
           keyResult: (r.task.keyResultId && keyResults.get(r.task.keyResultId)) || null,
           source: r.task.source
             ? {

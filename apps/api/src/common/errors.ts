@@ -34,6 +34,8 @@ export type ErrorCode =
   | 'letter_sent'
   | 'letter_no_recipients'
   | 'already_recipient'
+  | 'evidence_not_allowed'
+  | 'already_pinned'
   | 'conflict';
 
 export class ApiError extends HttpException {

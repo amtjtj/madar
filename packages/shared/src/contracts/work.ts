@@ -59,6 +59,8 @@ export const task = z.object({
   commentCount: z.number().int(),
   /** Files on the task itself and on its comments (ADR 0019). */
   attachmentCount: z.number().int(),
+  /** Letters (later minutes, messages) pinned as «شاهد کار» (ADR 0021). */
+  evidenceCount: z.number().int(),
   keyResult: keyResultRef,
   /** Where the task came from (ADR 0017); null until it first has an assignee. */
   source: z
@@ -146,6 +148,8 @@ export const listTasksQuery = z.object({
   assigneeId: z.uuid().optional(),
   status: z.enum(['open', 'done', 'all']).default('open'),
   q: z.string().trim().max(80).optional(),
+  /** Only tasks the person may edit (choosing a task to pin a letter to). */
+  editable: z.enum(['true']).optional(),
   /** Dashboard drill-downs: the same rows the card counted (subtasks included). */
   due: z.enum(['overdue']).optional(),
   stuck: z

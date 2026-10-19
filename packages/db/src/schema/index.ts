@@ -6,3 +6,4 @@ export * from './notify.js';
 export * from './reports.js';
 export * from './files.js';
 export * from './letters.js';
+export * from './evidence.js';

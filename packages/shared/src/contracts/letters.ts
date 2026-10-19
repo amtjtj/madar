@@ -62,7 +62,9 @@ export const letter = letterSummary.extend({
   /** Other letters of the thread the viewer may open, oldest first. */
   thread: z.array(letterSummary),
   archived: z.boolean(),
-  can: z.object({ edit: z.boolean(), refer: z.boolean(), reply: z.boolean() }),
+  /** Tasks this letter is pinned to that the viewer may see (ADR 0021). */
+  pinnedTo: z.array(z.object({ evidenceId: z.uuid(), taskId: z.uuid(), title: z.string() })),
+  can: z.object({ edit: z.boolean(), refer: z.boolean(), reply: z.boolean(), pin: z.boolean() }),
 });
 export type Letter = z.infer<typeof letter>;
 

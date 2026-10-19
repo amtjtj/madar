@@ -43,3 +43,12 @@ describe('formatLetterNumber', () => {
     expect(formatLetterNumber(1405, 42)).toBe('1405/00042');
   });
 });
+
+describe('evidence contracts', () => {
+  it('accepts a letter pin and rejects unknown kinds', async () => {
+    const { pinEvidenceRequest } = await import('./contracts/evidence.js');
+    const id = '0190b3a0-0000-7000-8000-000000000000';
+    expect(pinEvidenceRequest.safeParse({ kind: 'letter', subjectId: id }).success).toBe(true);
+    expect(pinEvidenceRequest.safeParse({ kind: 'task', subjectId: id }).success).toBe(false);
+  });
+});

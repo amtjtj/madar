@@ -50,6 +50,7 @@ const DATA_PLANE = [
   'letters',
   'letter_recipients',
   'letter_counters',
+  'task_evidence',
   'goal_periods',
   'goals',
   'key_results',
@@ -77,6 +78,7 @@ const NO_DELETE = [
   'attachments',
   'letters',
   'letter_counters',
+  'task_evidence',
 ];
 
 describe.skipIf(!hasDatabase)('tenant isolation (RLS)', () => {
@@ -241,6 +243,42 @@ describe.skipIf(!hasDatabase)('tenant isolation (RLS)', () => {
     await withTenant(app.db, { tenantId: a.tenantId }, (tx) =>
       tx.execute(sql`update letters set sender_archived_at = now() where sent_at is not null`),
     );
+  });
+
+  it("evidence cannot point at another tenant's task; a pin can be made again after unpinning", async () => {
+    const [mine] = await withTenant(app.db, { tenantId: a.tenantId }, (tx) =>
+      tx.select().from(s.taskEvidence).limit(1),
+    );
+    const [theirs] = await withTenant(app.db, { tenantId: b.tenantId }, (tx) =>
+      tx.select({ taskId: s.taskEvidence.taskId }).from(s.taskEvidence).limit(1),
+    );
+    expect(mine && theirs).toBeTruthy();
+    await expect(
+      withTenant(app.db, { tenantId: a.tenantId }, (tx) =>
+        tx.insert(s.taskEvidence).values({
+          taskId: theirs?.taskId ?? '',
+          kind: 'letter',
+          subjectId: mine?.subjectId ?? '',
+          pinnedBy: a.memberId,
+        }),
+      ),
+    ).rejects.toThrow();
+    await withTenant(app.db, { tenantId: a.tenantId }, async (tx) => {
+      const again = {
+        taskId: mine?.taskId ?? '',
+        kind: 'letter' as const,
+        subjectId: mine?.subjectId ?? '',
+        pinnedBy: a.memberId,
+      };
+      await expect(
+        tx.transaction((inner) => inner.insert(s.taskEvidence).values(again)),
+      ).rejects.toThrow();
+      await tx
+        .update(s.taskEvidence)
+        .set({ unpinnedAt: new Date(), unpinnedBy: a.memberId })
+        .where(sql`${s.taskEvidence.id} = ${mine?.id ?? ''}`);
+      await tx.insert(s.taskEvidence).values(again);
+    });
   });
 
   it('transaction-local settings do not leak to the next query on the same connection', async () => {

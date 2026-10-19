@@ -184,6 +184,9 @@ export async function createTenantFixture(handle: DbHandle, label = 't'): Promis
     });
     await tx.insert(s.letterRecipients).values({ letterId, memberId: member.id, kind: 'to' });
     await tx.insert(s.letterCounters).values({ jalaliYear: 1405, lastNumber: 1 });
+    await tx
+      .insert(s.taskEvidence)
+      .values({ taskId: task.id, kind: 'letter', subjectId: letterId, pinnedBy: member.id });
     await tx.insert(s.pushSubscriptions).values({
       memberId: member.id,
       endpoint: `https://fcm.googleapis.com/fcm/send/${suffix}`,

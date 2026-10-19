@@ -13,6 +13,7 @@ export const NOTIFICATION_KINDS = [
   'task_overdue_escalation',
   'project_member_added',
   'task_progress',
+  'task_evidence_pinned',
   'letter_received',
   'letter_referred',
   'key_result_checkin_due',

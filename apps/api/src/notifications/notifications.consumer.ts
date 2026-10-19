@@ -13,6 +13,7 @@ const HANDLED = [
   'project.member_added',
   'letter.sent',
   'letter.referred',
+  'task.evidence_pinned',
 ];
 
 /** Turns domain events into in-app notifications. */
@@ -65,6 +66,28 @@ export class NotificationsConsumer implements EventConsumer {
           payload: { title: task.title, data: { progress: Number(p.to) } },
           dedupeKey: `task_progress:${task.id}:${day}`,
         });
+        return;
+      }
+      case 'task.evidence_pinned': {
+        // To the assignee and whoever assigned or asked for it (ADR 0021).
+        const task = await this.task(tx, String(p.taskId));
+        if (!task) return;
+        const recipients = new Set(
+          [task.assigneeId, task.sourceMemberId ?? task.reporterId].filter((id): id is string =>
+            Boolean(id),
+          ),
+        );
+        for (const recipientId of recipients) {
+          await this.notifier.notify(tx, {
+            ...base,
+            recipientId,
+            kind: 'task_evidence_pinned',
+            subjectType: 'task',
+            subjectId: task.id,
+            payload: { title: task.title },
+            dedupeKey: `event:${event.id}`,
+          });
+        }
         return;
       }
       case 'comment.created': {

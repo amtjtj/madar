@@ -233,6 +233,7 @@ function draftTask(id: string, body: CreateTaskRequest): Task {
     progressMode: 'auto',
     commentCount: 0,
     attachmentCount: 0,
+    evidenceCount: 0,
     keyResult: null,
     // The server decides source and rank; the placeholder shows neither.
     source: null,

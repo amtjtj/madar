@@ -28,6 +28,8 @@ const API_CODES = new Set([
   'letter_sent',
   'letter_no_recipients',
   'already_recipient',
+  'evidence_not_allowed',
+  'already_pinned',
 ]);
 
 /** Persian message for any error thrown by `api()` or the auth helpers. */

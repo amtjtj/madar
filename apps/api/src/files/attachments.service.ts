@@ -25,7 +25,8 @@ import type { TenantContext } from '../common/context.js';
 import { ApiError, forbidden, notFound } from '../common/errors.js';
 import { TenantDb } from '../database/tenant-db.service.js';
 import { visibleLetters } from '../letters/access.js';
-import { canEditTask } from '../work/access.js';
+import { pinnedToVisibleTask } from '../evidence/letter-provider.js';
+import { canEditTask, visibleTasks } from '../work/access.js';
 import { TasksService } from '../work/tasks.service.js';
 import { attachmentRows, bindUploads, toAttachment, type AttachmentRow } from './attachments-db.js';
 import { FILE_STORAGE, objectKeyFor, writeStream, type FileStorage } from './storage.js';
@@ -357,7 +358,10 @@ export class AttachmentsService implements OnModuleInit {
       return row;
     }
     if (row.subjectType === 'letter') {
-      if (!(await this.letterOf(tx, ctx, row))) throw notFound('Attachment');
+      // The people on the letter, or anyone who sees a task it is pinned to (ADR 0021).
+      if (!(await this.letterOf(tx, ctx, row)) && !(await this.pinnedForViewer(tx, ctx, row))) {
+        throw notFound('Attachment');
+      }
       return row;
     }
     const taskId = await this.taskOf(tx, row);
@@ -382,6 +386,14 @@ export class AttachmentsService implements OnModuleInit {
     // Locked when deleting, so a send running at the same time cannot slip in between.
     const [letter] = lock ? await query.for('update') : await query;
     return letter ?? null;
+  }
+
+  private async pinnedForViewer(tx: Tx, ctx: TenantContext, row: AttachmentRow) {
+    if (!row.subjectId) return false;
+    const result = await tx.execute<{ ok: boolean }>(
+      sql`select ${pinnedToVisibleTask(row.subjectId, visibleTasks(ctx.actor))} as ok`,
+    );
+    return Boolean(result.rows[0]?.ok);
   }
 
   /** The task a file belongs to (directly, or through a live comment). */

@@ -18,6 +18,8 @@ const WORK = [
   'task.progress_updated',
   'attachment.added',
   'attachment.removed',
+  'task.evidence_pinned',
+  'task.evidence_unpinned',
   'comment.created',
 ];
 const HANDLED = [

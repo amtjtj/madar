@@ -106,6 +106,19 @@ export function canEditTask(actor: Actor, task: TaskForAccess): boolean {
   );
 }
 
+/** SQL twin of `canEditTask` on `tasks` (choosing a task to pin a letter to, ADR 0021). */
+export function editableTasks(actor: Actor): SQL {
+  if (managesAll(actor)) return sql`true`;
+  const me = actor.memberId;
+  const managed = actor.departments
+    .filter((d) => d.deptRole === 'head' || d.deptRole === 'manager')
+    .map((d) => d.id);
+  return sql`(${s.tasks.assigneeId} = ${me} or ${s.tasks.reporterId} = ${me} or exists (
+    select 1 from task_collaborators tc where tc.task_id = ${s.tasks.id} and tc.member_id = ${me} and tc.kind = 'collaborator')${
+      managed.length ? sql` or ${s.tasks.departmentId} in (${uuidList(managed)})` : sql``
+    })`;
+}
+
 export function canSetWeight(actor: Actor, departmentId: string): boolean {
   return isDepartmentManager(actor, departmentId) || managesAll(actor);
 }
