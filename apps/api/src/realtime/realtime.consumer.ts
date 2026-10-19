@@ -26,6 +26,9 @@ const HANDLED = [
   'notification.created',
   'project.member_added',
   'project.member_removed',
+  'letter.sent',
+  'letter.referred',
+  'letter.read',
 ];
 
 /**
@@ -96,6 +99,15 @@ export class RealtimeConsumer implements EventConsumer {
       }
       return;
     }
+    if (event.type.startsWith('letter.') && p.letterId) {
+      const rooms = (await this.letterPeople(tx, String(p.letterId), event.type)).map((m) =>
+        memberRoom(t, m),
+      );
+      if (rooms.length) {
+        emits.push(() => this.emitter.to(rooms).emit(REALTIME_EVENTS.lettersChanged));
+      }
+      return;
+    }
     if (WORK.includes(event.type) && p.taskId) {
       const rooms = await this.taskRooms(tx, t, String(p.taskId));
       if (rooms.length) {
@@ -104,6 +116,28 @@ export class RealtimeConsumer implements EventConsumer {
         emits.push(() => this.emitter.to(rooms).emit(REALTIME_EVENTS.todayChanged));
       }
     }
+  }
+
+  /**
+   * Who refetches letters: everyone on a letter that was sent or referred; only the sender and
+   * referrers when someone reads it (they are the ones who see read state).
+   */
+  private async letterPeople(tx: Tx, letterId: string, type: string): Promise<string[]> {
+    const [letter] = await tx
+      .select({ senderId: s.letters.senderId, sentAt: s.letters.sentAt })
+      .from(s.letters)
+      .where(eq(s.letters.id, letterId));
+    if (!letter?.sentAt) return [];
+    const rows = await tx
+      .select({ memberId: s.letterRecipients.memberId, referredBy: s.letterRecipients.referredBy })
+      .from(s.letterRecipients)
+      .where(eq(s.letterRecipients.letterId, letterId));
+    const people = new Set([letter.senderId]);
+    for (const row of rows) {
+      if (row.referredBy) people.add(row.referredBy);
+      if (type !== 'letter.read') people.add(row.memberId);
+    }
+    return [...people];
   }
 
   private async taskRooms(tx: Tx, tenantId: string, taskId: string): Promise<string[]> {

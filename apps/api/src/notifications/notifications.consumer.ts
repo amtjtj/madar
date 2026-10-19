@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { schema as s, type OutboxEvent, type Tx } from '@madar/db';
 import { calendarDateIn } from '@madar/shared';
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 
 import type { EventConsumer } from '../events/consumer.js';
 import { Notifier } from './notifier.js';
@@ -11,6 +11,8 @@ const HANDLED = [
   'task.progress_updated',
   'comment.created',
   'project.member_added',
+  'letter.sent',
+  'letter.referred',
 ];
 
 /** Turns domain events into in-app notifications. */
@@ -85,6 +87,48 @@ export class NotificationsConsumer implements EventConsumer {
             subjectType: 'task',
             subjectId: task.id,
             payload: { title: task.title },
+            dedupeKey: `event:${event.id}`,
+          });
+        }
+        return;
+      }
+      case 'letter.sent':
+      case 'letter.referred': {
+        const [letter] = await tx
+          .select({
+            id: s.letters.id,
+            subject: s.letters.subject,
+            urgency: s.letters.urgency,
+            confidential: s.letters.confidential,
+          })
+          .from(s.letters)
+          .where(eq(s.letters.id, String(p.letterId)));
+        if (!letter) return;
+        const sent = event.type === 'letter.sent';
+        const recipients = sent
+          ? (
+              await tx
+                .select({ memberId: s.letterRecipients.memberId })
+                .from(s.letterRecipients)
+                .where(
+                  and(
+                    eq(s.letterRecipients.letterId, letter.id),
+                    inArray(s.letterRecipients.kind, ['to', 'cc']),
+                  ),
+                )
+            ).map((r) => r.memberId)
+          : ((p.memberIds as string[] | undefined) ?? []);
+        for (const recipientId of recipients) {
+          await this.notifier.notify(tx, {
+            ...base,
+            recipientId,
+            kind: sent ? 'letter_received' : 'letter_referred',
+            subjectType: 'letter',
+            subjectId: letter.id,
+            // A confidential letter's subject never leaves the letter (ADR 0020).
+            payload: letter.confidential
+              ? { title: '', data: { confidential: 1, urgency: letter.urgency } }
+              : { title: letter.subject, data: { urgency: letter.urgency } },
             dedupeKey: `event:${event.id}`,
           });
         }

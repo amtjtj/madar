@@ -10,6 +10,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 
 import { loadMemberInTx } from '../auth/tenant-context.service.js';
 import { visibleGoals } from '../goals/access.js';
+import { visibleLetters } from '../letters/access.js';
 import { readsReport, visibleProjects, visibleTasks } from '../work/access.js';
 import { loadWorkCalendar } from './calendar.js';
 
@@ -93,6 +94,19 @@ export class Notifier {
         .from(s.weeklyReports)
         .where(eq(s.weeklyReports.id, subjectId));
       return report ? readsReport(actor, report.departmentId) : false;
+    }
+    if (subjectType === 'letter') {
+      const [row] = await tx
+        .select({ id: s.letters.id })
+        .from(s.letters)
+        .where(
+          and(
+            eq(s.letters.id, subjectId),
+            isNull(s.letters.deletedAt),
+            visibleLetters(actor.memberId),
+          ),
+        );
+      return Boolean(row);
     }
     if (subjectType === 'goal') {
       const [row] = await tx

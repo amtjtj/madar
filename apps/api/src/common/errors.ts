@@ -31,6 +31,9 @@ export type ErrorCode =
   | 'progress_closed'
   | 'file_too_large'
   | 'file_type_not_allowed'
+  | 'letter_sent'
+  | 'letter_no_recipients'
+  | 'already_recipient'
   | 'conflict';
 
 export class ApiError extends HttpException {

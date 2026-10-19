@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import type { DbHandle } from './client.js';
 import * as s from './schema/index.js';
+import { uuidv7 } from './schema/columns.js';
 import {
   appendAudit,
   listActiveTenants,
@@ -75,7 +76,6 @@ const NO_DELETE = [
   'key_results',
   'attachments',
   'letters',
-  'letter_recipients',
   'letter_counters',
 ];
 
@@ -207,6 +207,28 @@ describe.skipIf(!hasDatabase)('tenant isolation (RLS)', () => {
           .values({ letterId: letter?.id ?? '', memberId: b.memberId, kind: 'cc' }),
       ),
     ).rejects.toThrow();
+  });
+
+  it("a sent letter's recipients cannot be deleted, a draft's can", async () => {
+    await withTenant(app.db, { tenantId: a.tenantId }, async (tx) => {
+      const sent = await tx.execute(sql`delete from letter_recipients`);
+      expect(sent.rowCount).toBe(0);
+      const draftId = uuidv7();
+      await tx.insert(s.letters).values({
+        id: draftId,
+        subject: 'پیش‌نویس',
+        body: { format: 'lite', text: '' },
+        senderId: a.memberId,
+        threadId: draftId,
+      });
+      await tx
+        .insert(s.letterRecipients)
+        .values({ letterId: draftId, memberId: a.memberId, kind: 'to' });
+      const draft = await tx.execute(
+        sql`delete from letter_recipients where letter_id = ${draftId}`,
+      );
+      expect(draft.rowCount).toBe(1);
+    });
   });
 
   it('transaction-local settings do not leak to the next query on the same connection', async () => {

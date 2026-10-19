@@ -54,6 +54,8 @@ export class FilesCleanupJob {
                 select 1 from comments c where c.id = a.subject_id and c.deleted_at is not null))
               or (a.subject_type = 'task' and exists (
                 select 1 from tasks t where t.id = a.subject_id and t.deleted_at is not null))
+              or (a.subject_type = 'letter' and exists (
+                select 1 from letters l where l.id = a.subject_id and l.deleted_at is not null))
               or (a.subject_type = 'comment' and exists (
                 select 1 from comments c join tasks t on t.id = c.subject_id
                 where c.id = a.subject_id and c.subject_type = 'task' and t.deleted_at is not null))

@@ -24,6 +24,7 @@ import type { Request } from 'express';
 import type { TenantContext } from '../common/context.js';
 import { ApiError, forbidden, notFound } from '../common/errors.js';
 import { TenantDb } from '../database/tenant-db.service.js';
+import { visibleLetters } from '../letters/access.js';
 import { canEditTask } from '../work/access.js';
 import { TasksService } from '../work/tasks.service.js';
 import { attachmentRows, bindUploads, toAttachment, type AttachmentRow } from './attachments-db.js';
@@ -311,6 +312,11 @@ export class AttachmentsService implements OnModuleInit {
   remove(ctx: TenantContext, id: string): Promise<void> {
     return this.db.run(ctx, async (tx) => {
       const row = await this.visible(tx, ctx, id);
+      if (row.subjectType === 'letter') {
+        // A sent letter is permanent, files included; a draft's files are its sender's.
+        const letter = await this.letterOf(tx, ctx, row);
+        if (!letter || letter.sentAt || row.uploadedBy !== ctx.memberId) throw forbidden();
+      }
       const taskId = await this.taskOf(tx, row);
       if (row.uploadedBy !== ctx.memberId) {
         const task = taskId ? await this.tasks.requireVisible(tx, ctx, taskId) : null;
@@ -346,10 +352,30 @@ export class AttachmentsService implements OnModuleInit {
       if (row.uploadedBy !== ctx.memberId) throw notFound('Attachment');
       return row;
     }
+    if (row.subjectType === 'letter') {
+      if (!(await this.letterOf(tx, ctx, row))) throw notFound('Attachment');
+      return row;
+    }
     const taskId = await this.taskOf(tx, row);
     if (!taskId) throw notFound('Attachment');
     await this.tasks.requireVisible(tx, ctx, taskId);
     return row;
+  }
+
+  /** The letter a file belongs to, when the person may open it (ADR 0020). */
+  private async letterOf(tx: Tx, ctx: TenantContext, row: AttachmentRow) {
+    if (row.subjectType !== 'letter' || !row.subjectId) return null;
+    const [letter] = await tx
+      .select({ id: s.letters.id, sentAt: s.letters.sentAt })
+      .from(s.letters)
+      .where(
+        and(
+          eq(s.letters.id, row.subjectId),
+          isNull(s.letters.deletedAt),
+          visibleLetters(ctx.memberId),
+        ),
+      );
+    return letter ?? null;
   }
 
   /** The task a file belongs to (directly, or through a live comment). */

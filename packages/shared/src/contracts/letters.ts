@@ -66,6 +66,16 @@ export const letter = letterSummary.extend({
 });
 export type Letter = z.infer<typeof letter>;
 
+export const letterList = z.object({
+  items: z.array(letterSummary),
+  /** Pass as `before` for the next page; null on the last page. */
+  nextBefore: z.iso.datetime().nullable(),
+});
+export type LetterList = z.infer<typeof letterList>;
+
+export const letterUnreadCount = z.object({ count: z.number().int() });
+export type LetterUnreadCount = z.infer<typeof letterUnreadCount>;
+
 const memberIds = z.array(z.uuid()).max(50);
 
 export const saveLetterRequest = z.object({

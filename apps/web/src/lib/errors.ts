@@ -25,6 +25,9 @@ const API_CODES = new Set([
   'progress_closed',
   'file_too_large',
   'file_type_not_allowed',
+  'letter_sent',
+  'letter_no_recipients',
+  'already_recipient',
 ]);
 
 /** Persian message for any error thrown by `api()` or the auth helpers. */

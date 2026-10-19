@@ -60,11 +60,22 @@ ALTER TABLE "letters" ADD CONSTRAINT "letters_reply_to_fk" FOREIGN KEY ("tenant_
 CREATE INDEX "letter_recipients_inbox_idx" ON "letter_recipients" USING btree ("tenant_id","member_id","archived_at","created_at");--> statement-breakpoint
 CREATE INDEX "letters_tenant_sender_idx" ON "letters" USING btree ("tenant_id","sender_id","sent_at");--> statement-breakpoint
 CREATE INDEX "letters_tenant_thread_idx" ON "letters" USING btree ("tenant_id","thread_id");--> statement-breakpoint
--- No DELETE: a sent letter is permanent and a draft is soft-deleted (ADR 0020).
-GRANT SELECT, INSERT, UPDATE ON letters, letter_recipients, letter_counters TO madar_app;
+-- No DELETE on letters: a sent letter is permanent and a draft is soft-deleted (ADR 0020).
+-- A draft's recipients may be replaced while it is edited; once sent, the restrictive policy
+-- below leaves nothing to delete.
+GRANT SELECT, INSERT, UPDATE ON letters, letter_counters TO madar_app;
+--> statement-breakpoint
+GRANT SELECT, INSERT, UPDATE, DELETE ON letter_recipients TO madar_app;
 --> statement-breakpoint
 SELECT app.enable_tenant_rls('letters');
 --> statement-breakpoint
 SELECT app.enable_tenant_rls('letter_recipients');
 --> statement-breakpoint
 SELECT app.enable_tenant_rls('letter_counters');
+--> statement-breakpoint
+CREATE POLICY draft_recipients_only ON letter_recipients AS RESTRICTIVE FOR DELETE TO madar_app
+  USING (EXISTS (
+    SELECT 1 FROM letters l
+    WHERE l.tenant_id = letter_recipients.tenant_id AND l.id = letter_recipients.letter_id
+      AND l.sent_at IS NULL
+  ));

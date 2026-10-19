@@ -1,5 +1,11 @@
 import { schema as s, type Tx } from '@madar/db';
-import { opensInline, type Attachment, type AttachmentKind, FILE_TYPES } from '@madar/shared';
+import {
+  opensInline,
+  type Attachment,
+  type AttachmentKind,
+  type AttachmentSubject,
+  FILE_TYPES,
+} from '@madar/shared';
 import { and, eq, inArray, isNull, type SQL } from 'drizzle-orm';
 
 import type { TenantContext } from '../common/context.js';
@@ -51,7 +57,7 @@ export async function bindUploads(
   tx: Tx,
   ctx: TenantContext,
   uploadIds: readonly string[],
-  subject: { type: 'task' | 'comment'; id: string },
+  subject: { type: AttachmentSubject; id: string },
 ): Promise<AttachmentRow[]> {
   const ids = [...new Set(uploadIds)];
   if (ids.length === 0) return [];

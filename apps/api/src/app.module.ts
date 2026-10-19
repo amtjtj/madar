@@ -17,6 +17,7 @@ import { RealtimeModule } from './realtime/realtime.module.js';
 import { ReportsModule } from './reports/reports.module.js';
 import { TenantsModule } from './tenants/tenants.module.js';
 import { FilesModule } from './files/files.module.js';
+import { LettersModule } from './letters/letters.module.js';
 import { WorkModule } from './work/work.module.js';
 
 @Module({
@@ -31,6 +32,7 @@ import { WorkModule } from './work/work.module.js';
     MembersModule,
     WorkModule,
     FilesModule,
+    LettersModule,
     GoalsModule,
     DashboardModule,
     ReportsModule,
