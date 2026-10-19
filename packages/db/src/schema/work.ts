@@ -4,6 +4,7 @@
  */
 import { sql } from 'drizzle-orm';
 import {
+  boolean,
   date,
   foreignKey,
   index,
@@ -35,6 +36,8 @@ export const statusCategory = pgEnum('status_category', [
 ]);
 export const taskPriority = pgEnum('task_priority', ['low', 'normal', 'high', 'urgent']);
 export const collaboratorKind = pgEnum('collaborator_kind', ['collaborator', 'watcher']);
+/** Where a task came from (plan phase-2-step-10a, ADR 0017); set once, never changed. */
+export const taskSource = pgEnum('task_source', ['personal', 'assigned', 'request', 'meeting']);
 
 export const projects = pgTable(
   'projects',
@@ -130,11 +133,23 @@ export const tasks = pgTable(
     version: integer('version').notNull().default(1),
     /** The key result this task serves (step 7). */
     keyResultId: uuid('key_result_id'),
+    /** Null until the task first has an assignee. */
+    source: taskSource('source'),
+    /** Who set that first assignee. */
+    sourceMemberId: uuid('source_member_id'),
+    /** That person was the CEO at the time (no manager above, executive or owner role). */
+    sourceCeo: boolean('source_ceo').notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
     unique('tasks_tenant_id_id_key').on(t.tenantId, t.id),
+    index('tasks_tenant_source_idx').on(t.tenantId, t.source),
+    foreignKey({
+      name: 'tasks_source_member_fk',
+      columns: [t.tenantId, t.sourceMemberId],
+      foreignColumns: [members.tenantId, members.id],
+    }).onDelete('restrict'),
     index('tasks_tenant_key_result_idx').on(t.tenantId, t.keyResultId),
     foreignKey({
       name: 'tasks_key_result_fk',
@@ -260,7 +275,8 @@ export const dailyPlanItems = pgTable(
     /** The member's local calendar day (tenant time zone). */
     planDate: date('plan_date', { mode: 'string' }).notNull(),
     taskId: uuid('task_id').notNull(),
-    sortKey: text('sort_key').notNull().default('a0'),
+    /** Set when the member ordered the plan by hand; null = placed by priority score. */
+    sortKey: text('sort_key'),
     createdAt: createdAt(),
   },
   (t) => [
@@ -273,6 +289,32 @@ export const dailyPlanItems = pgTable(
     }).onDelete('cascade'),
     foreignKey({
       name: 'daily_plan_items_task_fk',
+      columns: [t.tenantId, t.taskId],
+      foreignColumns: [tasks.tenantId, tasks.id],
+    }).onDelete('cascade'),
+  ],
+);
+
+/** A member's own order of «my tasks» (drag and drop); only they read or change it. */
+export const memberTaskOrder = pgTable(
+  'member_task_order',
+  {
+    tenantId: tenantId().references(() => tenants.id, { onDelete: 'cascade' }),
+    memberId: uuid('member_id').notNull(),
+    taskId: uuid('task_id').notNull(),
+    sortKey: text('sort_key').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.memberId, t.taskId] }),
+    index('member_task_order_task_idx').on(t.tenantId, t.taskId),
+    foreignKey({
+      name: 'member_task_order_member_fk',
+      columns: [t.tenantId, t.memberId],
+      foreignColumns: [members.tenantId, members.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'member_task_order_task_fk',
       columns: [t.tenantId, t.taskId],
       foreignColumns: [tasks.tenantId, tasks.id],
     }).onDelete('cascade'),

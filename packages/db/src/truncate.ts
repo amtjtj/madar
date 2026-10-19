@@ -18,14 +18,20 @@ export async function truncateAllData(
 ): Promise<number> {
   const pool = new pg.Pool({ connectionString: ownerUrl, max: 1 });
   const client = await pool.connect();
-  try {
-    await client.query('begin');
-    await client.query('lock table tenants in access exclusive mode');
-    const { rows: others } = await client.query<{ count: number }>(
+  const others = async () => {
+    const { rows } = await client.query<{ count: number }>(
       'select count(*)::int as count from tenants where slug <> all($1::text[])',
       [onlyIfTenantSlugs],
     );
-    const count = others[0]?.count ?? 0;
+    return rows[0]?.count ?? 0;
+  };
+  try {
+    // Refuse early without taking a lock; check again under the lock before emptying anything.
+    const early = await others();
+    if (early > 0) throw new NotADemoDatabaseError(early);
+    await client.query('begin');
+    await client.query('lock table tenants in access exclusive mode');
+    const count = await others();
     if (count > 0) throw new NotADemoDatabaseError(count);
     const { rows } = await client.query<{ name: string }>(
       `select format('%I.%I', schemaname, tablename) as name

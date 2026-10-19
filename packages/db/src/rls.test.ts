@@ -38,6 +38,7 @@ const DATA_PLANE = [
   'comments',
   'activities',
   'daily_plan_items',
+  'member_task_order',
   'domain_events',
   'work_calendars',
   'notifications',

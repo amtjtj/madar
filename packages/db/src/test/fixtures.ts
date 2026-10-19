@@ -107,6 +107,9 @@ export async function createTenantFixture(handle: DbHandle, label = 't'): Promis
       .insert(s.dailyPlanItems)
       .values({ memberId: member.id, planDate: '2026-10-17', taskId: task.id });
     await tx
+      .insert(s.memberTaskOrder)
+      .values({ memberId: member.id, taskId: task.id, sortKey: 'a0' });
+    await tx
       .insert(s.domainEvents)
       .values({ type: 'task.created', payload: { taskId: task.id }, actorId: member.id });
 
