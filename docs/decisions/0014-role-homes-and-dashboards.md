@@ -22,7 +22,7 @@ The brief also forbids ranking people.
 - **Definitions** live in `packages/shared/src/dashboard-rules.ts`, fixed until per-company settings come after the demo:
   - **Stuck:** in progress and untouched (no change or comment) for 5 working days, or more than 2 working days past due.
   - **Department behind:** goals trail the season by more than 15 points, or more than 20 % of open tasks are overdue.
-  - **Project at risk:** done share trails elapsed time by more than 20 points, or has overdue tasks.
+  - **Project at risk:** done share trails elapsed time by more than 20 points, or has overdue tasks. *Updated in step 10b (ADR 0018):* the weighted progress of the project's top-level tasks replaces the done share.
   - **Might need help:** at least 3 overdue tasks, any stuck task, or more than 15 open tasks.
 - **Cards match lists:** the SQL for overdue and stuck (`apps/api/src/dashboard/conditions.ts`) and for projects at risk (`at-risk.ts`) is shared with the `due=overdue`, `stuck=true` and `risk=true` list filters. A tile and the list it opens always show the same rows. Filters live in the address, so drill-downs can be shared and survive going back.
 - **People:** workload is alphabetical and «might need help» shows names with reasons, never a score or rank.
@@ -42,3 +42,11 @@ The brief also forbids ranking people.
 - The thresholds are product guesses; the demo will tell whether «stuck» and «behind» feel right.
 - The trend counts tasks marked done. Reopened tasks drop out of the week they were finished in, which is the honest picture.
 - The «goal badge» on task cards (deferred from step 7) shipped here.
+
+## Update, step 10b (2026-10-19)
+Tasks now carry percentage progress (ADR 0018). «Project at risk» compares the **weighted progress** of a project's top-level tasks with the share of time elapsed, instead of the share of tasks done:
+- the weight is the task weight (1–5);
+- a finished task counts as 100 %, and canceled tasks are left out;
+- the 20-point gap and the overdue rule stay as they were.
+
+The dashboard tile, the `risk=true` list filter and the weekly report all use `atRiskProjects`, so they changed together. Stored weekly reports keep the definition they were built with (append-only).
