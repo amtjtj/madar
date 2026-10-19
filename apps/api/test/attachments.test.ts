@@ -1,6 +1,12 @@
+import { schema as s, withTenant, type DbHandle } from '@madar/db';
 import type { Attachment, Comment, Task, Upload } from '@madar/shared';
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
+import { DB_HANDLE } from '../src/database/tokens.js';
+import { FilesCleanupJob } from '../src/files/cleanup-job.js';
+import { FILE_STORAGE, type FileStorage } from '../src/files/storage.js';
 
 import { createTestApp, hasDatabase, memberSession, ownerSession, type Client } from './helpers.js';
 
@@ -142,6 +148,45 @@ describe.skipIf(!hasDatabase)('attachments', () => {
     expect((await ali.c.get(`/api/attachments/${file.id}/file`)).status).toBe(404);
     const audit = (await owner.get('/api/audit-logs')).body as Array<{ action: string }>;
     expect(audit.map((a) => a.action)).toContain('attachment.deleted');
+  });
+
+  it('removes abandoned uploads and deleted files from storage', async () => {
+    const handle = app.get<DbHandle>(DB_HANDLE);
+    const storage = app.get<FileStorage>(FILE_STORAGE);
+    const job = new FilesCleanupJob(handle, storage);
+    const tenantId = ((await ali.c.get('/api/me')).body as { tenant: { id: string } }).tenant.id;
+    const keyOf = async (id: string) => {
+      const [row] = await withTenant(handle.db, { tenantId }, (tx) =>
+        tx.select().from(s.attachments).where(eq(s.attachments.id, id)),
+      );
+      return row;
+    };
+
+    const abandoned = await upload(ali.c, PNG, 'رهاشده.png');
+    const fresh = await upload(ali.c, PNG, 'تازه.png');
+    const kept = await upload(ali.c, PDF, 'ماندگار.pdf');
+    await ali.c.post(`/api/tasks/${task.id}/attachments`, { uploadIds: [kept.id] });
+    const removed = await upload(ali.c, PDF, 'حذفی.pdf');
+    await ali.c.post(`/api/tasks/${task.id}/attachments`, { uploadIds: [removed.id] });
+    await ali.c.delete(`/api/attachments/${removed.id}`);
+    await withTenant(handle.db, { tenantId }, (tx) =>
+      tx
+        .update(s.attachments)
+        .set({ createdAt: new Date(Date.now() - 25 * 60 * 60_000) })
+        .where(eq(s.attachments.id, abandoned.id)),
+    );
+
+    expect(await job.runForTenant(tenantId)).toBeGreaterThanOrEqual(2);
+    for (const id of [abandoned.id, removed.id]) {
+      const row = await keyOf(id);
+      expect(row?.purgedAt).not.toBeNull();
+      expect(await storage.exists(row?.objectKey ?? '')).toBe(false);
+    }
+    for (const id of [fresh.id, kept.id]) {
+      const row = await keyOf(id);
+      expect(row?.purgedAt).toBeNull();
+      expect(await storage.exists(row?.objectKey ?? '')).toBe(true);
+    }
   });
 
   it('keeps companies apart', async () => {

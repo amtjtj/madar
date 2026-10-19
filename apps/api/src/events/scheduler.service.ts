@@ -4,6 +4,7 @@ import type { Redis } from 'ioredis';
 
 import { ENV } from '../config/config.module.js';
 import type { Env } from '../config/env.js';
+import { FilesCleanupJob } from '../files/cleanup-job.js';
 import { RemindersService } from '../notifications/reminders.service.js';
 import { WeeklyReportsJob } from '../reports/weekly-job.js';
 import { REDIS } from './consumer.js';
@@ -11,7 +12,10 @@ import { REDIS } from './consumer.js';
 const QUEUE = 'scheduled';
 const EVERY_MS = 15 * 60_000;
 
-/** Recurring jobs (BullMQ job schedulers): reminders and weekly report snapshots every 15 minutes. */
+/**
+ * Recurring jobs (BullMQ job schedulers), every 15 minutes: reminders, weekly report snapshots and
+ * the cleanup of unreachable files.
+ */
 @Injectable()
 export class SchedulerService implements OnModuleDestroy {
   private readonly logger = new Logger('Scheduler');
@@ -23,6 +27,7 @@ export class SchedulerService implements OnModuleDestroy {
     @Inject(ENV) private readonly env: Env,
     private readonly reminders: RemindersService,
     private readonly weeklyReports: WeeklyReportsJob,
+    private readonly filesCleanup: FilesCleanupJob,
   ) {}
 
   async start(): Promise<void> {
@@ -39,6 +44,7 @@ export class SchedulerService implements OnModuleDestroy {
         if (job.name === 'due-reminders') {
           await this.reminders.runAll();
           await this.weeklyReports.runAll();
+          await this.filesCleanup.runAll();
         }
       },
       options,
