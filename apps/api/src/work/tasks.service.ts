@@ -187,8 +187,11 @@ export class TasksService {
       ) {
         throw forbidden('Only department managers set the weight');
       }
-      if (input.projectId) await this.requireUsableProject(tx, ctx, input.projectId);
-      if (input.parentId) await this.requireVisible(tx, ctx, input.parentId);
+      // A subtask belongs to its parent's project, so it passes the same check (observers of a
+      // private project add no work to it, not even under an existing task).
+      const parent = input.parentId ? await this.requireVisible(tx, ctx, input.parentId) : null;
+      const projectId = input.projectId ?? parent?.projectId ?? null;
+      if (projectId) await this.requireUsableProject(tx, ctx, projectId);
       if (input.assigneeId) await requireActiveMember(tx, input.assigneeId);
 
       const status = statusFields(input.statusKey ?? 'todo');
@@ -210,7 +213,7 @@ export class TasksService {
           title: input.title,
           description: input.description ?? null,
           departmentId,
-          projectId: input.projectId ?? null,
+          projectId,
           parentId: input.parentId ?? null,
           assigneeId,
           reporterId: ctx.memberId,

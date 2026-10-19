@@ -148,6 +148,10 @@ describe.skipIf(!hasDatabase)('task progress, project progress and observers', (
     expect(
       (await marketer.c.post('/api/tasks', { title: 'کار ناظر', projectId: project.id })).status,
     ).toBe(404);
+    // Not even as a subtask of an existing task.
+    expect(
+      (await marketer.c.post('/api/tasks', { title: 'زیرکار ناظر', parentId: heavy.id })).status,
+    ).toBe(404);
     expect((await read(ali.c)).can.createTask).toBe(true);
 
     const audit = (await owner.get('/api/audit-logs')).body as Array<{ action: string }>;
