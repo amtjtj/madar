@@ -123,9 +123,11 @@ function unsafeNameChar(char: string): boolean {
   return (
     code < 0x20 ||
     code === 0x7f ||
+    code === 0x061c ||
     code === 0x200e ||
     code === 0x200f ||
-    (code >= 0x202a && code <= 0x202e)
+    (code >= 0x202a && code <= 0x202e) ||
+    (code >= 0x2066 && code <= 0x2069)
   );
 }
 
@@ -150,7 +152,7 @@ export const fileSettings = z.object({ maxSizeMb: z.number().int().min(1).max(10
 export type FileSettings = z.infer<typeof fileSettings>;
 export const DEFAULT_FILE_SETTINGS: FileSettings = { maxSizeMb: DEFAULT_MAX_FILE_MB };
 
-export const ATTACHMENT_SUBJECTS = ['task', 'comment'] as const;
+export const ATTACHMENT_SUBJECTS = ['task', 'comment', 'letter'] as const;
 export type AttachmentSubject = (typeof ATTACHMENT_SUBJECTS)[number];
 
 export const attachment = z.object({
