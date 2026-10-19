@@ -46,6 +46,9 @@ const DATA_PLANE = [
   'processed_events',
   'push_subscriptions',
   'attachments',
+  'letters',
+  'letter_recipients',
+  'letter_counters',
   'goal_periods',
   'goals',
   'key_results',
@@ -71,6 +74,9 @@ const NO_DELETE = [
   'goals',
   'key_results',
   'attachments',
+  'letters',
+  'letter_recipients',
+  'letter_counters',
 ];
 
 describe.skipIf(!hasDatabase)('tenant isolation (RLS)', () => {
@@ -185,6 +191,20 @@ describe.skipIf(!hasDatabase)('tenant isolation (RLS)', () => {
           .update(s.members)
           .set({ managerId: b.memberId })
           .where(sql`${s.members.id} = ${a.memberId}`),
+      ),
+    ).rejects.toThrow();
+  });
+
+  it("a letter cannot be addressed to another tenant's member", async () => {
+    const [letter] = await withTenant(app.db, { tenantId: a.tenantId }, (tx) =>
+      tx.select({ id: s.letters.id }).from(s.letters).limit(1),
+    );
+    expect(letter).toBeDefined();
+    await expect(
+      withTenant(app.db, { tenantId: a.tenantId }, (tx) =>
+        tx
+          .insert(s.letterRecipients)
+          .values({ letterId: letter?.id ?? '', memberId: b.memberId, kind: 'cc' }),
       ),
     ).rejects.toThrow();
   });

@@ -170,6 +170,20 @@ export async function createTenantFixture(handle: DbHandle, label = 't'): Promis
       objectKey: `tenants/${tenant.id}/2026/10/${uuidv7()}`,
       status: 'ready',
     });
+    const letterId = uuidv7();
+    await tx.insert(s.letters).values({
+      id: letterId,
+      number: '1405/00001',
+      jalaliYear: 1405,
+      sequence: 1,
+      subject: 'نامه آزمایشی',
+      body: { format: 'lite', text: 'سلام' },
+      senderId: member.id,
+      threadId: letterId,
+      sentAt: new Date(),
+    });
+    await tx.insert(s.letterRecipients).values({ letterId, memberId: member.id, kind: 'to' });
+    await tx.insert(s.letterCounters).values({ jalaliYear: 1405, lastNumber: 1 });
     await tx.insert(s.pushSubscriptions).values({
       memberId: member.id,
       endpoint: `https://fcm.googleapis.com/fcm/send/${suffix}`,
