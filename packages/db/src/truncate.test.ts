@@ -18,11 +18,15 @@ describe.skipIf(!ownerUrl || !process.env.APP_DATABASE_URL)('truncateAllData', (
       uuidv7(),
       slug,
     ]);
-    const before = (await pool.query('select count(*)::int as n from tenants')).rows[0].n;
+    // Other test files add companies in parallel, so compare ids, not counts.
+    const ids = async () =>
+      new Set((await pool.query('select id from tenants')).rows.map((r: { id: string }) => r.id));
+    const before = await ids();
     await expect(
       truncateAllData(ownerUrl ?? '', { onlyIfTenantSlugs: ['zarrin-madar'] }),
     ).rejects.toBeInstanceOf(NotADemoDatabaseError);
-    expect((await pool.query('select count(*)::int as n from tenants')).rows[0].n).toBe(before);
+    const after = await ids();
+    expect([...before].filter((id) => !after.has(id))).toEqual([]);
     await pool.query('delete from tenants where slug = $1', [slug]);
     await pool.end();
   });
