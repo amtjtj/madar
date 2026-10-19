@@ -3,16 +3,18 @@ import { emitEvent, schema as s, type Tx } from '@madar/db';
 import {
   addDays,
   calendarDateIn,
+  mergeManualOrder,
   type SetTodayItemsRequest,
   type Today,
   type TodaySuggestionReason,
 } from '@madar/shared';
 import { and, asc, desc, eq, inArray, isNull, notInArray } from 'drizzle-orm';
-import { generateKeyBetween, generateNKeysBetween } from 'fractional-indexing';
+import { generateNKeysBetween } from 'fractional-indexing';
 
 import type { TenantContext } from '../common/context.js';
 import { TenantDb } from '../database/tenant-db.service.js';
 import { visibleTasks } from './access.js';
+import { loadRanking } from './ranking.js';
 import { TasksService } from './tasks.service.js';
 
 const MAX_ITEMS = 50;
@@ -69,15 +71,10 @@ export class TodayService {
       const existing = await this.planned(tx, ctx, date);
       if (!existing.some((i) => i.taskId === taskId)) {
         if (existing.length >= MAX_ITEMS) return this.build(tx, ctx, now);
-        const last = existing.at(-1)?.sortKey ?? null;
+        // No sort key: placed by priority among the member's own order (ADR 0017).
         await tx
           .insert(s.dailyPlanItems)
-          .values({
-            memberId: ctx.memberId,
-            planDate: date,
-            taskId,
-            sortKey: generateKeyBetween(last, null),
-          })
+          .values({ memberId: ctx.memberId, planDate: date, taskId })
           .onConflictDoNothing();
         await emitEvent(
           tx,
@@ -86,6 +83,26 @@ export class TodayService {
           ctx.memberId,
         );
       }
+      return this.build(tx, ctx, now);
+    });
+  }
+
+  /** Forget the member's own order: today follows automatic priority again. */
+  autoOrder(ctx: TenantContext, now = new Date()): Promise<Today> {
+    return this.db.run(ctx, async (tx) => {
+      const date = await this.localDate(tx, ctx, now);
+      await tx
+        .update(s.dailyPlanItems)
+        .set({ sortKey: null })
+        .where(
+          and(eq(s.dailyPlanItems.memberId, ctx.memberId), eq(s.dailyPlanItems.planDate, date)),
+        );
+      await emitEvent(
+        tx,
+        'daily_plan.updated',
+        { memberId: ctx.memberId, planDate: date },
+        ctx.memberId,
+      );
       return this.build(tx, ctx, now);
     });
   }
@@ -117,11 +134,21 @@ export class TodayService {
 
   private async build(tx: Tx, ctx: TenantContext, now: Date): Promise<Today> {
     const date = await this.localDate(tx, ctx, now);
-    const plannedIds = (await this.planned(tx, ctx, date)).map((i) => i.taskId);
-    // Deleted, canceled or no-longer-visible tasks drop out of the plan.
-    const items = (
-      await this.tasks.hydrate(tx, ctx, await this.visibleIds(tx, ctx, plannedIds))
-    ).filter((t) => t.statusCategory !== 'canceled');
+    const ranking = await loadRanking(tx, ctx.tenantId, now);
+    const planned = await this.planned(tx, ctx, date);
+    const plannedIds = planned.map((i) => i.taskId);
+    const manual = new Map(
+      planned.flatMap((i) => (i.sortKey === null ? [] : [[i.taskId, i.sortKey] as const])),
+    );
+    // Deleted, canceled or no-longer-visible tasks drop out of the plan. The member's own order
+    // first, the rest placed by priority.
+    const hydratedItems = (
+      await this.tasks.hydrate(tx, ctx, await this.visibleIds(tx, ctx, plannedIds), ranking)
+    )
+      .filter((t) => t.statusCategory !== 'canceled')
+      .map((t) => ({ ...t, score: t.rank.score }))
+      .sort((a, b) => b.score - a.score);
+    const items = mergeManualOrder(hydratedItems, manual).map(({ score: _score, ...t }) => t);
 
     const yesterday = addDays(date, -1);
     const yesterdayIds = new Set(
@@ -175,6 +202,7 @@ export class TodayService {
           tx,
           ctx,
           picked.map((p) => p.id),
+          ranking,
         )
       ).map((t) => [t.id, t]),
     );
@@ -182,14 +210,22 @@ export class TodayService {
     return {
       date,
       items,
+      ordered: items.some((t) => manual.has(t.id)),
       progress: {
         done: items.filter((t) => t.statusCategory === 'done').length,
         total: items.length,
       },
-      suggestions: picked.flatMap((p) => {
-        const task = hydrated.get(p.id);
-        return task ? [{ reason: p.reason, task }] : [];
-      }),
+      // Grouped by reason, by priority within each reason.
+      suggestions: picked
+        .flatMap((p) => {
+          const task = hydrated.get(p.id);
+          return task ? [{ reason: p.reason, task }] : [];
+        })
+        .sort(
+          (a, b) =>
+            order.indexOf(a.reason) - order.indexOf(b.reason) ||
+            b.task.rank.score - a.task.rank.score,
+        ),
     };
   }
 

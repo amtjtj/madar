@@ -3,6 +3,7 @@ import { emitEvent, recordActivity, schema as s, type ActivityChanges, type Tx }
 import {
   calendarDateIn,
   categoryOf,
+  mergeManualOrder,
   type Activity,
   type Comment,
   type CommentBody,
@@ -10,20 +11,20 @@ import {
   type ListTasksQuery,
   type MoveTaskRequest,
   type SetCollaboratorsRequest,
+  type SetTaskOrderRequest,
   type StatusCategory,
   type Task,
   type UpdateTaskRequest,
 } from '@madar/shared';
 import { and, asc, desc, eq, ilike, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import { generateKeyBetween } from 'fractional-indexing';
+import { generateKeyBetween, generateNKeysBetween } from 'fractional-indexing';
 
 import type { TenantContext } from '../common/context.js';
 import { ApiError, forbidden, notFound } from '../common/errors.js';
 import { overdueTask, stuckTask } from '../dashboard/conditions.js';
 import { TenantDb } from '../database/tenant-db.service.js';
 import { keyResultRefs, requireLinkableKeyResult } from '../goals/links.js';
-import { loadWorkCalendar } from '../notifications/calendar.js';
 import {
   canCreateIn,
   canDeleteTask,
@@ -32,11 +33,15 @@ import {
   visibleProjects,
   visibleTasks,
 } from './access.js';
+import { loadRanking, rankOf, sourceFor, type Ranking } from './ranking.js';
 
 type TaskRow = typeof s.tasks.$inferSelect;
 
 const assignee = alias(s.members, 'assignee');
 const reporter = alias(s.members, 'reporter');
+const sourceMember = alias(s.members, 'source_member');
+/** Rows considered before ordering by priority (lists show at most 500). */
+const RANK_POOL = 2000;
 
 const OPEN: StatusCategory[] = ['todo', 'in_progress'];
 
@@ -89,12 +94,12 @@ export class TasksService {
           if (query.departmentId) filters.push(eq(s.tasks.departmentId, query.departmentId));
           break;
       }
-      if (drillDown) {
-        const { calendar, timeZone } = await loadWorkCalendar(tx, ctx.tenantId);
-        const today = calendarDateIn(new Date(), timeZone);
-        if (query.due === 'overdue') filters.push(overdueTask(today));
-        if (query.stuck) filters.push(stuckTask(calendar, timeZone, today));
+      const ranking = await loadRanking(tx, ctx.tenantId);
+      if (query.due === 'overdue') filters.push(overdueTask(ranking.today));
+      if (query.stuck) {
+        filters.push(stuckTask(ranking.calendar, ranking.timeZone, ranking.today));
       }
+      if (query.source) filters.push(eq(s.tasks.source, query.source));
       if (query.parentId) filters.push(eq(s.tasks.parentId, query.parentId));
       if (query.assigneeId) filters.push(eq(s.tasks.assigneeId, query.assigneeId));
       if (query.status === 'open') filters.push(inArray(s.tasks.statusCategory, OPEN));
@@ -102,16 +107,33 @@ export class TasksService {
       if (query.q) {
         filters.push(ilike(s.tasks.title, `%${query.q.replace(/[%_\\]/g, (c) => `\\${c}`)}%`));
       }
+      // Ordered by automatic priority (ADR 0017); «my tasks» keep the member's own order.
       const rows = await tx
-        .select({ id: s.tasks.id })
+        .select({
+          id: s.tasks.id,
+          dueOn: s.tasks.dueOn,
+          priority: s.tasks.priority,
+          source: s.tasks.source,
+          sourceCeo: s.tasks.sourceCeo,
+          keyResultId: s.tasks.keyResultId,
+          weight: s.tasks.weight,
+          createdAt: s.tasks.createdAt,
+        })
         .from(s.tasks)
         .where(and(...filters))
-        .orderBy(asc(s.tasks.sortKey), desc(s.tasks.createdAt))
-        .limit(query.limit);
+        .orderBy(desc(s.tasks.createdAt))
+        .limit(RANK_POOL);
+      let ranked = rows
+        .map((r) => ({ id: r.id, score: rankOf(r, ranking).score, createdAt: r.createdAt }))
+        .sort((a, b) => b.score - a.score || b.createdAt.getTime() - a.createdAt.getTime());
+      if (query.view === 'mine') {
+        ranked = mergeManualOrder(ranked, await this.personalOrder(tx, ctx));
+      }
       return this.hydrate(
         tx,
         ctx,
-        rows.map((r) => r.id),
+        ranked.slice(0, query.limit).map((r) => r.id),
+        ranking,
       );
     });
   }
@@ -156,6 +178,11 @@ export class TasksService {
         .orderBy(desc(s.tasks.sortKey))
         .limit(1);
 
+      const assigneeId = input.assigneeId === undefined ? ctx.memberId : input.assigneeId;
+      // Where it came from is decided now, once (ADR 0017).
+      const source = assigneeId
+        ? await sourceFor(tx, { actorId: ctx.memberId, assigneeId, departmentId })
+        : null;
       const [row] = await tx
         .insert(s.tasks)
         .values({
@@ -164,8 +191,9 @@ export class TasksService {
           departmentId,
           projectId: input.projectId ?? null,
           parentId: input.parentId ?? null,
-          assigneeId: input.assigneeId === undefined ? ctx.memberId : input.assigneeId,
+          assigneeId,
           reporterId: ctx.memberId,
+          ...source,
           dueOn: input.dueOn ?? null,
           priority: input.priority ?? 'normal',
           weight: input.weight ?? 1,
@@ -186,7 +214,7 @@ export class TasksService {
         await emitEvent(
           tx,
           'task.assigned',
-          { taskId: row.id, assigneeId: row.assigneeId },
+          { taskId: row.id, assigneeId: row.assigneeId, source: row.source },
           ctx.memberId,
         );
       }
@@ -196,22 +224,10 @@ export class TasksService {
           .from(s.tenants)
           .where(eq(s.tenants.id, ctx.tenantId));
         const today = calendarDateIn(new Date(), tenant[0]?.timezone);
-        const [lastItem] = await tx
-          .select({ sortKey: s.dailyPlanItems.sortKey })
-          .from(s.dailyPlanItems)
-          .where(
-            and(eq(s.dailyPlanItems.memberId, ctx.memberId), eq(s.dailyPlanItems.planDate, today)),
-          )
-          .orderBy(desc(s.dailyPlanItems.sortKey))
-          .limit(1);
+        // No sort key: placed by priority among the member's own order.
         await tx
           .insert(s.dailyPlanItems)
-          .values({
-            memberId: ctx.memberId,
-            planDate: today,
-            taskId: row.id,
-            sortKey: generateKeyBetween(lastItem?.sortKey ?? null, null),
-          })
+          .values({ memberId: ctx.memberId, planDate: today, taskId: row.id })
           .onConflictDoNothing();
         await emitEvent(
           tx,
@@ -264,6 +280,17 @@ export class TasksService {
       if (input.statusKey !== undefined && input.statusKey !== current.statusKey) {
         Object.assign(patch, statusFields(input.statusKey, current));
         changes.status = { from: current.statusKey, to: input.statusKey };
+      }
+      // The first assignee decides the source; later reassignments keep it (ADR 0017).
+      if (patch.assigneeId && current.source === null) {
+        Object.assign(
+          patch,
+          await sourceFor(tx, {
+            actorId: ctx.memberId,
+            assigneeId: patch.assigneeId,
+            departmentId: current.departmentId,
+          }),
+        );
       }
 
       const [updated] = await tx
@@ -560,6 +587,59 @@ export class TasksService {
     return row?.id ?? null;
   }
 
+  /** The member's own order of «my tasks», task id to sort key. */
+  private async personalOrder(tx: Tx, ctx: TenantContext): Promise<Map<string, string>> {
+    const rows = await tx
+      .select({ taskId: s.memberTaskOrder.taskId, sortKey: s.memberTaskOrder.sortKey })
+      .from(s.memberTaskOrder)
+      .where(eq(s.memberTaskOrder.memberId, ctx.memberId));
+    return new Map(rows.map((r) => [r.taskId, r.sortKey]));
+  }
+
+  /** Tasks in the member's own order (ids); empty when «my tasks» follow the automatic order. */
+  orderedIds(ctx: TenantContext): Promise<string[]> {
+    return this.db.run(ctx, async (tx) =>
+      [...(await this.personalOrder(tx, ctx)).entries()]
+        .sort((a, b) => (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0))
+        .map(([id]) => id),
+    );
+  }
+
+  /** Replace the member's own order of «my tasks» (drag and drop); only tasks they can see. */
+  setOrder(ctx: TenantContext, input: SetTaskOrderRequest): Promise<string[]> {
+    return this.db.run(ctx, async (tx) => {
+      const taskIds = [...new Set(input.taskIds)];
+      if (taskIds.length) {
+        const visible = await tx
+          .select({ id: s.tasks.id })
+          .from(s.tasks)
+          .where(
+            and(inArray(s.tasks.id, taskIds), isNull(s.tasks.deletedAt), visibleTasks(ctx.actor)),
+          );
+        if (visible.length !== taskIds.length) throw notFound('Task');
+      }
+      await tx.delete(s.memberTaskOrder).where(eq(s.memberTaskOrder.memberId, ctx.memberId));
+      if (taskIds.length) {
+        const keys = generateNKeysBetween(null, null, taskIds.length);
+        await tx.insert(s.memberTaskOrder).values(
+          taskIds.map((taskId, i) => ({
+            memberId: ctx.memberId,
+            taskId,
+            sortKey: keys[i] ?? 'a0',
+          })),
+        );
+      }
+      return taskIds;
+    });
+  }
+
+  /** Back to the automatic order. */
+  clearOrder(ctx: TenantContext): Promise<void> {
+    return this.db.run(ctx, async (tx) => {
+      await tx.delete(s.memberTaskOrder).where(eq(s.memberTaskOrder.memberId, ctx.memberId));
+    });
+  }
+
   private async one(tx: Tx, ctx: TenantContext, id: string): Promise<Task> {
     const [task] = await this.hydrate(tx, ctx, [id]);
     if (!task) throw notFound('Task');
@@ -567,8 +647,9 @@ export class TasksService {
   }
 
   /** Full task objects (names, counts, collaborators, permissions) in the order of `ids`. */
-  async hydrate(tx: Tx, ctx: TenantContext, ids: string[]): Promise<Task[]> {
+  async hydrate(tx: Tx, ctx: TenantContext, ids: string[], ranking?: Ranking): Promise<Task[]> {
     if (ids.length === 0) return [];
+    const rank = ranking ?? (await loadRanking(tx, ctx.tenantId));
     const rows = await tx
       .select({
         task: s.tasks,
@@ -576,6 +657,8 @@ export class TasksService {
         projectName: s.projects.name,
         assigneeName: assignee.displayName,
         reporterName: reporter.displayName,
+        sourceName: sourceMember.displayName,
+        sourceTitle: sourceMember.title,
         subtaskTotal: sql<number>`(select count(*)::int from tasks st where st.parent_id = ${s.tasks.id} and st.deleted_at is null)`,
         subtaskDone: sql<number>`(select count(*)::int from tasks st where st.parent_id = ${s.tasks.id} and st.deleted_at is null and st.status_category = 'done')`,
         commentCount: sql<number>`(select count(*)::int from comments c where c.subject_type = 'task' and c.subject_id = ${s.tasks.id} and c.deleted_at is null)`,
@@ -585,6 +668,7 @@ export class TasksService {
       .leftJoin(s.projects, eq(s.projects.id, s.tasks.projectId))
       .leftJoin(assignee, eq(assignee.id, s.tasks.assigneeId))
       .innerJoin(reporter, eq(reporter.id, s.tasks.reporterId))
+      .leftJoin(sourceMember, eq(sourceMember.id, s.tasks.sourceMemberId))
       .where(inArray(s.tasks.id, ids));
     const collaborators = await tx
       .select({
@@ -642,6 +726,21 @@ export class TasksService {
           subtasks: { total: r.subtaskTotal, done: r.subtaskDone },
           commentCount: r.commentCount,
           keyResult: (r.task.keyResultId && keyResults.get(r.task.keyResultId)) || null,
+          source: r.task.source
+            ? {
+                kind: r.task.source,
+                by:
+                  r.task.sourceMemberId && r.sourceName
+                    ? {
+                        id: r.task.sourceMemberId,
+                        displayName: r.sourceName,
+                        title: r.sourceTitle,
+                      }
+                    : null,
+                ceo: r.task.sourceCeo,
+              }
+            : null,
+          rank: rankOf(r.task, rank),
           createdAt: r.task.createdAt.toISOString(),
           updatedAt: r.task.updatedAt.toISOString(),
           can: {
@@ -664,6 +763,9 @@ function taskEventPayload(task: TaskRow) {
     assigneeId: task.assigneeId,
     weight: task.weight,
     dueOn: task.dueOn,
+    // For gamification later: work assigned from above can weigh differently (ADR 0017).
+    source: task.source,
+    sourceCeo: task.sourceCeo,
   };
 }
 

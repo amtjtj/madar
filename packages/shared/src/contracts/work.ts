@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { RANK_REASONS, TASK_SOURCES } from '../task-priority.js';
+
 /** Core default workflow until department templates provide their own (ADR 0004). */
 export const STATUS_CATEGORIES = ['todo', 'in_progress', 'done', 'canceled'] as const;
 export type StatusCategory = (typeof STATUS_CATEGORIES)[number];
@@ -50,6 +52,17 @@ export const task = z.object({
   subtasks: z.object({ total: z.number().int(), done: z.number().int() }),
   commentCount: z.number().int(),
   keyResult: keyResultRef,
+  /** Where the task came from (ADR 0017); null until it first has an assignee. */
+  source: z
+    .object({
+      kind: z.enum(TASK_SOURCES),
+      by: personRef.extend({ title: z.string().nullable() }).nullable(),
+      /** Assigned by the CEO (no manager above, executive or owner role) at the time. */
+      ceo: z.boolean(),
+    })
+    .nullable(),
+  /** Automatic priority (company weights) and why, strongest reason first. */
+  rank: z.object({ score: z.number(), reasons: z.array(z.enum(RANK_REASONS)) }),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
   /** What the viewer may do (UI hints; the API enforces). */
@@ -124,6 +137,7 @@ export const listTasksQuery = z.object({
     .optional(),
   /** Include subtasks in the department view (dashboard counts include them). */
   subtasks: z.enum(['include']).optional(),
+  source: z.enum(TASK_SOURCES).optional(),
   limit: z.coerce.number().int().min(1).max(500).default(200),
 });
 export type ListTasksQuery = z.infer<typeof listTasksQuery>;
@@ -206,7 +220,10 @@ export type TodaySuggestionReason = (typeof TODAY_SUGGESTION_REASONS)[number];
 export const today = z.object({
   /** The tenant-local calendar day. */
   date: calendarDate,
+  /** In the member's own order where they set one; the rest placed by priority (ADR 0017). */
   items: z.array(task),
+  /** The member ordered today by hand (offer «automatic order»). */
+  ordered: z.boolean(),
   progress: z.object({ done: z.number().int(), total: z.number().int() }),
   suggestions: z.array(z.object({ reason: z.enum(TODAY_SUGGESTION_REASONS), task })),
 });
@@ -214,4 +231,7 @@ export type Today = z.infer<typeof today>;
 
 /** Replace today's plan with these tasks, in this order. */
 export const setTodayItemsRequest = z.object({ taskIds: z.array(z.uuid()).max(50) });
+/** A member's own order of «my tasks» (drag and drop). */
+export const setTaskOrderRequest = z.object({ taskIds: z.array(z.uuid()).max(500) });
+export type SetTaskOrderRequest = z.infer<typeof setTaskOrderRequest>;
 export type SetTodayItemsRequest = z.infer<typeof setTodayItemsRequest>;

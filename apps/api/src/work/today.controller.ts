@@ -23,6 +23,11 @@ export class TodayController {
     return this.today.set(ctx, body);
   }
 
+  @Post('auto-order')
+  autoOrder(@Tenant() ctx: TenantContext): Promise<Today> {
+    return this.today.autoOrder(ctx);
+  }
+
   @Post('items/:taskId')
   add(
     @Tenant() ctx: TenantContext,
