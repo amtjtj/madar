@@ -336,6 +336,7 @@ function SortableTask({
       priority={task.priority}
       source={task.source}
       progress={task.progress}
+      attachmentCount={task.attachmentCount}
       projectName={hideProject ? undefined : task.project?.name}
       subtasks={task.subtasks}
       commentCount={task.commentCount}

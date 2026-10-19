@@ -20,6 +20,8 @@ import {
   ProgressBar,
   Sidebar,
   Slider,
+  FileTile,
+  UploadProgress,
   SortableList,
   SourceBadge,
   type TaskSourceInfo,
@@ -382,6 +384,27 @@ export function SliderDemo({ today }: { today: string }) {
         dueOn={addDays(today, 2)}
         progress={value}
       />
+    </div>
+  );
+}
+
+/** Attached files and an upload on its way (ADR 0019). */
+export function FilesDemo() {
+  return (
+    <div className="flex max-w-xl flex-col gap-2">
+      <FileTile
+        fileName={t('designSystem.files.pdf')}
+        size={2_400_000}
+        kind="pdf"
+        meta={t('designSystem.files.meta')}
+      />
+      <FileTile
+        fileName={t('designSystem.files.sheet')}
+        size={84_000}
+        kind="document"
+        meta={t('designSystem.files.meta')}
+      />
+      <UploadProgress fileName={t('designSystem.files.image')} progress={0.6} onCancel={() => {}} />
     </div>
   );
 }

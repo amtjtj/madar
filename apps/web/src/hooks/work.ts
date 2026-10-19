@@ -465,14 +465,17 @@ export function useDeleteTask() {
 export function useAddComment(taskId: string) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (body: string) =>
-      api<Comment>(`/api/tasks/${taskId}/comments`, { method: 'POST', body: { body } }),
+    mutationFn: (input: { body: string; attachmentIds?: string[] }) =>
+      api<Comment>(`/api/tasks/${taskId}/comments`, { method: 'POST', body: input }),
     onSuccess: (comment) => {
       client.setQueryData<Comment[]>(workKeys.comments(taskId), (list) => [
         ...(list ?? []),
         comment,
       ]);
       void client.invalidateQueries({ queryKey: workKeys.task(taskId), exact: true });
+      if (comment.attachments.length) {
+        void client.invalidateQueries({ queryKey: ['task', taskId, 'attachments'] });
+      }
     },
   });
 }

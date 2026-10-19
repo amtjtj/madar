@@ -12,6 +12,7 @@ import {
   House,
   FileText,
   ListTodo,
+  Paperclip,
   LogOut,
   Network,
   ScrollText,
@@ -109,6 +110,12 @@ export function useOrgNavItems(): NavItem[] {
             label: t('priorityWeights.short'),
             href: '/org/priority',
             icon: <ArrowDownWideNarrow aria-hidden />,
+          },
+          {
+            key: '/org/files',
+            label: t('fileSettings.short'),
+            href: '/org/files',
+            icon: <Paperclip aria-hidden />,
           },
         ]
       : []),

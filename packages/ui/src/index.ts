@@ -27,6 +27,15 @@ export {
 } from './components/progress.js';
 export { Slider, type SliderProps } from './components/slider.js';
 export {
+  FileSize,
+  FileTile,
+  ImageThumb,
+  UploadProgress,
+  type FileTileProps,
+  type ImageThumbProps,
+  type UploadProgressProps,
+} from './components/file-tile.js';
+export {
   Avatar,
   AvatarGroup,
   type AvatarGroupProps,

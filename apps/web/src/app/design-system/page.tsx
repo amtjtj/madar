@@ -43,6 +43,7 @@ import {
   NavigationDemo,
   OrderingDemo,
   SliderDemo,
+  FilesDemo,
   WorkDemo,
 } from './interactive';
 import { Code, Panel, Section } from './section';
@@ -427,6 +428,12 @@ export default function DesignSystemPage() {
         <Section id="ordering" title={t('designSystem.sections.ordering')}>
           <Panel>
             <OrderingDemo today={calendarDateIn(new Date())} />
+          </Panel>
+        </Section>
+
+        <Section id="files" title={t('designSystem.sections.files')}>
+          <Panel>
+            <FilesDemo />
           </Panel>
         </Section>
 

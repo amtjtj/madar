@@ -12,6 +12,8 @@ const KNOWN_VERBS = [
   'collaborators_changed',
   'deleted',
   'progress',
+  'attachments_added',
+  'attachment_removed',
 ];
 // Fields with a `task.fields.*` name; an unknown field is skipped instead of breaking the page.
 const KNOWN_FIELDS = [
@@ -45,6 +47,16 @@ function describe(entry: Activity): string {
     return t('task.verbs.progress', {
       actor,
       value: typeof to === 'number' ? formatPercent(to / 100) : '',
+    });
+  }
+  if (entry.verb === 'attachments_added' || entry.verb === 'attachment_removed') {
+    const files = entry.changes?.files;
+    const names = (entry.verb === 'attachments_added' ? files?.to : files?.from) as unknown;
+    return t(`task.verbs.${entry.verb}`, {
+      actor,
+      files: Array.isArray(names)
+        ? names.map((n) => `«${String(n)}»`).join(t('ui.listSeparator'))
+        : '',
     });
   }
   return t(`task.verbs.${entry.verb}` as MessageKey, { actor });

@@ -266,6 +266,7 @@ function TodayPlan({ today }: { today: Today }) {
                   tag={task.keyResult ? <GoalTag keyResult={task.keyResult} /> : undefined}
                   source={task.source}
                   progress={task.progress}
+                  attachmentCount={task.attachmentCount}
                   reasons={isDraft(task) ? undefined : task.rank.reasons}
                   // No dragging while a new task is still being saved: the saved order would
                   // leave it out of the day.

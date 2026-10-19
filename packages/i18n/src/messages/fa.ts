@@ -9,6 +9,10 @@ export const fa = {
   },
   ui: {
     close: 'بستن',
+    fileSize: { b: '{value} بایت', kb: '{value} کیلوبایت', mb: '{value} مگابایت' },
+    uploading: 'در حال بارگذاری {name}',
+    cancelUpload: 'لغو بارگذاری {name}',
+    openImage: 'دیدن تصویر {name}',
     /** Between items of a short inline list («مدیر پشتیبانی، پشتیبانی»). */
     listSeparator: '، ',
     loading: 'در حال بارگذاری…',
@@ -371,6 +375,8 @@ export const fa = {
       collaborators_changed: '{actor} همکاران را تغییر داد',
       deleted: '{actor} کار را حذف کرد',
       progress: '{actor} پیشرفت را {value} ثبت کرد',
+      attachments_added: '{actor} فایل {files} را پیوست کرد',
+      attachment_removed: '{actor} فایل {files} را حذف کرد',
     },
     fields: {
       title: 'عنوان',
@@ -656,6 +662,16 @@ export const fa = {
     },
   },
   /** Company priority weights (ADR 0017), owner only. */
+  fileSettings: {
+    title: 'فایل‌ها',
+    short: 'فایل‌ها',
+    subtitle: 'سقف حجم فایل‌هایی که اعضا پیوست می‌کنند.',
+    maxSize: 'حداکثر حجم هر فایل (مگابایت)',
+    maxSizeHint: 'بین ۱ تا ۱۰۰؛ پیش‌فرض {size}',
+    invalid: 'عددی بین ۱ تا ۱۰۰ بنویس',
+    save: 'ذخیره',
+    saved: 'سقف حجم فایل ذخیره شد',
+  },
   priorityWeights: {
     title: 'اولویت‌بندی کارها',
     short: 'اولویت‌بندی',
@@ -1035,6 +1051,30 @@ export const fa = {
       },
     },
     progressLabel: 'پیشرفت',
+    /** Files on tasks and comments (ADR 0019). */
+    files: {
+      title: 'پیوست‌ها',
+      add: 'افزودن فایل',
+      attach: 'پیوست فایل',
+      drop: 'فایل را اینجا رها کن',
+      empty: 'هنوز فایلی پیوست نشده',
+      emptyHint: 'قرارداد، تصویر یا گزارش را اینجا بگذار تا همه کسانی که این کار را می‌بینند به آن دسترسی داشته باشند.',
+      limit: 'حداکثر {size} برای هر فایل؛ تصویر، PDF، Word، Excel، PowerPoint، متن، zip و صدا و ویدیو',
+      meta: '{name}، {time}',
+      download: 'دانلود {name}',
+      downloadShort: 'دانلود',
+      deleteShort: 'حذف فایل',
+      delete: 'حذف {name}',
+      deleteTitle: 'این فایل حذف شود؟',
+      deleteBody: '«{name}» برای همه کسانی که این کار را می‌بینند حذف می‌شود.',
+      deleted: 'فایل حذف شد',
+      attached: 'فایل پیوست شد',
+      tooLarge: '«{name}» بزرگ‌تر از {size} است.',
+      notAllowed: 'نوع فایل «{name}» پذیرفته نمی‌شود.',
+      remove: 'برداشتن {name}',
+      count: '{count} پیوست',
+      images: 'تصویرها',
+    },
     /** Recording progress on a task (ADR 0018). */
     progress: {
       title: 'پیشرفت',
@@ -1086,6 +1126,7 @@ export const fa = {
       work: 'کارها: تاریخ، کارت و برد',
       ordering: 'منبع کار و ترتیب دستی',
       slider: 'اسلایدر پیشرفت',
+      files: 'فایل و پیوست',
       locale: 'تاریخ شمسی و اعداد',
       themes: 'مقایسه دو پوسته',
     },
@@ -1103,6 +1144,12 @@ export const fa = {
       person1: 'آرش طاهری',
       person2: 'مریم احمدی',
       week: 'هفته {n}',
+    },
+    files: {
+      pdf: 'قرارداد همکاری.pdf',
+      sheet: 'گزارش فروش مهر.xlsx',
+      image: 'اسکرین‌شات خطا.png',
+      meta: 'علی رضایی، ۵ دقیقه پیش',
     },
     slider: {
       disabled: 'غیرفعال (خودکار از زیرکارها)',

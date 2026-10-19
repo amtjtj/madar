@@ -34,3 +34,18 @@ export function parseDecimal(input: string): number | undefined {
     .replace('٫', '.');
   return normalized === '' ? undefined : Number(normalized);
 }
+
+/**
+ * A file size in Persian digits with its unit key: «۲٫۴» + 'mb'. The unit's word comes from i18n
+ * (`ui.fileSize.*`), so this module stays free of UI text.
+ */
+export function fileSizeParts(bytes: number): { value: string; unit: 'b' | 'kb' | 'mb' } {
+  if (bytes < 1024) return { value: formatNumber(bytes), unit: 'b' };
+  if (bytes < 1024 * 1024) {
+    return { value: formatNumber(Math.max(1, Math.round(bytes / 1024))), unit: 'kb' };
+  }
+  return {
+    value: formatNumber(bytes / (1024 * 1024), { maximumFractionDigits: 1 }),
+    unit: 'mb',
+  };
+}

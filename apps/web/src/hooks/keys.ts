@@ -15,6 +15,12 @@ export const workKeys = {
   priorityWeights: ['settings', 'priority'] as const,
 };
 
+/** Attachments (ADR 0019). */
+export const fileKeys = {
+  task: (taskId: string) => ['task', taskId, 'attachments'] as const,
+  settings: ['settings', 'files'] as const,
+};
+
 export const notificationKeys = {
   all: ['notifications'] as const,
   list: ['notifications', 'list'] as const,

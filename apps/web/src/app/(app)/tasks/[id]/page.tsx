@@ -19,6 +19,7 @@ import {
 import { useState } from 'react';
 
 import { ActivityList } from '@/components/work/activity-list';
+import { TaskAttachments } from '@/components/work/attachments';
 import { CommentThread } from '@/components/work/comment-thread';
 import { Subtasks } from '@/components/work/subtasks';
 import { TaskFields } from '@/components/work/task-fields';
@@ -93,6 +94,7 @@ export default function TaskPage() {
         </div>
         <div className="flex min-w-0 flex-col gap-6 lg:col-start-1 lg:row-start-2">
           <DescriptionEditor task={task} />
+          <TaskAttachments taskId={task.id} />
           {!task.parentId && <Subtasks task={task} />}
           <CommentThread taskId={task.id} />
           <ActivityList taskId={task.id} />

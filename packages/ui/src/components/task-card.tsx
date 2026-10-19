@@ -9,7 +9,14 @@ import {
   type RankReason,
   type TaskPriority,
 } from '@madar/shared';
-import { CalendarDays, Flag, FolderKanban, ListChecks, MessageCircle } from 'lucide-react';
+import {
+  CalendarDays,
+  Flag,
+  FolderKanban,
+  ListChecks,
+  MessageCircle,
+  Paperclip,
+} from 'lucide-react';
 import type { HTMLAttributes, ReactNode, Ref } from 'react';
 
 import { cn } from '../lib/cn.js';
@@ -52,6 +59,8 @@ export interface TaskCardProps extends Omit<HTMLAttributes<HTMLDivElement>, 'tit
   dragging?: boolean;
   /** Recorded progress, 0..100; a thin bar shows while it is between 0 and 100 (ADR 0018). */
   progress?: number;
+  /** Files on the task and its comments (ADR 0019). */
+  attachmentCount?: number;
   compact?: boolean;
   className?: string;
   ref?: Ref<HTMLDivElement>;
@@ -78,6 +87,7 @@ export function TaskCard({
   dragHandle,
   dragging,
   progress,
+  attachmentCount,
   compact,
   className,
   ref,
@@ -153,6 +163,12 @@ export function TaskCard({
             <span className="inline-flex items-center gap-1 [&_svg]:size-3.5">
               <MessageCircle aria-hidden />
               {t('work.comments', { count: formatNumber(commentCount) })}
+            </span>
+          ) : null}
+          {attachmentCount ? (
+            <span className="inline-flex items-center gap-1 [&_svg]:size-3.5">
+              <Paperclip aria-hidden />
+              {t('work.files.count', { count: formatNumber(attachmentCount) })}
             </span>
           ) : null}
           {reasons && !done ? <RankHint reasons={reasons} /> : null}

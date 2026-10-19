@@ -1,11 +1,14 @@
 'use client';
 
-import { Pencil, Send, Trash2 } from 'lucide-react';
+import { Pencil, Send, Trash2, X } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 
 import { t } from '@madar/i18n';
-import { formatRelativeTime, type Comment } from '@madar/shared';
-import { Avatar, Button, Skeleton, TextAreaField, useToast } from '@madar/ui';
+import { formatRelativeTime, type Comment, type Upload } from '@madar/shared';
+import { Avatar, Button, FileTile, Skeleton, TextAreaField, useToast } from '@madar/ui';
+
+import { AttachmentList, FilePicker, PendingList } from '@/components/work/attachments';
+import { useUploads } from '@/hooks/files';
 
 import { useAddComment, useComments, useEditComment } from '@/hooks/work';
 import { errorMessage } from '@/lib/errors';
@@ -15,15 +18,25 @@ export function CommentThread({ taskId }: { taskId: string }) {
   const add = useAddComment(taskId);
   const { toast } = useToast();
   const [body, setBody] = useState('');
+  // Files picked for this comment, uploaded already; sent with it (ADR 0019).
+  const [files, setFiles] = useState<Upload[]>([]);
+  const uploads = useUploads();
+  const uploading = uploads.pending.length > 0;
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const value = body.trim();
-    if (!value) return;
-    add.mutate(value, {
-      onSuccess: () => setBody(''),
-      onError: (error) => toast({ tone: 'error', title: errorMessage(error) }),
-    });
+    if (!value || uploading) return;
+    add.mutate(
+      { body: value, ...(files.length ? { attachmentIds: files.map((f) => f.id) } : {}) },
+      {
+        onSuccess: () => {
+          setBody('');
+          setFiles([]);
+        },
+        onError: (error) => toast({ tone: 'error', title: errorMessage(error) }),
+      },
+    );
   };
 
   return (
@@ -56,16 +69,48 @@ export function CommentThread({ taskId }: { taskId: string }) {
               e.currentTarget.form?.requestSubmit();
           }}
         />
-        <Button
-          type="submit"
-          size="sm"
-          className="self-end"
-          disabled={!body.trim()}
-          loading={add.isPending}
-          icon={<Send aria-hidden className="-scale-x-100" />}
-        >
-          {t('task.send')}
-        </Button>
+        <PendingList pending={uploads.pending} onCancel={uploads.cancel} />
+        {files.length > 0 && (
+          <ul className="flex flex-col gap-2">
+            {files.map((f) => (
+              <li key={f.id}>
+                <FileTile
+                  fileName={f.fileName}
+                  size={f.size}
+                  kind={f.kind}
+                  actions={
+                    <button
+                      type="button"
+                      aria-label={t('work.files.remove', { name: f.fileName })}
+                      onClick={() => setFiles((list) => list.filter((x) => x.id !== f.id))}
+                      className="grid size-9 shrink-0 place-items-center rounded-full text-ink-subtle hover:bg-sunken hover:text-ink [&_svg]:size-4"
+                    >
+                      <X aria-hidden />
+                    </button>
+                  }
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="flex items-center justify-between gap-2">
+          <FilePicker
+            label={t('work.files.attach')}
+            iconOnly
+            onFiles={(picked) =>
+              void uploads.upload(picked).then((done) => setFiles((list) => [...list, ...done]))
+            }
+          />
+          <Button
+            type="submit"
+            size="sm"
+            disabled={!body.trim() || uploading}
+            loading={add.isPending}
+            icon={<Send aria-hidden className="-scale-x-100" />}
+          >
+            {t('task.send')}
+          </Button>
+        </div>
       </form>
     </section>
   );
@@ -148,7 +193,12 @@ function CommentItem({ comment, taskId }: { comment: Comment; taskId: string }) 
             </div>
           </div>
         ) : (
-          <p className="whitespace-pre-line break-words leading-7 text-ink">{comment.body}</p>
+          <>
+            <p className="whitespace-pre-line break-words leading-7 text-ink">{comment.body}</p>
+            {comment.attachments.length > 0 && (
+              <AttachmentList taskId={taskId} attachments={comment.attachments} compact />
+            )}
+          </>
         )}
       </div>
     </li>
