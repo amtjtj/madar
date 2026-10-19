@@ -22,3 +22,4 @@ Template: Status · Date · Context · Decision · Alternatives considered · Co
 | 0014 | Role homes, dashboards and charts | Accepted |
 | 0015 | Weekly reports and PDF export | Accepted |
 | 0016 | Production deployment on an Iranian cloud server | Accepted |
+| 0017 | Task source, automatic priority and personal order | Accepted |

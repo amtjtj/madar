@@ -11,6 +11,7 @@ Implementation rules for the NestJS API and the Drizzle schema. The root `CLAUDE
 - Work visibility (who sees which task/project) lives in `apps/api/src/work/access.ts` as SQL conditions; reuse them, never filter in memory (ADR 0010). Goal visibility and edit rules live in `apps/api/src/goals/access.ts` (ADR 0013).
 - Dashboard counts and the list filters they link to share their SQL (`apps/api/src/dashboard/conditions.ts`, `at-risk.ts`); change both together (ADR 0014).
 - Weekly reports (ADR 0015) are built by one function, `apps/api/src/reports/builder.ts`, for both the live week and stored snapshots. Snapshots are a shared view: never add private-project work, individual goals or per-person counts to them. `weekly_reports` is append-only.
+- Task source (ADR 0017) is set once, by `sourceFor()` in `apps/api/src/work/ranking.ts`, when a task first gets an assignee; never update it afterwards. The priority score is computed on read (`loadRanking` + `rankOf`), never stored. Personal orders (`daily_plan_items.sort_key`, `member_task_order`) are merged with `mergeManualOrder` from `@madar/shared`; the board keeps the shared `tasks.sort_key`.
 - Goal progress is computed, never written by hand: after any change to key results, check-ins or the goal tree, call `recomputeGoalChain()` in the same transaction.
 
 ## Events, worker and realtime (ADR 0011)
