@@ -6,12 +6,18 @@ import 'reflect-metadata';
 
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { schema as s, withTenant, type DbHandle } from '@madar/db';
+import { createHash } from 'node:crypto';
+import { writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { schema as s, uuidv7, withTenant, type DbHandle } from '@madar/db';
 import {
   addDays,
   calendarDateIn,
   calendarDateOfJalali,
   DEFAULT_WORK_CALENDAR,
+  fileTypeFor,
   weekStartOf,
   weeklyReport,
   zonedInstant,
@@ -21,6 +27,8 @@ import { eq } from 'drizzle-orm';
 
 import { AppModule } from '../app.module.js';
 import { AccountsService } from '../auth/accounts.service.js';
+import { AttachmentsService } from '../files/attachments.service.js';
+import { FILE_STORAGE, objectKeyFor, type FileStorage } from '../files/storage.js';
 import { TenantContextService } from '../auth/tenant-context.service.js';
 import type { TenantContext } from '../common/context.js';
 import { ENV } from '../config/config.module.js';
@@ -37,6 +45,7 @@ import { ProjectsService } from '../work/projects.service.js';
 import { TasksService } from '../work/tasks.service.js';
 import { TodayService } from '../work/today.service.js';
 import { SEED_COMPANY, SEED_DEPARTMENTS, SEED_PEOPLE } from './seed-data.js';
+import { samplePdf, samplePng } from './seed-files.js';
 import { SEED_GOALS, SEED_PROJECT_LINKS, SEED_TASK_LINKS } from './seed-goals.js';
 import { SEED_HISTORY, SEED_PROJECTS, SEED_TASKS } from './seed-work.js';
 
@@ -340,6 +349,53 @@ async function main(): Promise<void> {
         });
       }
     }
+    // Files (ADR 0019): a PDF and a chart image on the CEO's report, a screenshot in a comment.
+    const storage = app.get<FileStorage>(FILE_STORAGE);
+    const attachments = app.get(AttachmentsService);
+    const stage = async (by: string, fileName: string, bytes: Buffer) => {
+      const type = fileTypeFor(fileName, bytes);
+      if (!type) throw new Error(`seed file ${fileName} is not allowed`);
+      const id = uuidv7();
+      const objectKey = objectKeyFor(tenantId, id);
+      const temp = join(tmpdir(), `madar-seed-${id}`);
+      await writeFile(temp, bytes);
+      await storage.put(objectKey, temp, bytes.length, type.mime);
+      await withTenant(handle.db, { tenantId }, (tx) =>
+        tx.insert(s.attachments).values({
+          id,
+          uploadedBy: idOf(by),
+          fileName,
+          extension: type.extension,
+          mime: type.mime,
+          size: bytes.length,
+          checksum: createHash('sha256').update(bytes).digest('hex'),
+          objectKey,
+        }),
+      );
+      return id;
+    };
+    const report = taskRefs.get('گزارش رضایت مشتریان برای جلسه هیئت‌مدیره');
+    if (report) {
+      const ids = [
+        await stage(
+          'ali.rezaei',
+          'پیش‌نویس گزارش رضایت.pdf',
+          samplePdf('Customer satisfaction - draft'),
+        ),
+        await stage('ali.rezaei', 'نمودار رضایت مهر.png', samplePng()),
+      ];
+      await attachments.attachToTask(await as('ali.rezaei'), report.id, ids);
+      report.version = (await tasks.get(await as('ali.rezaei'), report.id)).version;
+    }
+    const queue = taskRefs.get('پاسخ به تیکت‌های معوق صف طلا');
+    if (queue) {
+      const screenshot = await stage('ali.rezaei', 'اسکرین‌شات صف.png', samplePng(240, 160));
+      await tasks.addComment(await as('ali.rezaei'), queue.id, {
+        body: 'وضعیت صف بعد از پاسخ‌های امروز.',
+        attachmentIds: [screenshot],
+      });
+    }
+
     for (const [title, krKey] of Object.entries(SEED_TASK_LINKS)) {
       const task = taskRefs.get(title);
       const keyResultId = krIds.get(krKey);
