@@ -16,10 +16,14 @@ export function notificationText(n: Notification): string {
   if (n.kind === 'project_member_added' && n.data.role === 'observer') {
     return t('notifications.kinds.project_observer_added', { actor, title: n.title });
   }
+  if ((n.kind === 'letter_received' || n.kind === 'letter_referred') && n.data.confidential) {
+    return t(`notifications.kinds.${n.kind}_confidential`, { actor });
+  }
   return t(`notifications.kinds.${n.kind}`, { actor, title: n.title, date });
 }
 
 export function notificationHref(n: Notification): string {
+  if (n.subjectType === 'letter') return `/letters/${n.subjectId}`;
   if (n.subjectType === 'goal') return `/goals/${n.subjectId}`;
   if (n.subjectType === 'report') {
     const params = new URLSearchParams({ scope: String(n.data.scope ?? 'company') });

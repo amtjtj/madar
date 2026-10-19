@@ -12,4 +12,6 @@ export const REALTIME_EVENTS = {
   todayChanged: 'today.changed',
   /** The member got a new notification. */
   notificationsChanged: 'notifications.changed',
+  /** A letter reached, or changed for, the member (ADR 0020). */
+  lettersChanged: 'letters.changed',
 } as const;
