@@ -58,6 +58,8 @@ S3_REGION=us-east-1
 S3_BUCKET=
 S3_ACCESS_KEY=
 S3_SECRET_KEY=
+# Most Iranian S3 services and MinIO want path-style addresses.
+S3_FORCE_PATH_STYLE=true
 
 # Backups: nightly time (Tehran) and how many to keep; optional S3-compatible copy.
 BACKUP_AT=03:30

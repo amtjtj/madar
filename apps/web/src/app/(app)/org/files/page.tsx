@@ -35,7 +35,8 @@ function SettingsForm({ initial }: { initial: number }) {
   const [value, setValue] = useState(String(initial));
   const save = useSaveFileSettings();
   const { toast } = useToast();
-  const number = Number.parseInt(toLatinDigits(value), 10);
+  const digits = toLatinDigits(value).trim();
+  const number = /^\d+$/.test(digits) ? Number(digits) : NaN;
   const valid = Number.isInteger(number) && number >= 1 && number <= 100;
   return (
     <Card className="max-w-lg">

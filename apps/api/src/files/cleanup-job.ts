@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { listActiveTenants, schema as s, withTenant, type DbHandle } from '@madar/db';
-import { and, eq, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 
 import { DB_HANDLE } from '../database/tokens.js';
 import { FILE_STORAGE, type FileStorage } from './storage.js';
@@ -33,34 +33,43 @@ export class FilesCleanupJob {
     }
   }
 
-  /** Returns how many files were removed from storage. */
-  runForTenant(tenantId: string, now = new Date()): Promise<number> {
-    return withTenant(this.handle.db, { tenantId }, async (tx) => {
-      const abandonedBefore = new Date(now.getTime() - ABANDONED_AFTER_MS);
-      const rows = await tx
-        .select({ id: s.attachments.id, objectKey: s.attachments.objectKey })
-        .from(s.attachments)
+  /**
+   * Returns how many files were removed from storage. Rows are claimed with one conditional
+   * UPDATE (a file attached meanwhile no longer matches), and the bytes go only after that commits.
+   */
+  async runForTenant(tenantId: string, now = new Date()): Promise<number> {
+    const abandonedBefore = new Date(now.getTime() - ABANDONED_AFTER_MS);
+    const claimed = await withTenant(this.handle.db, { tenantId }, (tx) =>
+      tx
+        .update(s.attachments)
+        .set({ purgedAt: now, deletedAt: sql`coalesce(${s.attachments.deletedAt}, ${now})` })
         .where(
-          and(
-            isNull(s.attachments.purgedAt),
-            or(
-              isNotNull(s.attachments.deletedAt),
-              and(
-                eq(s.attachments.status, 'pending'),
-                lt(s.attachments.createdAt, abandonedBefore),
-              ),
-            ),
-          ),
+          sql`${s.attachments.id} in (
+            select a.id from attachments a
+            where a.purged_at is null and (
+              a.deleted_at is not null
+              or (a.status = 'pending' and a.created_at < ${abandonedBefore})
+              -- The comment or task it belongs to was deleted: nobody can reach it any more.
+              or (a.subject_type = 'comment' and exists (
+                select 1 from comments c where c.id = a.subject_id and c.deleted_at is not null))
+              or (a.subject_type = 'task' and exists (
+                select 1 from tasks t where t.id = a.subject_id and t.deleted_at is not null))
+              or (a.subject_type = 'comment' and exists (
+                select 1 from comments c join tasks t on t.id = c.subject_id
+                where c.id = a.subject_id and c.subject_type = 'task' and t.deleted_at is not null))
+            )
+            order by a.created_at
+            limit ${BATCH}
+            for update skip locked
+          )`,
         )
-        .limit(BATCH);
-      for (const row of rows) {
-        await this.storage.delete(row.objectKey);
-        await tx
-          .update(s.attachments)
-          .set({ purgedAt: now, deletedAt: sql`coalesce(${s.attachments.deletedAt}, ${now})` })
-          .where(eq(s.attachments.id, row.id));
-      }
-      return rows.length;
-    });
+        .returning({ objectKey: s.attachments.objectKey }),
+    );
+    for (const row of claimed) {
+      await this.storage.delete(row.objectKey).catch((error: unknown) => {
+        this.logger.error(`could not remove ${row.objectKey}: ${String(error)}`);
+      });
+    }
+    return claimed.length;
   }
 }

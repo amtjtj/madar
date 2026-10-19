@@ -28,13 +28,16 @@ Phase 2, step 11 (`docs/plans/phase-2-step-11.md`), from the team review (`docs/
   - `GET /api/attachments/:id/file` checks, on every request, that the person can see the task the file belongs to, directly or through a live comment.
   - The response headers are:
     - `Content-Type` from our allowlist, never from the uploader's browser;
-    - `X-Content-Type-Options: nosniff` and a `sandbox` CSP;
+    - `X-Content-Type-Options: nosniff`, and a `sandbox` CSP on everything except an inline PDF (browsers refuse to show a PDF in a sandboxed document, so it gets `default-src 'none'; frame-ancestors 'none'` and runs in the browser's isolated viewer);
     - `Content-Disposition` with a UTF-8 name, `inline` only for images and PDF (with `?inline=1`);
-    - `Cache-Control: private`.
+    - `Cache-Control: private, no-cache`, so a deleted file is not shown from the cache.
   - This replaces the signed URLs of ADR 0006. The request stays on the same origin, so CSP and Caddy are unchanged, the storage is never exposed, and no URL can leak. Signed redirects can come back later if traffic needs them.
 - **Deletion and cleanup.**
   - The uploader, or anyone who may edit the task, deletes a file. It is a soft delete, audited as `attachment.deleted`, with a line in the task history.
-  - The worker's 15-minute job removes deleted files and uploads left unattached for 24 hours from storage. It marks the row `purged_at` and keeps it for the trail.
+  - The worker's 15-minute job removes from storage: deleted files, uploads left unattached for 24 hours, and files whose comment or task was deleted.
+    - It claims rows with one conditional `UPDATE … FOR UPDATE SKIP LOCKED`, so a file attached meanwhile is never taken.
+    - It removes the bytes only after that commits.
+    - It marks the row `purged_at` and keeps it for the trail.
 - **Backups.**
   - `backup.sh` archives the volume's `tenants/` folder next to each dump (`<name>.files.tar.gz`). The restore check reads the archive back, and pruning removes a dump and its archive together.
   - `restore.sh` writes the files back and keeps the previous ones in `.before_restore`.
@@ -42,6 +45,11 @@ Phase 2, step 11 (`docs/plans/phase-2-step-11.md`), from the team review (`docs/
 - **Limits.**
   - Caddy caps `/api/uploads` at 110 MB and the rest of `/api` at 2 MB.
   - The API allows 60 uploads a minute per member, in memory, for a single API instance.
+  - A member may hold at most 1 GB of unattached uploads.
+- **Upload robustness.**
+  - Every way an upload ends closes the temp file and settles the request once: finished, too large, bad body, or the client gone (the «لغو» button, a dropped connection).
+  - A failed upload removes its temp file.
+  - In production, temp files sit on the files volume (`UPLOAD_TMP_DIR`), so the move into storage is a rename. The folder is emptied when the API starts.
 
 ## Alternatives considered
 - **S3/MinIO from day one:** another service on the pilot server, with no gain for one company on one machine. The driver is ready for when files outgrow the disk.

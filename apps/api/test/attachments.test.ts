@@ -1,9 +1,16 @@
+import { mkdtempSync, readdirSync } from 'node:fs';
+import { request as httpRequest, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { schema as s, withTenant, type DbHandle } from '@madar/db';
 import type { Attachment, Comment, Task, Upload } from '@madar/shared';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import type { Env } from '../src/config/env.js';
 import { DB_HANDLE } from '../src/database/tokens.js';
 import { FilesCleanupJob } from '../src/files/cleanup-job.js';
 import { FILE_STORAGE, type FileStorage } from '../src/files/storage.js';
@@ -20,10 +27,13 @@ const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0
 
 describe.skipIf(!hasDatabase)('attachments', () => {
   let app: NestExpressApplication;
+  let env: Env;
   let owner: Client;
   let lead: Person;
   let ali: Person;
   let marketer: Person;
+  let colleague: Person;
+  let tempDir: string;
   let other: Client;
   let task: Task;
 
@@ -34,7 +44,8 @@ describe.skipIf(!hasDatabase)('attachments', () => {
   };
 
   beforeAll(async () => {
-    let env;
+    tempDir = mkdtempSync(join(tmpdir(), 'madar-test-uploads-'));
+    process.env.UPLOAD_TMP_DIR = tempDir;
     ({ app, env } = await createTestApp());
     owner = (await ownerSession(app, env)).c;
     const support = (await owner.post('/api/departments', { name: 'پشتیبانی' })).body;
@@ -45,6 +56,7 @@ describe.skipIf(!hasDatabase)('attachments', () => {
     lead = await memberSession(app, env, owner, { departments: dept(support.id, 'manager') });
     ali = await memberSession(app, env, owner, { departments: dept(support.id) });
     marketer = await memberSession(app, env, owner, { departments: dept(marketing.id) });
+    colleague = await memberSession(app, env, owner, { departments: dept(support.id) });
     other = (await ownerSession(app, env)).c;
     task = (await lead.c.post('/api/tasks', { title: 'پیگیری قرارداد', assigneeId: ali.memberId }))
       .body;
@@ -69,7 +81,14 @@ describe.skipIf(!hasDatabase)('attachments', () => {
     expect(res.headers['content-type']).toBe('application/pdf');
     expect(res.headers['content-disposition']).toMatch(/^inline; .*filename\*=UTF-8''/);
     expect(res.headers['x-content-type-options']).toBe('nosniff');
-    expect(res.headers['content-security-policy']).toMatch(/sandbox/);
+    // An inline PDF opens in the browser's viewer, which refuses sandboxed documents.
+    expect(res.headers['content-security-policy']).toBe(
+      "default-src 'none'; frame-ancestors 'none'",
+    );
+    const saved = await lead.c.download(`/api/attachments/${file.id}/file`);
+    expect(saved.headers['content-disposition']).toMatch(/^attachment; /);
+    expect(saved.headers['content-security-policy']).toMatch(/^sandbox; default-src 'none'/);
+    expect(saved.headers['cache-control']).toBe('private, no-cache');
     expect(Buffer.compare(res.body as Buffer, PDF)).toBe(0);
 
     expect(((await lead.c.get(`/api/tasks/${task.id}`)).body as Task).attachmentCount).toBe(1);
@@ -142,8 +161,10 @@ describe.skipIf(!hasDatabase)('attachments', () => {
     const another = await upload(lead.c, PNG, 'manager.png');
     await lead.c.post(`/api/tasks/${task.id}/attachments`, { uploadIds: [another.id] });
 
-    // A colleague who sees the task but did not upload the file and cannot edit the task.
+    // Someone who cannot see the task gets nothing; a colleague who sees it but did not upload
+    // the file and cannot edit the task is refused.
     expect((await marketer.c.delete(`/api/attachments/${file.id}`)).status).toBe(404);
+    expect((await colleague.c.delete(`/api/attachments/${file.id}`)).status).toBe(403);
     expect((await lead.c.delete(`/api/attachments/${file.id}`)).status).toBe(204);
     expect((await ali.c.get(`/api/attachments/${file.id}/file`)).status).toBe(404);
     const audit = (await owner.get('/api/audit-logs')).body as Array<{ action: string }>;
@@ -166,6 +187,14 @@ describe.skipIf(!hasDatabase)('attachments', () => {
     const fresh = await upload(ali.c, PNG, 'تازه.png');
     const kept = await upload(ali.c, PDF, 'ماندگار.pdf');
     await ali.c.post(`/api/tasks/${task.id}/attachments`, { uploadIds: [kept.id] });
+    const onComment = await upload(ali.c, PNG, 'روی-نظر.png');
+    const comment = (
+      await ali.c.post(`/api/tasks/${task.id}/comments`, {
+        body: 'نظری که حذف می‌شود',
+        attachmentIds: [onComment.id],
+      })
+    ).body as Comment;
+    await ali.c.delete(`/api/comments/${comment.id}`);
     const removed = await upload(ali.c, PDF, 'حذفی.pdf');
     await ali.c.post(`/api/tasks/${task.id}/attachments`, { uploadIds: [removed.id] });
     await ali.c.delete(`/api/attachments/${removed.id}`);
@@ -176,8 +205,9 @@ describe.skipIf(!hasDatabase)('attachments', () => {
         .where(eq(s.attachments.id, abandoned.id)),
     );
 
-    expect(await job.runForTenant(tenantId)).toBeGreaterThanOrEqual(2);
-    for (const id of [abandoned.id, removed.id]) {
+    expect(await job.runForTenant(tenantId)).toBeGreaterThanOrEqual(3);
+    // Files of a deleted comment go too: nobody can reach them any more.
+    for (const id of [abandoned.id, removed.id, onComment.id]) {
       const row = await keyOf(id);
       expect(row?.purgedAt).not.toBeNull();
       expect(await storage.exists(row?.objectKey ?? '')).toBe(false);
@@ -187,6 +217,38 @@ describe.skipIf(!hasDatabase)('attachments', () => {
       expect(row?.purgedAt).toBeNull();
       expect(await storage.exists(row?.objectKey ?? '')).toBe(true);
     }
+  });
+
+  it('leaves no temp file when the browser cancels an upload half way', async () => {
+    const server = app.getHttpServer() as Server;
+    if (!server.listening) await new Promise<void>((done) => server.listen(0, done));
+    const { port } = server.address() as AddressInfo;
+    const cookie = await ali.c.cookie();
+    const boundary = 'madarboundary';
+    await new Promise<void>((done) => {
+      const req = httpRequest({
+        host: '127.0.0.1',
+        port,
+        method: 'POST',
+        path: '/api/uploads',
+        headers: {
+          cookie,
+          origin: env.AUTH_BASE_URL,
+          'content-type': `multipart/form-data; boundary=${boundary}`,
+          'content-length': String(10 * 1024 * 1024),
+        },
+      });
+      req.on('error', () => done());
+      req.write(
+        `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="big.pdf"\r\nContent-Type: application/pdf\r\n\r\n`,
+      );
+      req.write(Buffer.concat([PDF, Buffer.alloc(256 * 1024, 0x20)]));
+      setTimeout(() => {
+        req.destroy();
+        done();
+      }, 300);
+    });
+    await expect.poll(() => readdirSync(tempDir).length, { timeout: 5_000 }).toBe(0);
   });
 
   it('keeps companies apart', async () => {
@@ -200,5 +262,13 @@ describe.skipIf(!hasDatabase)('attachments', () => {
     expect(
       (await other.post(`/api/tasks/${task.id}/attachments`, { uploadIds: [theirs.id] })).status,
     ).toBe(404);
+  });
+
+  it('limits how many files one person sends a minute', async () => {
+    let last = 201;
+    for (let i = 0; i < 61 && last !== 429; i++) {
+      last = (await colleague.c.upload('/api/uploads', PNG, `n${i}.png`)).status;
+    }
+    expect(last).toBe(429);
   });
 });

@@ -80,6 +80,20 @@ export function client(app: NestExpressApplication, env: Env) {
         .set('Origin', origin)
         .send(body ?? {}),
     delete: (url: string) => agent.delete(url).set('Origin', origin),
+    /** The session cookie, for raw HTTP requests in tests. */
+    cookie: async () => {
+      const res = await agent.get('/api/me').set('Origin', origin);
+      const jar = (
+        agent as unknown as {
+          jar: { getCookies: (o: object) => Array<{ toValueString: () => string }> };
+        }
+      ).jar;
+      void res;
+      return jar
+        .getCookies({ domain: '127.0.0.1', path: '/', secure: false, script: false })
+        .map((c) => c.toValueString())
+        .join('; ');
+    },
     /** A multipart upload of one file (ADR 0019). */
     upload: (url: string, content: Buffer | string, fileName: string) =>
       agent

@@ -46,9 +46,12 @@ archive_files() { # dump file
     && mv "$(files_of "$1").partial" "$(files_of "$1")"
 }
 
-check_files() { # dump file -> "true"/"false"; no archive (no files yet) is fine
+check_files() { # dump file -> "true"/"false"; no archive is fine only while there are no files
   archive=$(files_of "$1")
-  [ -f "$archive" ] || { echo true; return; }
+  if [ ! -f "$archive" ]; then
+    if [ -d "$FILES/tenants" ]; then echo false; else echo true; fi
+    return
+  fi
   if tar -tzf "$archive" >/dev/null 2>&1; then echo true; else echo false; fi
 }
 
@@ -105,10 +108,15 @@ backup() { # set: daily | manual
   file="$set_dir/madar_$(date +%Y-%m-%d_%H%M).dump"
   pg_dump -Fc -f "$file.partial" || { rm -f "$file.partial"; log "ERROR pg_dump failed"; return 1; }
   mv "$file.partial" "$file"
+  # Without its attachments archive the backup is incomplete: the check below then fails it.
   archive_files "$file" || { log "ERROR attachments archive failed"; rm -f "$(files_of "$file").partial"; }
   log "backup written: $1/$(basename "$file") ($(wc -c < "$file") bytes)"
   # A dump that does not restore is kept aside and never replaces a good one.
-  check "$file" || { mv "$file" "$file.failed"; return 1; }
+  check "$file" || {
+    mv "$file" "$file.failed"
+    if [ -f "$(files_of "$file")" ]; then mv "$(files_of "$file")" "$(files_of "$file").failed"; fi
+    return 1
+  }
   if [ "$1" = daily ]; then
     # Fridays also go to the weekly set.
     if [ "$(date +%u)" = 5 ]; then

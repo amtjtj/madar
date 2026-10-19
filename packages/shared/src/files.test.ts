@@ -41,6 +41,7 @@ describe('sanitizeFileName', () => {
     expect(sanitizeFileName('../../etc/passwd')).toBe('passwd');
     expect(sanitizeFileName('C:\\Users\\ali\\قرارداد  نهایی.pdf')).toBe('قرارداد نهایی.pdf');
     expect(sanitizeFileName('a\u202Efdp.exe')).toBe('afdp.exe');
+    expect(sanitizeFileName('\u2067report\u2069\u061C.pdf')).toBe('report.pdf');
     expect(sanitizeFileName('...')).toBe('file');
     const long = sanitizeFileName(`${'ا'.repeat(300)}.xlsx`);
     expect(long.length).toBe(200);

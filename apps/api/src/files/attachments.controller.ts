@@ -88,11 +88,16 @@ export class AttachmentsController {
     res.setHeader('Content-Length', String(row.size));
     res.setHeader('Content-Disposition', contentDisposition(disposition, row.fileName));
     res.setHeader('X-Content-Type-Options', 'nosniff');
+    // Browsers refuse to show a PDF in a sandboxed document, so an inline PDF gets a strict
+    // policy without `sandbox` (the PDF viewer runs isolated); everything else is sandboxed.
     res.setHeader(
       'Content-Security-Policy',
-      "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'",
+      disposition === 'inline' && row.extension === 'pdf'
+        ? "default-src 'none'; frame-ancestors 'none'"
+        : "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; frame-ancestors 'none'",
     );
-    res.setHeader('Cache-Control', 'private, max-age=300');
+    // Revalidated every time: a deleted file must not stay viewable from the cache.
+    res.setHeader('Cache-Control', 'private, no-cache');
     await pipeline(stream, res).catch(() => res.destroy());
   }
 

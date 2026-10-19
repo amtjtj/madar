@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
+import type { WriteStream } from 'node:fs';
 import { mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Readable } from 'node:stream';
 
-import { HttpStatus, Inject, Injectable } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable, type OnModuleInit } from '@nestjs/common';
 import { emitEvent, recordActivity, schema as s, uuidv7, type Tx } from '@madar/db';
 import {
   DEFAULT_FILE_SETTINGS,
@@ -30,6 +31,13 @@ import { FILE_STORAGE, objectKeyFor, writeStream, type FileStorage } from './sto
 
 /** Uploads per member per minute (plan phase-2-step-11 §2). */
 const UPLOADS_PER_MINUTE = 60;
+/** Unattached uploads a member may hold at once. */
+const MAX_PENDING_BYTES = 1024 * 1024 * 1024;
+
+/** Temp files for uploads in progress: next to the storage when it is on disk (same file system). */
+export function uploadTempDir(): string {
+  return process.env.UPLOAD_TMP_DIR || join(tmpdir(), 'madar-uploads');
+}
 
 export async function loadFileSettings(tx: Tx, tenantId: string): Promise<FileSettings> {
   const [tenant] = await tx
@@ -54,7 +62,7 @@ interface Received {
  * same visibility check as the task they belong to.
  */
 @Injectable()
-export class AttachmentsService {
+export class AttachmentsService implements OnModuleInit {
   private readonly recent = new Map<string, number[]>();
 
   constructor(
@@ -63,9 +71,37 @@ export class AttachmentsService {
     @Inject(FILE_STORAGE) private readonly storage: FileStorage,
   ) {}
 
+  /** Uploads cut off by a restart leave temp files; nothing else uses that folder. */
+  async onModuleInit(): Promise<void> {
+    await rm(uploadTempDir(), { recursive: true, force: true });
+  }
+
   async upload(ctx: TenantContext, req: Request): Promise<Upload> {
     this.limitRate(ctx);
-    const { maxSizeMb } = await this.db.run(ctx, (tx) => loadFileSettings(tx, ctx.tenantId));
+    const { maxSizeMb, pendingBytes } = await this.db.run(ctx, async (tx) => {
+      const [pending] = await tx
+        .select({ bytes: sql<number>`coalesce(sum(${s.attachments.size}), 0)::bigint` })
+        .from(s.attachments)
+        .where(
+          and(
+            eq(s.attachments.uploadedBy, ctx.memberId),
+            eq(s.attachments.status, 'pending'),
+            isNull(s.attachments.deletedAt),
+          ),
+        );
+      return {
+        ...(await loadFileSettings(tx, ctx.tenantId)),
+        pendingBytes: Number(pending?.bytes ?? 0),
+      };
+    });
+    // Uploads nobody attached yet wait up to a day; they may not fill the disk meanwhile.
+    if (pendingBytes >= MAX_PENDING_BYTES) {
+      throw new ApiError(
+        HttpStatus.TOO_MANY_REQUESTS,
+        'rate_limited',
+        'Too many unattached uploads',
+      );
+    }
     const received = await this.receive(req, maxSizeMb * 1024 * 1024);
     try {
       const type = fileTypeFor(received.fileName, received.head);
@@ -108,7 +144,10 @@ export class AttachmentsService {
     }
   }
 
-  /** Streams one multipart file into a temp file, stopping at `maxBytes`. */
+  /**
+   * Streams one multipart file into a temp file, stopping at `maxBytes`. Every way out (done,
+   * too large, bad body, client gone) closes the file and settles once; failures remove it.
+   */
   private async receive(req: Request, maxBytes: number): Promise<Received> {
     if (!req.headers['content-type']?.startsWith('multipart/form-data')) {
       throw new ApiError(
@@ -117,11 +156,26 @@ export class AttachmentsService {
         'Expected multipart/form-data',
       );
     }
-    const dir = join(tmpdir(), 'madar-uploads');
+    const dir = uploadTempDir();
     await mkdir(dir, { recursive: true, mode: 0o700 });
     const tempPath = join(dir, uuidv7());
+    const badBody = () =>
+      new ApiError(HttpStatus.BAD_REQUEST, 'validation_failed', 'Bad multipart body');
+
     return new Promise<Received>((resolve, reject) => {
+      let settled = false;
+      let out: WriteStream | null = null;
+      let file: Readable | null = null;
       let parser: busboy.Busboy;
+      const fail = (error: unknown) => {
+        if (settled) return;
+        settled = true;
+        req.unpipe(parser);
+        file?.destroy();
+        out?.destroy();
+        void rm(tempPath, { force: true });
+        reject(error);
+      };
       try {
         parser = busboy({
           headers: req.headers,
@@ -129,79 +183,60 @@ export class AttachmentsService {
           limits: { files: 1, fileSize: maxBytes, fields: 0, parts: 1 },
         });
       } catch {
-        reject(new ApiError(HttpStatus.BAD_REQUEST, 'validation_failed', 'Bad multipart body'));
+        reject(badBody());
         return;
       }
-      let got: Promise<Received> | null = null;
-      let tooLarge = false;
+      // The browser cancelled («لغو»), the connection dropped, or a proxy gave up.
+      req.on('aborted', () => fail(badBody()));
+      req.on('error', () => fail(badBody()));
+      req.on('close', () => {
+        if (!req.complete) fail(badBody());
+      });
+      parser.on('error', () => fail(badBody()));
+
+      let got = false;
       parser.on('file', (_field, stream, info) => {
-        got = new Promise<Received>((done, fail) => {
-          const hash = createHash('sha256');
-          const out = writeStream(tempPath);
-          const headChunks: Buffer[] = [];
-          let headBytes = 0;
-          let size = 0;
-          stream.on('data', (chunk: Buffer) => {
-            size += chunk.length;
-            hash.update(chunk);
-            if (headBytes < SIGNATURE_BYTES) {
-              headChunks.push(chunk);
-              headBytes += chunk.length;
-            }
-          });
-          stream.on('limit', () => {
-            tooLarge = true;
-            stream.unpipe(out);
-            stream.resume();
-          });
-          stream.pipe(out);
-          out.on('error', fail);
-          out.on('finish', () =>
-            done({
-              tempPath,
-              // Browsers send " CR LF in a multipart name as %22 %0D %0A (HTML spec).
-              fileName: sanitizeFileName((info.filename ?? '').replace(/%22/g, '"')),
-              size,
-              checksum: hash.digest('hex'),
-              head: new Uint8Array(Buffer.concat(headChunks).subarray(0, SIGNATURE_BYTES)),
-            }),
-          );
-          stream.on('end', () => {
-            if (tooLarge) out.end();
+        got = true;
+        file = stream;
+        const hash = createHash('sha256');
+        const head: Buffer[] = [];
+        let headBytes = 0;
+        let size = 0;
+        const target = writeStream(tempPath);
+        out = target;
+        stream.on('data', (chunk: Buffer) => {
+          size += chunk.length;
+          hash.update(chunk);
+          if (headBytes < SIGNATURE_BYTES) {
+            head.push(chunk);
+            headBytes += chunk.length;
+          }
+        });
+        stream.on('limit', () =>
+          fail(new ApiError(HttpStatus.PAYLOAD_TOO_LARGE, 'file_too_large', 'File too large')),
+        );
+        stream.on('error', fail);
+        target.on('error', fail);
+        target.on('finish', () => {
+          if (settled) return;
+          if (size === 0) {
+            fail(new ApiError(HttpStatus.BAD_REQUEST, 'validation_failed', 'Empty file'));
+            return;
+          }
+          settled = true;
+          resolve({
+            tempPath,
+            // Browsers send " CR LF in a multipart name as %22 %0D %0A (HTML spec).
+            fileName: sanitizeFileName((info.filename ?? '').replace(/%22/g, '"')),
+            size,
+            checksum: hash.digest('hex'),
+            head: new Uint8Array(Buffer.concat(head).subarray(0, SIGNATURE_BYTES)),
           });
         });
+        stream.pipe(target);
       });
-      parser.on('error', () =>
-        reject(new ApiError(HttpStatus.BAD_REQUEST, 'validation_failed', 'Bad multipart body')),
-      );
       parser.on('close', () => {
-        if (!got) {
-          reject(
-            new ApiError(HttpStatus.BAD_REQUEST, 'validation_failed', 'No file in the request'),
-          );
-          return;
-        }
-        got.then(
-          async (result) => {
-            if (tooLarge) {
-              await rm(tempPath, { force: true });
-              reject(
-                new ApiError(HttpStatus.PAYLOAD_TOO_LARGE, 'file_too_large', 'File too large'),
-              );
-              return;
-            }
-            if (result.size === 0) {
-              await rm(tempPath, { force: true });
-              reject(new ApiError(HttpStatus.BAD_REQUEST, 'validation_failed', 'Empty file'));
-              return;
-            }
-            resolve(result);
-          },
-          async (error: unknown) => {
-            await rm(tempPath, { force: true });
-            reject(error);
-          },
-        );
+        if (!got) fail(new ApiError(HttpStatus.BAD_REQUEST, 'validation_failed', 'No file'));
       });
       req.pipe(parser);
     });
@@ -210,6 +245,10 @@ export class AttachmentsService {
   private limitRate(ctx: TenantContext): void {
     const key = `${ctx.tenantId}:${ctx.memberId}`;
     const now = Date.now();
+    // Forget people who have not uploaded for a minute, so the map stays small.
+    for (const [other, list] of this.recent) {
+      if (list.every((t) => now - t >= 60_000)) this.recent.delete(other);
+    }
     const times = (this.recent.get(key) ?? []).filter((t) => now - t < 60_000);
     if (times.length >= UPLOADS_PER_MINUTE) {
       throw new ApiError(HttpStatus.TOO_MANY_REQUESTS, 'rate_limited', 'Too many uploads');

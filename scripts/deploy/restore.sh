@@ -30,6 +30,14 @@ say "Restoring $(basename "$file") into a separate database"
 compose exec -T backup dropdb --if-exists "${db}_restoring"
 compose exec -T backup createdb "${db}_restoring"
 compose exec -T backup pg_restore --exit-on-error -d "${db}_restoring" "$inside"
+has_files=false
+if compose exec -T backup test -f "$files"; then
+  has_files=true
+  say "Unpacking the attachments next to the live ones"
+  # shellcheck disable=SC2016  # $1 is expanded by the container's shell
+  compose exec -T backup sh -c 'rm -rf /files/.restoring && mkdir -p /files/.restoring \
+    && tar -xzpf "$1" -C /files/.restoring && test -d /files/.restoring/tenants' _ "$files"
+fi
 
 say "Stopping the app (the database stays up)"
 compose stop caddy web api worker demo
@@ -38,11 +46,12 @@ sql "drop database if exists ${db}_before_restore"
 sql "select pg_terminate_backend(pid) from pg_stat_activity where datname = '$db' and pid <> pg_backend_pid()" >/dev/null
 sql "alter database $db rename to ${db}_before_restore"
 sql "alter database ${db}_restoring rename to $db"
-if compose exec -T backup test -f "$files"; then
-  say "Restoring the attachments (the current ones are kept in files-data/.before_restore)"
-  compose exec -T backup sh -c "rm -rf /files/.before_restore && mkdir -p /files/.before_restore \
+trap 'printf "\033[31mRestore failed after the database was swapped. The previous data is in \"%s_before_restore\". Start the app with: docker compose --env-file .env -f docker/compose.prod.yml -p %s up -d\033[0m\n" "$db" "$PROJECT" >&2' ERR
+if [ "$has_files" = true ]; then
+  say "Swapping the attachments in (the previous ones stay in files-data/.before_restore)"
+  compose exec -T backup sh -c 'rm -rf /files/.before_restore && mkdir -p /files/.before_restore \
     && { [ ! -d /files/tenants ] || mv /files/tenants /files/.before_restore/; } \
-    && tar -xzpf '$files' -C /files"
+    && mv /files/.restoring/tenants /files/tenants && rm -rf /files/.restoring'
 fi
 trap - ERR
 
