@@ -32,6 +32,8 @@ export interface ProgressBarProps {
   label?: string;
   /** Show the percentage next to the label. */
   showValue?: boolean;
+  /** Keep the label for screen readers only. */
+  hideLabel?: boolean;
   className?: string;
 }
 
@@ -42,13 +44,14 @@ export function ProgressBar({
   size = 'md',
   label,
   showValue = false,
+  hideLabel = false,
   className,
 }: ProgressBarProps) {
   const ratio = clamp01(value);
   const percent = formatPercent(ratio);
   return (
     <div className={cn('flex flex-col gap-1.5', className)}>
-      {(label || showValue) && (
+      {(label || showValue) && !hideLabel && (
         <div className="flex items-baseline justify-between gap-3 text-sm">
           {label && <span className="font-medium text-ink">{label}</span>}
           {showValue && (

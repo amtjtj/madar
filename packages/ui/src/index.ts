@@ -25,6 +25,7 @@ export {
   type ProgressBarProps,
   type ProgressRingProps,
 } from './components/progress.js';
+export { Slider, type SliderProps } from './components/slider.js';
 export {
   Avatar,
   AvatarGroup,

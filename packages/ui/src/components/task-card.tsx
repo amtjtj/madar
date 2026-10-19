@@ -5,6 +5,7 @@ import {
   dueStatus,
   formatCalendarDate,
   formatNumber,
+  formatPercent,
   type RankReason,
   type TaskPriority,
 } from '@madar/shared';
@@ -15,6 +16,7 @@ import { cn } from '../lib/cn.js';
 import { Avatar } from './avatar.js';
 import { Badge } from './badge.js';
 import { CompleteCheck } from './complete-check.js';
+import { ProgressBar } from './progress.js';
 import { dueTone, priorityTone } from './task-meta.js';
 import { RankHint, SourceBadge } from './task-source.js';
 import type { TaskSourceInfo } from './task-source-text.js';
@@ -48,6 +50,8 @@ export interface TaskCardProps extends Omit<HTMLAttributes<HTMLDivElement>, 'tit
   dragHandle?: ReactNode;
   /** Lifted while being dragged on a board. */
   dragging?: boolean;
+  /** Recorded progress, 0..100; a thin bar shows while it is between 0 and 100 (ADR 0018). */
+  progress?: number;
   compact?: boolean;
   className?: string;
   ref?: Ref<HTMLDivElement>;
@@ -73,6 +77,7 @@ export function TaskCard({
   reasons,
   dragHandle,
   dragging,
+  progress,
   compact,
   className,
   ref,
@@ -152,6 +157,20 @@ export function TaskCard({
           ) : null}
           {reasons && !done ? <RankHint reasons={reasons} /> : null}
         </div>
+        {progress !== undefined && progress > 0 && progress < 100 && !done ? (
+          <div className="flex items-center gap-2">
+            <ProgressBar
+              value={progress / 100}
+              size="sm"
+              label={t('work.progressLabel')}
+              hideLabel
+              className="flex-1"
+            />
+            <span className="text-xs font-semibold text-ink-muted tabular-nums">
+              {formatPercent(progress / 100)}
+            </span>
+          </div>
+        ) : null}
       </div>
       {action}
       {assigneeName ? <Avatar name={assigneeName} size="xs" className="mt-0.5" /> : null}

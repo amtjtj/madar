@@ -1016,6 +1016,27 @@ export const fa = {
       },
     },
     /** Drag and drop in personal lists (keyboard and screen readers). */
+    progressLabel: 'پیشرفت',
+    /** Recording progress on a task (ADR 0018). */
+    progress: {
+      title: 'پیشرفت',
+      slider: 'درصد پیشرفت',
+      note: 'یادداشت کوتاه (اختیاری)',
+      notePlaceholder: 'مثلاً: با واحد حقوقی تماس گرفتم، منتظر جوابم',
+      save: 'ثبت پیشرفت',
+      saved: 'پیشرفت ثبت شد',
+      auto: 'خودکار از زیرکارها',
+      autoHint: 'میانگین وزنی پیشرفت زیرکارها؛ با تغییر زیرکارها خودش به‌روز می‌شود.',
+      toManual: 'تغییر به دستی',
+      toAuto: 'برگشت به خودکار',
+      closed: 'این کار بسته شده است.',
+      doneTitle: 'انجام‌شده علامت بخورد؟',
+      doneBody: 'پیشرفت به ۱۰۰٪ رسید. اگر کار تمام است، علامتش بزن.',
+      doneYes: 'بله، انجام شد',
+      doneNo: 'فعلاً نه',
+      history: '{value}',
+      historyWithNote: '{value}، {note}',
+    },
     sortable: {
       handle: 'جابه‌جا کردن «{title}»',
       picked:
@@ -1047,6 +1068,7 @@ export const fa = {
       charts: 'نمودارها',
       work: 'کارها: تاریخ، کارت و برد',
       ordering: 'منبع کار و ترتیب دستی',
+      slider: 'اسلایدر پیشرفت',
       locale: 'تاریخ شمسی و اعداد',
       themes: 'مقایسه دو پوسته',
     },
@@ -1064,6 +1086,10 @@ export const fa = {
       person1: 'آرش طاهری',
       person2: 'مریم احمدی',
       week: 'هفته {n}',
+    },
+    slider: {
+      disabled: 'غیرفعال (خودکار از زیرکارها)',
+      task: 'پیگیری قرارداد با واحد حقوقی',
     },
     ordering: {
       hint: 'کارت‌ها را از دستگیره بکشید، یا با صفحه‌کلید: فاصله روی دستگیره، کلیدهای بالا و پایین، و فاصله برای رها کردن.',

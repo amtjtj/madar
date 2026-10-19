@@ -8,6 +8,7 @@ import { DatePicker } from './components/date-picker.js';
 import { TaskCard } from './components/task-card.js';
 import { TextField } from './components/input.js';
 import { ProgressBar } from './components/progress.js';
+import { Slider } from './components/slider.js';
 import { ThemeToggle } from './components/theme.js';
 
 afterEach(cleanup);
@@ -161,5 +162,30 @@ describe('charts', () => {
     fireEvent.click(first);
     expect(screen.getByText('هفته ۱: ۳')).toBeTruthy();
     expect(screen.getByRole('table', { name: 'انجام‌شده در هفته' })).toBeTruthy();
+  });
+});
+
+describe('Slider', () => {
+  it('is a labelled range in steps, with a Persian value for screen readers', () => {
+    const onChange = vi.fn();
+    render(<Slider label="درصد پیشرفت" value={50} onChange={onChange} />);
+    const slider = screen.getByRole('slider', { name: 'درصد پیشرفت' });
+    expect(slider.getAttribute('step')).toBe('5');
+    expect(slider.getAttribute('aria-valuetext')).toBe('۵۰٪');
+    fireEvent.change(slider, { target: { value: '55' } });
+    expect(onChange).toHaveBeenCalledWith(55);
+  });
+});
+
+describe('TaskCard progress', () => {
+  it('shows a thin bar only between 0 and 100', () => {
+    const { rerender } = render(
+      <TaskCard title="کار" done={false} today="2026-10-19" progress={40} />,
+    );
+    expect(screen.getByRole('progressbar', { name: 'پیشرفت' }).getAttribute('aria-valuenow')).toBe(
+      '40',
+    );
+    rerender(<TaskCard title="کار" done={false} today="2026-10-19" progress={0} />);
+    expect(screen.queryByRole('progressbar')).toBeNull();
   });
 });

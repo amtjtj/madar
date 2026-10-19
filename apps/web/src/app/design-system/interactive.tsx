@@ -19,6 +19,7 @@ import {
   OrbitIllustration,
   ProgressBar,
   Sidebar,
+  Slider,
   SortableList,
   SourceBadge,
   type TaskSourceInfo,
@@ -360,6 +361,26 @@ export function OrderingDemo({ today }: { today: string }) {
             dragging={dragging}
           />
         )}
+      />
+    </div>
+  );
+}
+
+/** The progress slider, as on a task and a percentage key result (ADR 0018). */
+export function SliderDemo({ today }: { today: string }) {
+  const [value, setValue] = useState(50);
+  return (
+    <div className="grid gap-6 md:grid-cols-2">
+      <div className="flex flex-col gap-4">
+        <Slider label={t('work.progress.slider')} value={value} onChange={setValue} />
+        <Slider label={t('designSystem.slider.disabled')} value={30} onChange={() => {}} disabled />
+      </div>
+      <TaskCard
+        title={t('designSystem.slider.task')}
+        done={false}
+        today={today}
+        dueOn={addDays(today, 2)}
+        progress={value}
       />
     </div>
   );
