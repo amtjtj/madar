@@ -69,6 +69,8 @@ export const SEED_PROJECTS: SeedProject[] = [
     visibility: 'private',
     owner: 'fatemeh.najafi',
     members: ['niloufar.sharifi', 'amir.hosseini', 'maryam.ahmadi'],
+    // The COO follows hiring without adding work to it (private project, observer).
+    observers: ['leila.sadeghi'],
     dueIn: 45,
   },
 ];

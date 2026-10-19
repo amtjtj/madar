@@ -1,5 +1,5 @@
 import { t } from '@madar/i18n';
-import { formatCalendarDate, formatNumber, formatPercent, type Notification } from '@madar/shared';
+import { formatCalendarDate, formatNumber, type Notification } from '@madar/shared';
 
 /** The Persian sentence for a notification (all text from i18n). */
 export function notificationText(n: Notification): string {
@@ -12,11 +12,6 @@ export function notificationText(n: Notification): string {
     return assignee
       ? t('notifications.kinds.task_overdue_escalation', { title: n.title, assignee, days })
       : t('notifications.kinds.task_overdue_escalation_unassigned', { title: n.title, days });
-  }
-  if (n.kind === 'task_progress') {
-    const progress =
-      typeof n.data.progress === 'number' ? formatPercent(n.data.progress / 100) : '';
-    return t('notifications.kinds.task_progress', { actor, title: n.title, progress });
   }
   if (n.kind === 'project_member_added' && n.data.role === 'observer') {
     return t('notifications.kinds.project_observer_added', { actor, title: n.title });

@@ -44,6 +44,7 @@ export class NotificationsConsumer implements EventConsumer {
       }
       case 'task.progress_updated': {
         // To whoever assigned or asked for the task; at most once a day per task (ADR 0018).
+        if (p.computed) return; // a parent following its subtasks
         const task = await this.task(tx, String(p.taskId));
         if (!task?.sourceMemberId || (task.source !== 'assigned' && task.source !== 'request')) {
           return;

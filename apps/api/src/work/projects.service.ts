@@ -16,7 +16,13 @@ import { atRiskProjects, viewerScope } from '../dashboard/at-risk.js';
 import { TenantDb } from '../database/tenant-db.service.js';
 import { keyResultRefs, requireLinkableKeyResult } from '../goals/links.js';
 import { loadWorkCalendar } from '../notifications/calendar.js';
-import { canCreateIn, canEditProject, managesAll, visibleProjects } from './access.js';
+import {
+  canCreateIn,
+  canEditProject,
+  managesAll,
+  visibleProjects,
+  visibleTasks,
+} from './access.js';
 
 type ProjectRow = typeof s.projects.$inferSelect;
 
@@ -189,7 +195,11 @@ export class ProjectsService {
     // Who may open a private project changed: a permission change (ADR 0009). Creating a project
     // with its first members is not logged; changing them later is.
     const roleOf = (list: Array<{ memberId: string; role: string }>) =>
-      Object.fromEntries(list.map((m) => [m.memberId, m.role]));
+      Object.fromEntries(
+        [...list]
+          .sort((a, b) => a.memberId.localeCompare(b.memberId))
+          .map((m) => [m.memberId, m.role]),
+      );
     const after = [...members].map(([memberId, role]) => ({ memberId, role }));
     if (before.length && JSON.stringify(roleOf(before)) !== JSON.stringify(roleOf(after))) {
       await this.db.audit(tx, ctx, {
@@ -237,15 +247,17 @@ export class ProjectsService {
 
   private async hydrate(tx: Tx, ctx: TenantContext, ids: string[]): Promise<Project[]> {
     if (ids.length === 0) return [];
+    const projectTasks = sql`${s.tasks.projectId} = ${s.projects.id} and ${s.tasks.deletedAt} is null and ${s.tasks.parentId} is null and ${visibleTasks(ctx.actor)}`;
     const rows = await tx
       .select({
         project: s.projects,
         departmentName: s.departments.name,
         ownerName: s.members.displayName,
-        taskTotal: sql<number>`(select count(*)::int from tasks t where t.project_id = ${s.projects.id} and t.deleted_at is null and t.parent_id is null and t.status_category <> 'canceled')`,
-        taskDone: sql<number>`(select count(*)::int from tasks t where t.project_id = ${s.projects.id} and t.deleted_at is null and t.parent_id is null and t.status_category = 'done')`,
-        // Weighted progress of the same tasks (ADR 0018): finished = 100, canceled left out.
-        taskProgress: sql<number>`(select coalesce(sum(case when t.status_category = 'done' then 100 else t.progress end * t.weight)::float / nullif(sum(t.weight), 0) / 100, 0) from tasks t where t.project_id = ${s.projects.id} and t.deleted_at is null and t.parent_id is null and t.status_category <> 'canceled')`,
+        // Top-level tasks the viewer sees, like the list under it and «at risk» (ADR 0018).
+        taskTotal: sql<number>`(select count(*)::int from ${s.tasks} where ${projectTasks} and ${s.tasks.statusCategory} <> 'canceled')`,
+        taskDone: sql<number>`(select count(*)::int from ${s.tasks} where ${projectTasks} and ${s.tasks.statusCategory} = 'done')`,
+        // Weighted progress of the same tasks: finished = 100, canceled left out.
+        taskProgress: sql<number>`(select coalesce(sum(case when ${s.tasks.statusCategory} = 'done' then 100 else ${s.tasks.progress} end * ${s.tasks.weight})::float / nullif(sum(${s.tasks.weight}), 0) / 100, 0) from ${s.tasks} where ${projectTasks} and ${s.tasks.statusCategory} <> 'canceled')`,
       })
       .from(s.projects)
       .leftJoin(s.departments, eq(s.departments.id, s.projects.departmentId))

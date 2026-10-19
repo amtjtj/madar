@@ -105,6 +105,9 @@ describe.skipIf(!hasDatabase)('task progress, project progress and observers', (
     ).body as Task;
     expect(auto.progress).toBe(50);
 
+    // One level only: a subtask has no subtasks of its own.
+    expect((await ali.c.post('/api/tasks', { title: 'نوه', parentId: a.id })).status).toBe(400);
+
     // A task with recorded progress keeps it when its first subtask arrives.
     const recorded = await create(ali.c, { title: 'گزارش' });
     await progress(ali.c, recorded, 40);
@@ -148,14 +151,33 @@ describe.skipIf(!hasDatabase)('task progress, project progress and observers', (
     expect(
       (await marketer.c.post('/api/tasks', { title: 'کار ناظر', projectId: project.id })).status,
     ).toBe(404);
-    // Not even as a subtask of an existing task.
+    // Not even as a subtask of an existing task, nor by naming another project for it.
     expect(
       (await marketer.c.post('/api/tasks', { title: 'زیرکار ناظر', parentId: heavy.id })).status,
     ).toBe(404);
+    const mine = (
+      await marketer.c.post('/api/projects', { name: 'پروژه خودم', visibility: 'tenant' })
+    ).body as Project;
+    expect(
+      (
+        await marketer.c.post('/api/tasks', {
+          title: 'زیرکار ناظر',
+          parentId: heavy.id,
+          projectId: mine.id,
+        })
+      ).status,
+    ).toBe(400);
     expect((await read(ali.c)).can.createTask).toBe(true);
 
-    const audit = (await owner.get('/api/audit-logs')).body as Array<{ action: string }>;
-    expect(audit.map((a) => a.action)).toContain('project.members_updated');
+    const membersAudit = async () =>
+      ((await owner.get('/api/audit-logs')).body as Array<{ action: string }>).filter(
+        (a) => a.action === 'project.members_updated',
+      ).length;
+    expect(await membersAudit()).toBe(1);
+    // The same members in another order change nothing, so nothing is logged.
+    const again = (await read(lead.c)).members.map((m) => ({ memberId: m.id, role: m.role }));
+    await lead.c.put(`/api/projects/${project.id}/members`, { members: again.reverse() });
+    expect(await membersAudit()).toBe(1);
 
     // Another company: neither the project nor its members.
     expect((await other.get(`/api/projects/${project.id}`)).status).toBe(404);

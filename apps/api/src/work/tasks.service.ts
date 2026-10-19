@@ -190,7 +190,11 @@ export class TasksService {
       // A subtask belongs to its parent's project, so it passes the same check (observers of a
       // private project add no work to it, not even under an existing task).
       const parent = input.parentId ? await this.requireVisible(tx, ctx, input.parentId) : null;
-      const projectId = input.projectId ?? parent?.projectId ?? null;
+      if (parent?.parentId) throw badRequest('Subtasks have no subtasks of their own');
+      if (parent && input.projectId !== undefined && input.projectId !== parent.projectId) {
+        throw badRequest("A subtask is in its parent's project");
+      }
+      const projectId = parent ? parent.projectId : (input.projectId ?? null);
       if (projectId) await this.requireUsableProject(tx, ctx, projectId);
       if (input.assigneeId) await requireActiveMember(tx, input.assigneeId);
 
@@ -260,7 +264,7 @@ export class TasksService {
           ctx.memberId,
         );
       }
-      if (row.parentId) await this.subtaskAdded(tx, row.parentId, row.id);
+      if (row.parentId) await this.subtaskAdded(tx, row.parentId, row.id, ctx.memberId);
       return this.one(tx, ctx, row.id);
     });
   }
@@ -269,7 +273,7 @@ export class TasksService {
    * A parent whose progress was recorded by hand keeps it when its first subtask arrives (it
    * switches to manual); otherwise it follows its subtasks (ADR 0018).
    */
-  private async subtaskAdded(tx: Tx, parentId: string, childId: string) {
+  private async subtaskAdded(tx: Tx, parentId: string, childId: string, actorId: string) {
     const [parent] = await tx
       .select({ progress: s.tasks.progress, mode: s.tasks.progressMode })
       .from(s.tasks)
@@ -279,18 +283,15 @@ export class TasksService {
       .select({ id: s.tasks.id })
       .from(s.tasks)
       .where(
-        and(
-          eq(s.tasks.parentId, parentId),
-          isNull(s.tasks.deletedAt),
-          sql`${s.tasks.id} <> ${childId}`,
-        ),
+        // Deleted ones too: a parent that ever had subtasks holds a computed value.
+        and(eq(s.tasks.parentId, parentId), sql`${s.tasks.id} <> ${childId}`),
       )
       .limit(1);
     if (!sibling && parent.mode === 'auto' && parent.progress > 0) {
       await tx.update(s.tasks).set({ progressMode: 'manual' }).where(eq(s.tasks.id, parentId));
       return;
     }
-    await recomputeParentProgress(tx, parentId);
+    await recomputeParentProgress(tx, parentId, actorId);
   }
 
   update(ctx: TenantContext, id: string, input: UpdateTaskRequest): Promise<Task> {
@@ -369,8 +370,9 @@ export class TasksService {
         await this.afterChange(tx, ctx, current, updated, changes);
       }
       // Progress computed from subtasks follows them (ADR 0018).
-      if (changes.status || changes.weight) await recomputeParentProgress(tx, current.parentId);
-      if (changes.progressMode?.to === 'auto') await recomputeParentProgress(tx, id);
+      if (changes.status || changes.weight)
+        await recomputeParentProgress(tx, current.parentId, ctx.memberId);
+      if (changes.progressMode?.to === 'auto') await recomputeParentProgress(tx, id, ctx.memberId);
       return this.one(tx, ctx, id);
     });
   }
@@ -433,7 +435,7 @@ export class TasksService {
         ctx.memberId,
       );
       if (statusChanges.status) await this.afterChange(tx, ctx, current, updated, statusChanges);
-      await recomputeParentProgress(tx, current.parentId);
+      await recomputeParentProgress(tx, current.parentId, ctx.memberId);
       return this.one(tx, ctx, id);
     });
   }
@@ -475,7 +477,7 @@ export class TasksService {
       if (!updated) throw notFound('Task');
       if (Object.keys(changes).length) {
         await this.afterChange(tx, ctx, current, updated, changes);
-        await recomputeParentProgress(tx, current.parentId);
+        await recomputeParentProgress(tx, current.parentId, ctx.memberId);
       }
       return this.one(tx, ctx, id);
     });
@@ -503,7 +505,7 @@ export class TasksService {
         verb: 'deleted',
       });
       await emitEvent(tx, 'task.deleted', { taskId: id }, ctx.memberId);
-      await recomputeParentProgress(tx, current.parentId);
+      await recomputeParentProgress(tx, current.parentId, ctx.memberId);
       await this.db.audit(tx, ctx, {
         action: 'task.deleted',
         subjectType: 'task',

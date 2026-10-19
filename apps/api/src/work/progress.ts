@@ -1,13 +1,17 @@
-import { schema as s, type Tx } from '@madar/db';
+import { emitEvent, schema as s, type Tx } from '@madar/db';
 import { toProgressStep, weightedProgress } from '@madar/shared';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, ne } from 'drizzle-orm';
 
 /**
  * A parent in «auto» mode takes the weighted progress of its subtasks (ADR 0018). Call it in the
  * same transaction after any change to a subtask's progress, status or weight, or to the set of
  * subtasks. The parent's version is not bumped: nobody edits a computed value.
  */
-export async function recomputeParentProgress(tx: Tx, parentId: string | null): Promise<void> {
+export async function recomputeParentProgress(
+  tx: Tx,
+  parentId: string | null,
+  actorId: string,
+): Promise<void> {
   if (!parentId) return;
   const [parent] = await tx
     .select({ mode: s.tasks.progressMode, progress: s.tasks.progress })
@@ -27,15 +31,31 @@ export async function recomputeParentProgress(tx: Tx, parentId: string | null): 
   const progress = toProgressStep(average);
   if (progress !== parent.progress) {
     await tx.update(s.tasks).set({ progress }).where(eq(s.tasks.id, parentId));
+    // A live refresh for people watching the parent; computed, so nobody is notified.
+    await emitEvent(
+      tx,
+      'task.progress_updated',
+      { taskId: parentId, from: parent.progress, to: progress, computed: true },
+      actorId,
+    );
   }
 }
 
-/** Live subtasks of a task (a parent in «auto» mode takes its progress from them). */
+/**
+ * Subtasks that count (live, not canceled): with none, a parent's progress is recorded by hand
+ * even in «auto» mode, so nobody is stuck.
+ */
 export async function hasSubtasks(tx: Tx, taskId: string): Promise<boolean> {
   const [row] = await tx
     .select({ id: s.tasks.id })
     .from(s.tasks)
-    .where(and(eq(s.tasks.parentId, taskId), isNull(s.tasks.deletedAt)))
+    .where(
+      and(
+        eq(s.tasks.parentId, taskId),
+        isNull(s.tasks.deletedAt),
+        ne(s.tasks.statusCategory, 'canceled'),
+      ),
+    )
     .limit(1);
   return Boolean(row);
 }

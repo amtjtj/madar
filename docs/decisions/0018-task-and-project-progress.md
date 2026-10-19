@@ -23,13 +23,17 @@ Phase 2, step 10b (`docs/plans/phase-2-step-10b.md`), from the team review (`doc
   - A task whose progress was recorded by hand switches to `manual` when its first subtask arrives, so the value does not drop to 0.
   - «تغییر به دستی» and «برگشت به خودکار» switch the mode.
   - Migration `0014` starts existing parents from their subtasks.
+  - One level only: the API refuses a subtask of a subtask, so the recompute never has to walk a chain.
+  - A subtask belongs to its parent's project. Naming another project is refused, and the parent's project passes the same check as a new task.
+  - When no subtask counts (all are canceled), progress is recorded by hand even in auto mode.
+  - A recomputed parent emits `task.progress_updated` with `computed: true`. It refreshes live views and notifies nobody.
 - **Projects.**
-  - Progress is the weighted average over the project's top-level tasks, with finished tasks at 100 and canceled ones left out.
+  - Progress is the weighted average over the project's top-level tasks that the viewer sees (the same set as «at risk» and the list), with finished tasks at 100 and canceled ones left out.
   - It is computed in SQL on read and never stored.
   - The «at risk» rule uses it (ADR 0014, updated).
 - **Telling the assigner.**
   - The `task.progress_updated` event creates a `task_progress` notification for `source_member_id`, but only when the source is `assigned` or `request` (ADR 0017).
-  - The dedupe key `task_progress:{task}:{day}` limits it to one per task per day; the history has every entry.
+  - The dedupe key `task_progress:{task}:{day}` limits it to one per task per day; the history has every entry. The text names no percentage, because later records on the same day would leave it stale.
   - It also sends device push and a realtime hint.
 - **Slider.**
   - `Slider` in `@madar/ui` is a native `<input type="range">`, transparent, over a drawn track and thumb. Keyboard, touch and screen readers therefore come from the browser.
@@ -39,8 +43,8 @@ Phase 2, step 10b (`docs/plans/phase-2-step-10b.md`), from the team review (`doc
 - **Observers.**
   - `project_role` gains `observer`.
   - Observers see the project, including a private one, and its tasks, and they comment.
-  - In a private project they add no work: `usableProjects` in `work/access.ts` allows only owners and members, and the project's `can.createTask` mirrors that rule.
-  - Changing a project's members after creation is audited as `project.members_updated`, because it changes who can open a private project.
+  - In a private project they add no work: `usableProjects` in `work/access.ts` allows only owners and members, and the project's `can.createTask` mirrors that rule. The plan named it `can.manageMembers`; member management stays on `can.edit`, and the task contract uses `subtasks.total` instead of a separate `hasSubtasks`.
+  - Changing a project's members after creation is audited as `project.members_updated`, because it changes who can open a private project. The before and after roles are compared by member, so re-saving the same members logs nothing.
 
 ## Alternatives considered
 - **Progress only through subtasks:** most pilot tasks have none, and the team asked for a percentage on the task itself.

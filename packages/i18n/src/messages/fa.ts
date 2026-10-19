@@ -9,6 +9,8 @@ export const fa = {
   },
   ui: {
     close: 'بستن',
+    /** Between items of a short inline list («مدیر پشتیبانی، پشتیبانی»). */
+    listSeparator: '، ',
     loading: 'در حال بارگذاری…',
     required: 'الزامی',
     more: '{count} نفر دیگر',
@@ -572,7 +574,7 @@ export const fa = {
       task_overdue_escalation_unassigned:
         '«{title}» {days} روز کاری از سررسیدش گذشته است و مسئول ندارد',
       project_member_added: '{actor} تو را به پروژه «{title}» اضافه کرد',
-      task_progress: '{actor} پیشرفت «{title}» را {progress} ثبت کرد',
+      task_progress: '{actor} پیشرفت «{title}» را به‌روز کرد',
       project_observer_added: '{actor} تو را به‌عنوان ناظر به پروژه «{title}» اضافه کرد',
       key_result_checkin_due: 'وقت ثبت پیشرفت هفتگی «{title}» است',
       weekly_report_ready: 'گزارش هفته {date} «{title}» آماده است',
@@ -945,6 +947,7 @@ export const fa = {
     /** Keyed by audit action with '.' replaced by '_' (t() treats dots as nesting). */
     actions: {
       priority_weights_updated: 'تغییر وزن‌های اولویت‌بندی',
+      project_members_updated: 'تغییر اعضای پروژه',
       tenant_created: 'ثبت شرکت',
       member_created: 'افزودن عضو',
       member_updated: 'ویرایش مشخصات عضو',
@@ -1027,7 +1030,6 @@ export const fa = {
         weight: 'وزن زیاد',
       },
     },
-    /** Drag and drop in personal lists (keyboard and screen readers). */
     progressLabel: 'پیشرفت',
     /** Recording progress on a task (ADR 0018). */
     progress: {
@@ -1047,6 +1049,7 @@ export const fa = {
       doneYes: 'بله، انجام شد',
       doneNo: 'فعلاً نه',
     },
+    /** Drag and drop in personal lists (keyboard and screen readers). */
     sortable: {
       handle: 'جابه‌جا کردن «{title}»',
       picked:

@@ -24,7 +24,7 @@ import { errorMessage } from '@/lib/errors';
 function detailOf(member: Pick<Member, 'title' | 'departments'> | undefined): string {
   if (!member) return '';
   const department = member.departments.find((d) => d.isPrimary) ?? member.departments[0];
-  return [member.title, department?.name].filter(Boolean).join('، ');
+  return [member.title, department?.name].filter(Boolean).join(t('ui.listSeparator'));
 }
 
 /**
