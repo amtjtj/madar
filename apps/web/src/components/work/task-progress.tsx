@@ -23,6 +23,8 @@ import { errorMessage } from '@/lib/errors';
  * subtasks. Reaching 100 % asks whether the task is done.
  */
 export function TaskProgress({ task }: { task: Task }) {
+  // Lives here, not in the form: the form starts over once the saved task comes back.
+  const [askDone, setAskDone] = useState<Task | null>(null);
   if (task.statusCategory === 'canceled') return null;
   const auto = task.subtasks.total > 0 && task.progressMode === 'auto';
   return (
@@ -35,10 +37,44 @@ export function TaskProgress({ task }: { task: Task }) {
           <AutoProgress task={task} />
         ) : (
           // Reset the draft whenever the saved task changes.
-          <ProgressForm key={`${task.id}:${task.version}`} task={task} />
+          <ProgressForm key={`${task.id}:${task.version}`} task={task} onFull={setAskDone} />
         )}
+        <DonePrompt task={askDone} onClose={() => setAskDone(null)} />
       </CardContent>
     </Card>
+  );
+}
+
+/** «انجام‌شده علامت بخورد؟» after progress reaches 100 %. */
+function DonePrompt({ task, onClose }: { task: Task | null; onClose: () => void }) {
+  const toggle = useToggleDone();
+  const { toast } = useToast();
+  return (
+    <Modal
+      open={task !== null}
+      onOpenChange={(open) => !open && onClose()}
+      title={t('work.progress.doneTitle')}
+      description={t('work.progress.doneBody')}
+    >
+      <div className="flex gap-3">
+        <Button
+          className="flex-1"
+          loading={toggle.isPending}
+          onClick={() => {
+            if (!task) return;
+            void toggle
+              .toggle(task, true)
+              .then(onClose)
+              .catch((error: unknown) => toast({ tone: 'error', title: errorMessage(error) }));
+          }}
+        >
+          {t('work.progress.doneYes')}
+        </Button>
+        <Button variant="ghost" onClick={onClose}>
+          {t('work.progress.doneNo')}
+        </Button>
+      </div>
+    </Modal>
   );
 }
 
@@ -74,12 +110,10 @@ function AutoProgress({ task }: { task: Task }) {
   );
 }
 
-function ProgressForm({ task }: { task: Task }) {
+function ProgressForm({ task, onFull }: { task: Task; onFull: (task: Task) => void }) {
   const [value, setValue] = useState(task.progress);
   const [note, setNote] = useState('');
-  const [askDone, setAskDone] = useState<Task | null>(null);
   const save = useSetTaskProgress();
-  const toggle = useToggleDone();
   const { toast } = useToast();
   const onError = (error: unknown) => toast({ tone: 'error', title: errorMessage(error) });
   const changed = value !== task.progress || note.trim() !== '';
@@ -95,7 +129,7 @@ function ProgressForm({ task }: { task: Task }) {
           {
             onSuccess: (saved) => {
               toast({ tone: 'success', title: t('work.progress.saved'), duration: 1500 });
-              if (saved.progress === 100) setAskDone(saved);
+              if (saved.progress === 100) onFull(saved);
             },
             onError,
           },
@@ -125,31 +159,6 @@ function ProgressForm({ task }: { task: Task }) {
           </div>
         </>
       )}
-      <Modal
-        open={askDone !== null}
-        onOpenChange={(open) => !open && setAskDone(null)}
-        title={t('work.progress.doneTitle')}
-        description={t('work.progress.doneBody')}
-      >
-        <div className="flex gap-3">
-          <Button
-            className="flex-1"
-            loading={toggle.isPending}
-            onClick={() => {
-              if (!askDone) return;
-              void toggle
-                .toggle(askDone, true)
-                .then(() => setAskDone(null))
-                .catch(onError);
-            }}
-          >
-            {t('work.progress.doneYes')}
-          </Button>
-          <Button variant="ghost" onClick={() => setAskDone(null)}>
-            {t('work.progress.doneNo')}
-          </Button>
-        </div>
-      </Modal>
     </form>
   );
 }
