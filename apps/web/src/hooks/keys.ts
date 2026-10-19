@@ -56,3 +56,11 @@ export const reportKeys = {
     ['reports', 'weeks', scope, departmentId ?? null] as const,
   ref: (id: string) => ['reports', 'ref', id] as const,
 };
+
+/** Internal letters (ADR 0020). */
+export const letterKeys = {
+  all: ['letters'] as const,
+  list: (folder: string, q: string) => ['letters', 'list', folder, q] as const,
+  unread: ['letters', 'unread'] as const,
+  letter: (id: string) => ['letters', 'detail', id] as const,
+};

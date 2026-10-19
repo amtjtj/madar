@@ -14,6 +14,7 @@ import {
   ListTodo,
   Paperclip,
   LogOut,
+  Mail,
   Network,
   ScrollText,
   Target,
@@ -38,6 +39,8 @@ import {
   NotificationLink,
   NotificationPopover,
 } from '@/components/notifications/notification-bell';
+import { LetterLink } from '@/components/letters/letter-link';
+import { useLetterUnread } from '@/hooks/letters';
 import { useInstall, usePushSync } from '@/hooks/pwa';
 import { useCan } from '@/hooks/queries';
 import { useRealtime } from '@/hooks/realtime';
@@ -140,6 +143,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     },
   ];
   const orgItems = useOrgNavItems();
+  const { data: unreadLetters = 0 } = useLetterUnread();
   // Weekly reports: company-wide readers and department managers (sidebar only; the phone tab
   // bar is full, and phones reach reports from the home dashboards and notifications).
   const member = me?.member;
@@ -149,6 +153,13 @@ export function AppShell({ children }: { children: ReactNode }) {
     (member?.departments ?? []).some((d) => d.deptRole === 'head' || d.deptRole === 'manager');
   const items = [
     ...workItems,
+    {
+      key: '/letters',
+      label: t('letters.nav'),
+      href: '/letters',
+      icon: <Mail aria-hidden />,
+      count: unreadLetters,
+    },
     ...(readsReports
       ? [
           {
@@ -283,6 +294,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           {brand}
           <div className="flex items-center gap-1">
             {offline}
+            <LetterLink />
             <NotificationLink />
             {userMenu}
           </div>

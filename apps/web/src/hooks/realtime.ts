@@ -5,7 +5,7 @@ import { REALTIME_EVENTS, REALTIME_PATH } from '@madar/shared';
 import { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 
-import { dashboardKeys, notificationKeys, workKeys } from './keys';
+import { dashboardKeys, letterKeys, notificationKeys, workKeys } from './keys';
 
 /**
  * Live updates: the server sends content-free hints and the matching queries refetch through
@@ -21,7 +21,7 @@ export function useRealtime(enabled: boolean, tenantId?: string): boolean {
     const pending = new Set<string>();
     let timer: ReturnType<typeof setTimeout> | undefined;
     // Several hints often arrive together (a move emits status + completion): refetch once.
-    const refresh = (what: 'work' | 'today' | 'notifications') => {
+    const refresh = (what: 'work' | 'today' | 'notifications' | 'letters') => {
       pending.add(what);
       clearTimeout(timer);
       timer = setTimeout(() => {
@@ -35,6 +35,7 @@ export function useRealtime(enabled: boolean, tenantId?: string): boolean {
         if (pending.has('notifications')) {
           void client.invalidateQueries({ queryKey: notificationKeys.all });
         }
+        if (pending.has('letters')) void client.invalidateQueries({ queryKey: letterKeys.all });
         pending.clear();
       }, 250);
     };
@@ -46,6 +47,7 @@ export function useRealtime(enabled: boolean, tenantId?: string): boolean {
         refresh('work');
         refresh('today');
         refresh('notifications');
+        refresh('letters');
       }
     });
     socket.on('disconnect', () => {
@@ -55,6 +57,7 @@ export function useRealtime(enabled: boolean, tenantId?: string): boolean {
     socket.on(REALTIME_EVENTS.workChanged, () => refresh('work'));
     socket.on(REALTIME_EVENTS.todayChanged, () => refresh('today'));
     socket.on(REALTIME_EVENTS.notificationsChanged, () => refresh('notifications'));
+    socket.on(REALTIME_EVENTS.lettersChanged, () => refresh('letters'));
     return () => {
       clearTimeout(timer);
       socket.disconnect();

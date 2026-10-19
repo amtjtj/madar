@@ -185,18 +185,22 @@ export function PendingList({
   );
 }
 
-/** Images first as a grid of thumbnails, then the other files. */
+/**
+ * Images first as a grid of thumbnails, then the other files. Without a task (a letter) the list
+ * is read-only.
+ */
 export function AttachmentList({
   taskId,
-  attachments,
+  attachments: all,
   compact,
 }: {
-  taskId: string;
+  taskId?: string;
   attachments: Attachment[];
   compact?: boolean;
 }) {
   const [viewing, setViewing] = useState<Attachment | null>(null);
   const [removing, setRemoving] = useState<Attachment | null>(null);
+  const attachments = taskId ? all : all.map((a) => ({ ...a, can: { delete: false } }));
   const images = attachments.filter((a) => a.kind === 'image');
   const others = attachments.filter((a) => a.kind !== 'image');
   return (
@@ -264,7 +268,9 @@ export function AttachmentList({
           setRemoving(a);
         }}
       />
-      <DeleteAttachment taskId={taskId} attachment={removing} onClose={() => setRemoving(null)} />
+      {taskId && (
+        <DeleteAttachment taskId={taskId} attachment={removing} onClose={() => setRemoving(null)} />
+      )}
     </div>
   );
 }
