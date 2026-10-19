@@ -73,5 +73,6 @@ export async function bindUploads(
     )
     .returning();
   if (rows.length !== ids.length) throw notFound('Upload');
-  return rows;
+  // In the order the person picked them (UPDATE … RETURNING has none).
+  return rows.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
 }
