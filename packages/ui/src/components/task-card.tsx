@@ -16,6 +16,7 @@ import {
   ListChecks,
   MessageCircle,
   Paperclip,
+  Stamp,
 } from 'lucide-react';
 import type { HTMLAttributes, ReactNode, Ref } from 'react';
 
@@ -61,6 +62,8 @@ export interface TaskCardProps extends Omit<HTMLAttributes<HTMLDivElement>, 'tit
   progress?: number;
   /** Files on the task and its comments (ADR 0019). */
   attachmentCount?: number;
+  /** Letters pinned as «شاهد کار» (ADR 0021). */
+  evidenceCount?: number;
   compact?: boolean;
   className?: string;
   ref?: Ref<HTMLDivElement>;
@@ -88,6 +91,7 @@ export function TaskCard({
   dragging,
   progress,
   attachmentCount,
+  evidenceCount,
   compact,
   className,
   ref,
@@ -169,6 +173,12 @@ export function TaskCard({
             <span className="inline-flex items-center gap-1 [&_svg]:size-3.5">
               <Paperclip aria-hidden />
               {t('work.files.count', { count: formatNumber(attachmentCount) })}
+            </span>
+          ) : null}
+          {evidenceCount ? (
+            <span className="inline-flex items-center gap-1 [&_svg]:size-3.5">
+              <Stamp aria-hidden />
+              {t('evidence.count', { count: formatNumber(evidenceCount) })}
             </span>
           ) : null}
           {reasons && !done ? <RankHint reasons={reasons} /> : null}

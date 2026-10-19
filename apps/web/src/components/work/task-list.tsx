@@ -58,6 +58,7 @@ export function TaskList({ tasks, today, showAssignee, hideProject, onReorder }:
       source={task.source}
       progress={task.progress}
       attachmentCount={task.attachmentCount}
+      evidenceCount={task.evidenceCount}
       reasons={task.rank.reasons}
       {...extra}
     />

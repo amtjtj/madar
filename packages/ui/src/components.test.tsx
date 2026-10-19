@@ -11,6 +11,7 @@ import { ProgressBar } from './components/progress.js';
 import { Slider } from './components/slider.js';
 import { ThemeToggle } from './components/theme.js';
 import { LetterRow, LiteText, RecipientChip, UrgencyBadge } from './components/letter.js';
+import { AudienceNote, EvidenceCard } from './components/evidence.js';
 
 afterEach(cleanup);
 
@@ -237,5 +238,46 @@ describe('Letter parts', () => {
     render(<RecipientChip name="مریم احمدی" onRemove={onRemove} />);
     fireEvent.click(screen.getByRole('button', { name: 'برداشتن مریم احمدی' }));
     expect(onRemove).toHaveBeenCalled();
+  });
+});
+
+describe('Evidence', () => {
+  const summary = {
+    subject: 'پیگیری قرارداد',
+    number: '1405/00042',
+    sender: { id: 'a', displayName: 'علی رضایی' },
+    to: [{ id: 'b', displayName: 'مدیر حقوقی' }],
+    date: '2026-10-19T08:00:00.000Z',
+    urgency: 'normal' as const,
+    read: true,
+    attachmentCount: 1,
+  };
+
+  it('shows one read flag and opens the letter', () => {
+    const onOpen = vi.fn();
+    render(<EvidenceCard summary={summary} onOpen={onOpen} onUnpin={() => {}} />);
+    expect(screen.getByText('خوانده شد')).toBeDefined();
+    expect(screen.getByText('۱۴۰۵/۰۰۰۴۲')).toBeDefined();
+    fireEvent.click(screen.getByRole('button', { name: 'دیدن نامه پیگیری قرارداد' }));
+    expect(onOpen).toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'برداشتن شاهد پیگیری قرارداد' })).toBeDefined();
+  });
+
+  it('says when the item is no longer available', () => {
+    render(<EvidenceCard summary={null} />);
+    expect(screen.getByText('این مورد دیگر در دسترس نیست.')).toBeDefined();
+  });
+
+  it('names people and groups who will see it', () => {
+    render(
+      <AudienceNote
+        audience={{
+          people: [{ id: 'a', displayName: 'مریم احمدی', role: 'reporter' }],
+          groups: [{ kind: 'department', name: 'پشتیبانی' }],
+        }}
+      />,
+    );
+    expect(screen.getByText('مریم احمدی (ثبت‌کننده)')).toBeDefined();
+    expect(screen.getByText('اعضای دپارتمان «پشتیبانی»')).toBeDefined();
   });
 });

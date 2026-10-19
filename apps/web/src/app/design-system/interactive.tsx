@@ -21,6 +21,8 @@ import {
   Sidebar,
   Slider,
   FileTile,
+  AudienceNote,
+  EvidenceCard,
   LetterRow,
   LiteText,
   RecipientChip,
@@ -442,6 +444,30 @@ export function LettersDemo() {
       <div className="rounded-2xl border border-line bg-surface p-4">
         <LiteText text={t('designSystem.letters.body')} />
       </div>
+      <EvidenceCard
+        summary={{
+          subject: t('designSystem.letters.subject'),
+          number: '1405/00042',
+          sender: { id: 'a', displayName: t('designSystem.letters.sender') },
+          to: [{ id: 'b', displayName: t('designSystem.letters.sender2') }],
+          date: new Date().toISOString(),
+          urgency: 'urgent',
+          read: false,
+          attachmentCount: 1,
+        }}
+        date={t('designSystem.letters.date')}
+        onOpen={() => {}}
+        onUnpin={() => {}}
+      />
+      <AudienceNote
+        audience={{
+          people: [{ id: 'b', displayName: t('designSystem.letters.sender2'), role: 'reporter' }],
+          groups: [
+            { kind: 'department', name: t('designSystem.charts.dept1') },
+            { kind: 'company_readers', name: null },
+          ],
+        }}
+      />
     </div>
   );
 }
