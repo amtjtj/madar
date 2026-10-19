@@ -8,7 +8,7 @@
 - **Deployment shape:** a reverse proxy (Caddy) serves web at `/` and api at `/api/*` on one domain: first-party cookies, no CORS.
 - **Workers:** same codebase as the API with a second entrypoint `apps/api/src/worker.ts`, deployed as a separate container.
 - **Domain events:** transactional outbox (`domain_events`) written in the same transaction as the change; a relay in the worker publishes to BullMQ; consumers are idempotent via `processed_events`. Audit logs are written synchronously, not via events.
-- **Files:** S3-compatible storage behind an interface; MinIO in development, MinIO or an Iranian cloud S3 service in production. Object keys `tenants/{tenantId}/...`, downloads through short-lived signed URLs after a permission check.
+- **Files:** S3-compatible storage behind an interface; MinIO in development, MinIO or an Iranian cloud S3 service in production. Object keys `tenants/{tenantId}/...`, downloads through short-lived signed URLs after a permission check. *Updated by ADR 0019:* the server's disk is the default storage and downloads stream through the API after the permission check.
 - **Realtime:** Socket.IO gateway with Redis adapter; rooms prefixed by tenant.
 
 ## Alternatives considered

@@ -24,3 +24,4 @@ Template: Status · Date · Context · Decision · Alternatives considered · Co
 | 0016 | Production deployment on an Iranian cloud server | Accepted |
 | 0017 | Task source, automatic priority and personal order | Accepted |
 | 0018 | Percentage progress on tasks and projects | Accepted |
+| 0019 | File storage and attachments | Accepted |
