@@ -5,7 +5,8 @@
  *   node dist/scripts/demo-reset.js --daily   reset every day at DEMO_RESET_AT (Tehran)
  */
 import { spawn } from 'node:child_process';
-import { resolve } from 'node:path';
+import { rm } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 
 import { truncateAllData } from '@madar/db';
 
@@ -35,6 +36,12 @@ async function reset(): Promise<void> {
   // Refuses inside the database if any company other than the demo one exists.
   const tables = await truncateAllData(ownerUrl, { onlyIfTenantSlugs: [SEED_COMPANY.slug] });
   log(`emptied ${tables} tables`);
+  // The attachments of the old demo company go with its rows (local file storage only).
+  const dir = process.env.STORAGE_DIR;
+  if ((process.env.STORAGE_DRIVER ?? 'local') === 'local' && dir) {
+    await rm(join(dir, 'tenants'), { recursive: true, force: true });
+    log('removed the demo attachments');
+  }
   await seed();
   log('demo company seeded');
 }

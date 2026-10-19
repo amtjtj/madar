@@ -28,6 +28,14 @@ x-app-env: &app-env
   PUSH_PROXY_URL: ${PUSH_PROXY_URL:-}
   DEMO_MODE: ${DEMO_MODE:-}
   SEED_PASSWORD: ${DEMO_PASSWORD:-}
+  # Attachments (ADR 0019): the files-data volume by default, or an S3-compatible service.
+  STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
+  STORAGE_DIR: /data/files
+  S3_ENDPOINT: ${S3_ENDPOINT:-}
+  S3_REGION: ${S3_REGION:-us-east-1}
+  S3_BUCKET: ${S3_BUCKET:-}
+  S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
+  S3_SECRET_KEY: ${S3_SECRET_KEY:-}
   TZ: Asia/Tehran
 
 services:
@@ -87,6 +95,8 @@ services:
     environment:
       <<: *app-env
       API_PORT: '4000'
+    volumes:
+      - files-data:/data/files
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -108,6 +118,8 @@ services:
       timeout: 5s
       start_period: 20s
       retries: 3
+    volumes:
+      - files-data:/data/files
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -140,6 +152,8 @@ services:
       <<: *app-env
       DATABASE_URL: ${DATABASE_URL}
       DEMO_RESET_AT: ${DEMO_RESET_AT:-05:00}
+    volumes:
+      - files-data:/data/files
     healthcheck:
       disable: true
     depends_on:
@@ -149,7 +163,8 @@ services:
     networks: [data]
     logging: *logging
 
-  # Nightly pg_dump with a restore check after every backup (docker/backup/backup.sh).
+  # Nightly pg_dump and attachments archive, with a restore check after every backup
+  # (docker/backup/backup.sh).
   backup:
     image: ${BASE_REGISTRY:-docker.io/library}/postgres:18-alpine
     restart: unless-stopped
@@ -171,6 +186,8 @@ services:
     volumes:
       - ./backup/backup.sh:/scripts/backup.sh:ro
       - ../backups:/backups
+      # Attachments go into the nightly backup too (restore.sh writes them back).
+      - files-data:/files
     depends_on:
       postgres:
         condition: service_healthy
@@ -206,5 +223,6 @@ networks:
 volumes:
   postgres-data:
   redis-data:
+  files-data:
   caddy-data:
   caddy-config:

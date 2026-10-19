@@ -37,6 +37,8 @@ WORKDIR /app
 COPY --from=build --chown=node:node /out ./
 ARG APP_VERSION=0.0.0
 ENV APP_VERSION=${APP_VERSION}
+# Attachments (ADR 0019): a named volume mounted here takes this owner on first use.
+RUN mkdir -p /data/files && chown node:node /data/files
 USER node
 EXPOSE 4000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=3 \

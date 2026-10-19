@@ -1,7 +1,9 @@
 #!/bin/sh
-# Database backups (ADR 0016). Runs in the `backup` service (postgres image, same version as the
-# database). Every night: pg_dump, keep KEEP_DAILY nightly and KEEP_WEEKLY weekly copies, restore
-# the new file into a scratch database and compare row counts, optionally copy it to S3.
+# Database and attachment backups (ADR 0016, 0019). Runs in the `backup` service (postgres image,
+# same version as the database). Every night: pg_dump plus an archive of the attachments
+# (<name>.files.tar.gz next to the dump), keep KEEP_DAILY nightly and KEEP_WEEKLY weekly copies,
+# restore the dump into a scratch database and compare row counts, check the archive reads back,
+# optionally copy both to S3.
 #   backup.sh loop    run forever, once a day at BACKUP_AT (Asia/Tehran), into daily/ (+ weekly/)
 #   backup.sh now     one backup into manual/ (deploys, smoke tests, by hand) and its restore check
 #   backup.sh check   restore check of the newest nightly backup
@@ -11,6 +13,8 @@ export PGOPTIONS="-c client_min_messages=warning"
 umask 077
 
 DIR=/backups
+# The attachments volume (local file storage); empty when files live in S3.
+FILES=/files
 BACKUP_AT=${BACKUP_AT:-03:30}
 KEEP_DAILY=${KEEP_DAILY:-7}
 KEEP_WEEKLY=${KEEP_WEEKLY:-4}
@@ -32,6 +36,22 @@ count_of() { # counts table
   echo "$1" | tr ',' '\n' | grep "\"$2\":" | cut -d: -f2
 }
 
+files_of() { # dump file -> its attachments archive
+  echo "${1%.dump}.files.tar.gz"
+}
+
+archive_files() { # dump file
+  [ -d "$FILES/tenants" ] || return 0
+  tar -czf "$(files_of "$1").partial" -C "$FILES" tenants \
+    && mv "$(files_of "$1").partial" "$(files_of "$1")"
+}
+
+check_files() { # dump file -> "true"/"false"; no archive (no files yet) is fine
+  archive=$(files_of "$1")
+  [ -f "$archive" ] || { echo true; return; }
+  if tar -tzf "$archive" >/dev/null 2>&1; then echo true; else echo false; fi
+}
+
 check() { # file
   file=$1
   dropdb --if-exists "$CHECK_DB"
@@ -39,6 +59,8 @@ check() { # file
   ok=true
   # The same restore as scripts/deploy/restore.sh (owners and grants included).
   pg_restore --exit-on-error -d "$CHECK_DB" "$file" || ok=false
+  files_ok=$(check_files "$file")
+  [ "$files_ok" = true ] || ok=false
   live=$(count_rows "$PGDATABASE")
   restored=$(count_rows "$CHECK_DB")
   dropdb --if-exists "$CHECK_DB"
@@ -53,8 +75,8 @@ check() { # file
     done
   fi
   # The summary has no data in it: readable by status.sh without sudo.
-  (umask 022 && printf '{"time":"%s","file":"%s","bytes":%s,"ok":%s,"restored":{%s},"live":{%s}}\n' \
-    "$(date -Iseconds)" "$(basename "$file")" "$(wc -c < "$file")" "$ok" "$restored" "$live" \
+  (umask 022 && printf '{"time":"%s","file":"%s","bytes":%s,"ok":%s,"files":%s,"restored":{%s},"live":{%s}}\n' \
+    "$(date -Iseconds)" "$(basename "$file")" "$(wc -c < "$file")" "$ok" "$files_ok" "$restored" "$live" \
     > "$DIR/last-check.json")
   if [ "$ok" = true ]; then log "restore check passed for $(basename "$file")"; else
     log "ERROR restore check FAILED for $(basename "$file")"; return 1; fi
@@ -70,8 +92,10 @@ upload() { # file
     && log "copied $(basename "$1") to s3://$BACKUP_S3_BUCKET"
 }
 
-prune() { # dir keep
-  ls -1t "$1"/*.dump 2>/dev/null | tail -n +"$(($2 + 1))" | xargs -r rm -f
+prune() { # dir keep (a dump and its attachments archive go together)
+  ls -1t "$1"/*.dump 2>/dev/null | tail -n +"$(($2 + 1))" | while read -r old; do
+    rm -f "$old" "$(files_of "$old")"
+  done
 }
 
 backup() { # set: daily | manual
@@ -81,18 +105,25 @@ backup() { # set: daily | manual
   file="$set_dir/madar_$(date +%Y-%m-%d_%H%M).dump"
   pg_dump -Fc -f "$file.partial" || { rm -f "$file.partial"; log "ERROR pg_dump failed"; return 1; }
   mv "$file.partial" "$file"
+  archive_files "$file" || { log "ERROR attachments archive failed"; rm -f "$(files_of "$file").partial"; }
   log "backup written: $1/$(basename "$file") ($(wc -c < "$file") bytes)"
   # A dump that does not restore is kept aside and never replaces a good one.
   check "$file" || { mv "$file" "$file.failed"; return 1; }
   if [ "$1" = daily ]; then
     # Fridays also go to the weekly set.
-    if [ "$(date +%u)" = 5 ]; then cp "$file" "$DIR/weekly/"; fi
+    if [ "$(date +%u)" = 5 ]; then
+      cp "$file" "$DIR/weekly/"
+      if [ -f "$(files_of "$file")" ]; then cp "$(files_of "$file")" "$DIR/weekly/"; fi
+    fi
     prune "$DIR/daily" "$KEEP_DAILY"
     prune "$DIR/weekly" "$KEEP_WEEKLY"
   else
     prune "$DIR/manual" "$KEEP_MANUAL"
   fi
   upload "$file" || log "ERROR copy to S3 failed"
+  if [ -f "$(files_of "$file")" ]; then
+    upload "$(files_of "$file")" || log "ERROR copy of attachments to S3 failed"
+  fi
 }
 
 seconds_until() { # HH:MM, today or tomorrow

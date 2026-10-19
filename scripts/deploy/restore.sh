@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Replaces the live database with a backup file (docs/deploy.md, «بازگردانی»).
+# Replaces the live database, and the attachments when the backup has them, with a backup
+# (docs/deploy.md, «بازگردانی»).
 #   scripts/deploy/restore.sh backups/daily/madar_2026-10-18_0330.dump
 # Safe by construction: a fresh backup is taken first, the file is restored into a separate
 # database, and only a complete restore is swapped in. The old database is kept as
@@ -14,6 +15,7 @@ file=${1:-}
 # Dumps are readable by root only; the backup container reads them at /backups.
 inside="/backups/${file#*backups/}"
 compose exec -T backup test -f "$inside" || fail "no such backup: $file"
+files="${inside%.dump}.files.tar.gz"
 db=$(env_value POSTGRES_DB)
 db=${db:-madar}
 sql() { compose exec -T backup psql -d postgres -v ON_ERROR_STOP=1 -Atqc "$1"; }
@@ -36,6 +38,12 @@ sql "drop database if exists ${db}_before_restore"
 sql "select pg_terminate_backend(pid) from pg_stat_activity where datname = '$db' and pid <> pg_backend_pid()" >/dev/null
 sql "alter database $db rename to ${db}_before_restore"
 sql "alter database ${db}_restoring rename to $db"
+if compose exec -T backup test -f "$files"; then
+  say "Restoring the attachments (the current ones are kept in files-data/.before_restore)"
+  compose exec -T backup sh -c "rm -rf /files/.before_restore && mkdir -p /files/.before_restore \
+    && { [ ! -d /files/tenants ] || mv /files/tenants /files/.before_restore/; } \
+    && tar -xzpf '$files' -C /files"
+fi
 trap - ERR
 
 say "Starting the app (migrations run first)"

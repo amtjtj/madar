@@ -50,6 +50,15 @@ VAPID_SUBJECT=mailto:$email
 # Outbound proxy for browsers' push services, if the server cannot reach them directly.
 PUSH_PROXY_URL=
 
+# Attachments (ADR 0019): the files-data volume on this server, or set STORAGE_DRIVER=s3 and the
+# S3_* values for an S3-compatible service (e.g. an Iranian cloud storage).
+STORAGE_DRIVER=local
+S3_ENDPOINT=
+S3_REGION=us-east-1
+S3_BUCKET=
+S3_ACCESS_KEY=
+S3_SECRET_KEY=
+
 # Backups: nightly time (Tehran) and how many to keep; optional S3-compatible copy.
 BACKUP_AT=03:30
 BACKUP_KEEP_DAILY=7

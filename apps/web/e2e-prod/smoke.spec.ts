@@ -115,3 +115,28 @@ test('the weekly report opens and prints without the app around it', async ({ br
   await ceo.emulateMedia({ media: 'print' });
   await expect(ceo.getByRole('button', { name: 'دریافت PDF' })).toBeHidden();
 });
+
+test('a file goes up through Caddy, lands in the files volume and comes back intact', async ({
+  browser,
+}) => {
+  const employee = await as(browser, 'employee');
+  const pdf = Buffer.from(`%PDF-1.7\n% smoke ${Date.now()}\n%%EOF\n`);
+  const up = await employee.request.post('/api/uploads', {
+    multipart: { file: { name: 'آزمون استقرار.pdf', mimeType: 'application/pdf', buffer: pdf } },
+  });
+  expect(up.status(), await up.text()).toBe(201);
+  const { id } = (await up.json()) as { id: string };
+  const tasks = (await (await employee.request.get('/api/tasks?view=mine')).json()) as Array<{
+    id: string;
+  }>;
+  const taskId = tasks[0]?.id;
+  expect(taskId, 'the employee has a task').toBeTruthy();
+  const attached = await employee.request.post(`/api/tasks/${taskId}/attachments`, {
+    data: { uploadIds: [id] },
+  });
+  expect(attached.ok(), await attached.text()).toBe(true);
+  const back = await employee.request.get(`/api/attachments/${id}/file`);
+  expect(back.headers()['x-content-type-options']).toBe('nosniff');
+  expect(Buffer.compare(await back.body(), pdf)).toBe(0);
+  expect((await employee.request.delete(`/api/attachments/${id}`)).status()).toBe(204);
+});

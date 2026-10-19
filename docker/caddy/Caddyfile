@@ -29,7 +29,17 @@
 	# One id per request, logged by Caddy and by the API.
 	request_header X-Request-Id {http.request.uuid}
 
+	# Uploads stop at the company limit in the API (at most 100 MB); this is the outer bound.
+	handle /api/uploads {
+		request_body {
+			max_size 110MB
+		}
+		reverse_proxy api:4000
+	}
 	handle /api/* {
+		request_body {
+			max_size 2MB
+		}
 		reverse_proxy api:4000
 	}
 	handle {
