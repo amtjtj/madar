@@ -314,7 +314,7 @@ export class AttachmentsService implements OnModuleInit {
       const row = await this.visible(tx, ctx, id);
       if (row.subjectType === 'letter') {
         // A sent letter is permanent, files included; a draft's files are its sender's.
-        const letter = await this.letterOf(tx, ctx, row);
+        const letter = await this.letterOf(tx, ctx, row, true);
         if (!letter || letter.sentAt || row.uploadedBy !== ctx.memberId) throw forbidden();
       }
       const taskId = await this.taskOf(tx, row);
@@ -327,7 +327,11 @@ export class AttachmentsService implements OnModuleInit {
         action: 'attachment.deleted',
         subjectType: 'attachment',
         subjectId: id,
-        before: { fileName: row.fileName, size: row.size, subject: row.subjectType, taskId },
+        // A draft letter's file names can be confidential; the log keeps only the size.
+        before:
+          row.subjectType === 'letter'
+            ? { size: row.size, subject: row.subjectType }
+            : { fileName: row.fileName, size: row.size, subject: row.subjectType, taskId },
       });
       if (taskId) {
         await recordActivity(tx, {
@@ -363,9 +367,9 @@ export class AttachmentsService implements OnModuleInit {
   }
 
   /** The letter a file belongs to, when the person may open it (ADR 0020). */
-  private async letterOf(tx: Tx, ctx: TenantContext, row: AttachmentRow) {
+  private async letterOf(tx: Tx, ctx: TenantContext, row: AttachmentRow, lock = false) {
     if (row.subjectType !== 'letter' || !row.subjectId) return null;
-    const [letter] = await tx
+    const query = tx
       .select({ id: s.letters.id, sentAt: s.letters.sentAt })
       .from(s.letters)
       .where(
@@ -375,6 +379,8 @@ export class AttachmentsService implements OnModuleInit {
           visibleLetters(ctx.memberId),
         ),
       );
+    // Locked when deleting, so a send running at the same time cannot slip in between.
+    const [letter] = lock ? await query.for('update') : await query;
     return letter ?? null;
   }
 

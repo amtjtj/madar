@@ -35,6 +35,13 @@ const noRecipients = () =>
 const alreadyRecipient = () =>
   new ApiError(HttpStatus.CONFLICT, 'already_recipient', 'Already has the letter');
 
+/** `before` is «sort time_id» of the last row, so ties keep their order across pages. */
+function parseLetterCursor(value: string): { at: string; id: string } {
+  const at = value.slice(0, value.lastIndexOf('_'));
+  const id = value.slice(value.lastIndexOf('_') + 1);
+  return { at, id };
+}
+
 /** How many «to» names a summary carries (the sent folder shows them). */
 const SUMMARY_TO = 3;
 
@@ -88,9 +95,15 @@ export class LettersService {
           );
           break;
       }
-      const q = query.q ? toLatinDigits(query.q) : '';
+      const q = query.q ?? '';
+      const cursor = query.before ? parseLetterCursor(query.before) : null;
       const rows = await tx
-        .select({ letter: s.letters, mine, sortAt: sql<string>`(${sortAt})::text` })
+        .select({
+          letter: s.letters,
+          mine,
+          // Microseconds kept, so the cursor never skips letters that arrived in the same ms.
+          sortAt: sql<string>`to_char((${sortAt}) at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`,
+        })
         .from(s.letters)
         .leftJoin(mine, and(eq(mine.letterId, s.letters.id), eq(mine.memberId, me)))
         .where(
@@ -99,9 +112,12 @@ export class LettersService {
             visibleLetters(me),
             where,
             q
-              ? sql`(${s.letters.subject} ilike ${likePattern(q)} or ${s.letters.number} ilike ${likePattern(q)})`
+              ? // Subjects keep the digits people typed (often Persian); numbers are stored in Latin.
+                sql`(${s.letters.subject} ilike ${likePattern(q)} or ${s.letters.subject} ilike ${likePattern(toLatinDigits(q))} or ${s.letters.number} ilike ${likePattern(toLatinDigits(q))})`
               : undefined,
-            query.before ? sql`${sortAt} < ${query.before}::timestamptz` : undefined,
+            cursor
+              ? sql`((${sortAt}), ${s.letters.id}) < (${cursor.at}::timestamptz, ${cursor.id}::uuid)`
+              : undefined,
           ),
         )
         .orderBy(desc(sortAt), desc(s.letters.id))
@@ -115,7 +131,7 @@ export class LettersService {
       const last = page.at(-1);
       return {
         items,
-        nextBefore: rows.length > query.limit && last ? new Date(last.sortAt).toISOString() : null,
+        nextBefore: rows.length > query.limit && last ? `${last.sortAt}_${last.letter.id}` : null,
       };
     });
   }
@@ -203,7 +219,8 @@ export class LettersService {
   /** Edits a draft: its fields and recipients are replaced, new uploads are added. */
   update(ctx: TenantContext, id: string, body: SaveLetterRequest): Promise<Letter> {
     return this.db.run(ctx, async (tx) => {
-      await this.requireDraft(tx, ctx, id);
+      // Locked: a send running at the same time finishes first, and then this is refused.
+      await this.requireDraft(tx, ctx, id, true);
       const [letter] = await tx
         .update(s.letters)
         .set({
@@ -213,7 +230,7 @@ export class LettersService {
           confidential: body.confidential,
           updatedAt: new Date(),
         })
-        .where(eq(s.letters.id, id))
+        .where(and(eq(s.letters.id, id), isNull(s.letters.sentAt)))
         .returning();
       if (!letter) throw notFound('Letter');
       await tx.delete(s.letterRecipients).where(eq(s.letterRecipients.letterId, id));
@@ -226,8 +243,11 @@ export class LettersService {
   /** Deletes a draft (soft); its files go with the daily cleanup. */
   remove(ctx: TenantContext, id: string): Promise<void> {
     return this.db.run(ctx, async (tx) => {
-      await this.requireDraft(tx, ctx, id);
-      await tx.update(s.letters).set({ deletedAt: new Date() }).where(eq(s.letters.id, id));
+      await this.requireDraft(tx, ctx, id, true);
+      await tx
+        .update(s.letters)
+        .set({ deletedAt: new Date() })
+        .where(and(eq(s.letters.id, id), isNull(s.letters.sentAt)));
     });
   }
 
@@ -238,6 +258,16 @@ export class LettersService {
   send(ctx: TenantContext, id: string): Promise<Letter> {
     return this.db.run(ctx, async (tx) => {
       const draft = await this.requireDraft(tx, ctx, id, true);
+      // Someone deactivated since the draft was saved is taken off it, so the list matches who
+      // was notified and audited.
+      await tx
+        .delete(s.letterRecipients)
+        .where(
+          and(
+            eq(s.letterRecipients.letterId, id),
+            sql`${s.letterRecipients.memberId} in (select m.id from members m where m.status <> 'active')`,
+          ),
+        );
       const recipients = await tx
         .select({ memberId: s.letterRecipients.memberId, kind: s.letterRecipients.kind })
         .from(s.letterRecipients)
@@ -287,7 +317,8 @@ export class LettersService {
   /** Refers a sent letter to colleagues with a note; they see this letter, not its thread. */
   refer(ctx: TenantContext, id: string, body: ReferLetterRequest): Promise<Letter> {
     return this.db.run(ctx, async (tx) => {
-      const letter = await this.requireVisible(tx, ctx, id);
+      // Locked: two people referring the same colleague at once get «already_recipient», not 500.
+      const letter = await this.requireVisible(tx, ctx, id, true);
       if (!letter.sentAt) throw notFound('Letter');
       const memberIds = [...new Set(body.memberIds)];
       const active = await this.activeMembers(tx, memberIds);
@@ -338,11 +369,12 @@ export class LettersService {
   }
 
   /** A letter the person may open, or 404 (also for another company's letters, via RLS). */
-  async requireVisible(tx: Tx, ctx: TenantContext, id: string): Promise<LetterRow> {
-    const [letter] = await tx
+  async requireVisible(tx: Tx, ctx: TenantContext, id: string, lock = false): Promise<LetterRow> {
+    const query = tx
       .select()
       .from(s.letters)
       .where(and(eq(s.letters.id, id), isNull(s.letters.deletedAt), visibleLetters(ctx.memberId)));
+    const [letter] = lock ? await query.for('update') : await query;
     if (!letter) throw notFound('Letter');
     return letter;
   }
@@ -387,7 +419,9 @@ export class LettersService {
     const to = [...new Set(body.to)].filter((m) => m !== ctx.memberId);
     const cc = [...new Set(body.cc)].filter((m) => m !== ctx.memberId && !to.includes(m));
     const all = [...to, ...cc];
-    if (all.length > 50) throw noRecipients();
+    if (all.length > 50) {
+      throw new ApiError(HttpStatus.BAD_REQUEST, 'validation_failed', 'At most 50 recipients');
+    }
     const active = await this.activeMembers(tx, all);
     if (active.length !== all.length) throw notFound('Member');
     if (all.length === 0) return;

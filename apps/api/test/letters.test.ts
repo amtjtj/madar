@@ -1,4 +1,4 @@
-import { schema as s, withTenant, type DbHandle } from '@madar/db';
+import { createDb, schema as s, withTenant, type DbHandle } from '@madar/db';
 import {
   toJalali,
   toPersianDigits,
@@ -8,7 +8,7 @@ import {
 } from '@madar/shared';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test, type TestingModule } from '@nestjs/testing';
-import { and, count, eq, isNull } from 'drizzle-orm';
+import { and, count, eq, inArray, isNull } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { ENV } from '../src/config/config.module.js';
@@ -389,6 +389,93 @@ describe.skipIf(!hasDatabase)('letters', () => {
     expect(
       (await ali.c.post(`/api/letters/${letter.id}/refer`, { memberIds: [otherMemberId] })).status,
     ).toBe(404);
+  });
+
+  it('a referred person sees only the read state of people they referred', async () => {
+    const letter = await sendLetter(ali, { to: [lead.memberId], cc: [maryam.memberId] });
+    await lead.c.post(`/api/letters/${letter.id}/refer`, { memberIds: [legal.memberId] });
+    await legal.c.post(`/api/letters/${letter.id}/refer`, { memberIds: [reza.memberId] });
+    const forLegal: Letter = (await legal.c.get(`/api/letters/${letter.id}`)).body;
+    expect(forLegal.recipients.find((r) => r.id === maryam.memberId)).not.toHaveProperty('readAt');
+    expect(forLegal.recipients.find((r) => r.id === lead.memberId)).not.toHaveProperty('readAt');
+    expect(forLegal.recipients.find((r) => r.id === reza.memberId)).toHaveProperty('readAt');
+  });
+
+  it('finds subjects by the digits people typed, Persian or Latin', async () => {
+    const letter = await sendLetter(ali, { subject: 'انتشار نسخه ۷٫۹ اپ', to: [legal.memberId] });
+    expect((await folder(legal, 'inbox', '۷٫۹')).items.map((l) => l.id)).toEqual([letter.id]);
+  });
+
+  it('pages without skipping letters that arrived at the same moment', async () => {
+    const sent: Letter[] = [];
+    for (let i = 0; i < 5; i++) {
+      sent.push(await sendLetter(owner, { subject: `هم‌زمان ${i}`, to: [maryam.memberId] }));
+    }
+    // The same arrival time to the microsecond for all five.
+    await withTenant(handle.db, { tenantId }, (tx) =>
+      tx
+        .update(s.letterRecipients)
+        .set({ createdAt: new Date('2099-01-01T00:00:00.123Z') })
+        .where(
+          and(
+            eq(s.letterRecipients.memberId, maryam.memberId),
+            inArray(
+              s.letterRecipients.letterId,
+              sent.map((l) => l.id),
+            ),
+          ),
+        ),
+    );
+    const seen: string[] = [];
+    let before: string | null = null;
+    do {
+      const page: LetterList = (
+        await maryam.c.get(`/api/letters?folder=inbox&limit=2${before ? `&before=${before}` : ''}`)
+      ).body;
+      seen.push(...page.items.map((l) => l.id));
+      before = page.nextBefore;
+    } while (before && seen.length < 100);
+    for (const letter of sent) expect(seen).toContain(letter.id);
+    expect(new Set(seen).size).toBe(seen.length);
+  });
+
+  it('a read-only company can open letters but not send or refer them', async () => {
+    const letter = await sendLetter(ali, { to: [lead.memberId] });
+    const d = await draft(ali, { to: [lead.memberId] });
+    loadEnv(); // also reads the repo .env into process.env
+    const owner = createDb(process.env.DATABASE_URL ?? '');
+    const setStatus = (status: 'active' | 'read_only') =>
+      owner.db.update(s.tenants).set({ status }).where(eq(s.tenants.id, tenantId));
+    try {
+      await setStatus('read_only');
+      expect((await lead.c.get(`/api/letters/${letter.id}`)).status).toBe(200);
+      expect((await lead.c.get('/api/letters')).status).toBe(200);
+      const send = await ali.c.post(`/api/letters/${d.id}/send`);
+      expect(send.status).toBe(423);
+      expect(send.body.error.code).toBe('tenant_read_only');
+      expect(
+        (await lead.c.post(`/api/letters/${letter.id}/refer`, { memberIds: [reza.memberId] }))
+          .status,
+      ).toBe(423);
+    } finally {
+      await setStatus('active');
+      await owner.pool.end();
+    }
+  });
+
+  it('numbers start again at 1 in a new Jalali year', async () => {
+    const company = await ownerSession(app, env);
+    const sender: Person = {
+      c: company.c,
+      memberId: (await company.c.get('/api/me')).body.member.id,
+    };
+    const to = await memberSession(app, env, company.c, {});
+    // Last year's register reached 120.
+    await withTenant(handle.db, { tenantId: company.tenantId }, (tx) =>
+      tx.insert(s.letterCounters).values({ jalaliYear: year - 1, lastNumber: 120 }),
+    );
+    const letter = await sendLetter(sender, { to: [to.memberId] });
+    expect(letter.number).toBe(`${year}/00001`);
   });
 
   it('hands out gap-free numbers to parallel sends', async () => {

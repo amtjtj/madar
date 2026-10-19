@@ -2,7 +2,7 @@
 
 import { Bold, List, Save, Send, Trash2, X } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { t } from '@madar/i18n';
 import {
@@ -43,7 +43,7 @@ import {
 } from '@/hooks/letters';
 import { useMe } from '@/hooks/use-me';
 import { errorMessage } from '@/lib/errors';
-import { applyMark, joinNames, replySubject } from '@/lib/letters';
+import { applyMark, joinNames, replyRecipients, replySubject } from '@/lib/letters';
 
 import { RecipientPicker, type Person } from './recipient-picker';
 
@@ -76,24 +76,10 @@ function fromDraft(letter: Letter): Initial {
   };
 }
 
-/** «پاسخ» goes to the sender; «پاسخ به همه» adds every recipient and copy except me. */
 function fromReply(letter: Letter, all: boolean, me: string | undefined): Initial {
-  const strip = (people: Person[]) =>
-    people
-      .filter((p, i) => p.id !== me && people.findIndex((q) => q.id === p.id) === i)
-      .map(({ id, displayName }) => ({ id, displayName }));
-  const direct = letter.recipients.filter((r) => r.kind === 'to');
-  const to =
-    letter.sender.id === me ? strip(direct) : strip([letter.sender, ...(all ? direct : [])]);
-  const cc = all
-    ? strip(letter.recipients.filter((r) => r.kind === 'cc')).filter(
-        (p) => !to.some((q) => q.id === p.id),
-      )
-    : [];
   return {
     replyTo: letter,
-    to,
-    cc,
+    ...replyRecipients(letter, all, me),
     subject: replySubject(letter.subject),
     urgency: 'normal',
     confidential: letter.confidential,
@@ -112,9 +98,15 @@ export function Compose() {
   const draft = useLetter(draftParam);
   const reply = useLetter(draftParam ? undefined : replyParam);
   const memberId = me?.member?.id;
+  const router = useRouter();
+  // `?draft=` of a letter that was sent meanwhile: show the letter instead of a blank form.
+  const sentId = draft.data && !draft.data.can.edit ? draft.data.id : null;
+  useEffect(() => {
+    if (sentId) router.replace(`/letters/${sentId}`);
+  }, [sentId, router]);
 
   const loading = (draftParam && draft.isPending) || (replyParam && !draftParam && reply.isPending);
-  if (loading || !me) {
+  if (loading || !me || sentId) {
     return (
       <div aria-busy className="flex flex-col gap-3">
         <Skeleton className="h-10 w-1/2 rounded-lg" />
@@ -279,7 +271,7 @@ function ComposeForm({ initial, memberId }: { initial: Initial; memberId?: strin
                       onClick={() => mark('bold')}
                       aria-label={t('letters.compose.bold')}
                       title={t('letters.compose.bold')}
-                      className="grid size-9 place-items-center rounded-lg text-ink-muted hover:bg-sunken hover:text-ink [&_svg]:size-4"
+                      className="grid size-9 place-items-center rounded-lg text-ink-muted hover:bg-sunken hover:text-ink focus-visible:outline-2 focus-visible:outline-focus [&_svg]:size-4"
                     >
                       <Bold aria-hidden />
                     </button>
@@ -288,7 +280,7 @@ function ComposeForm({ initial, memberId }: { initial: Initial; memberId?: strin
                       onClick={() => mark('list')}
                       aria-label={t('letters.compose.list')}
                       title={t('letters.compose.list')}
-                      className="grid size-9 place-items-center rounded-lg text-ink-muted hover:bg-sunken hover:text-ink [&_svg]:size-4"
+                      className="grid size-9 place-items-center rounded-lg text-ink-muted hover:bg-sunken hover:text-ink focus-visible:outline-2 focus-visible:outline-focus [&_svg]:size-4"
                     >
                       <List aria-hidden />
                     </button>
@@ -344,7 +336,12 @@ function ComposeForm({ initial, memberId }: { initial: Initial; memberId?: strin
                             aria-label={t('work.files.delete', { name: a.fileName })}
                             onClick={() => {
                               setAttached((list) => list.filter((x) => x.id !== a.id));
-                              removeFile.mutate(a.id, { onError });
+                              removeFile.mutate(a.id, {
+                                onError: (error) => {
+                                  setAttached((list) => [...list, a]);
+                                  onError(error);
+                                },
+                              });
                             }}
                             className="grid size-9 place-items-center rounded-full text-ink-subtle hover:bg-sunken hover:text-danger-ink [&_svg]:size-4"
                           >

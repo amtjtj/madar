@@ -73,7 +73,7 @@ export function RecipientPicker({
         </span>
       </div>
       {search && (
-        <div className="rounded-xl border border-line bg-surface p-1 shadow-sm">
+        <div aria-live="polite" className="rounded-xl border border-line bg-surface p-1 shadow-sm">
           {isFetching && !found ? (
             <Skeleton className="h-11 rounded-lg" />
           ) : results.length === 0 ? (

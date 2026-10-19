@@ -1,17 +1,19 @@
 'use client';
 
-import { AlarmClock, FolderKanban, MessageCircle, UserPlus } from 'lucide-react';
+import { AlarmClock, FolderKanban, Forward, Mail, MessageCircle, UserPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 import { t } from '@madar/i18n';
 import { formatRelativeTime, type Notification } from '@madar/shared';
-import { Avatar, cn } from '@madar/ui';
+import { Avatar, UrgencyBadge, cn } from '@madar/ui';
 
 import { useMarkRead } from '@/hooks/notifications';
 import { notificationHref, notificationText } from '@/lib/notification-text';
 
 const kindIcon: Partial<Record<Notification['kind'], typeof AlarmClock>> = {
   task_commented: MessageCircle,
+  letter_received: Mail,
+  letter_referred: Forward,
   task_due_soon: AlarmClock,
   task_overdue: AlarmClock,
   task_overdue_escalation: AlarmClock,
@@ -71,9 +73,14 @@ export function NotificationRows({
                 >
                   {notificationText(n)}
                 </span>
-                <time dateTime={n.createdAt} className="text-xs text-ink-subtle">
-                  {formatRelativeTime(new Date(n.createdAt))}
-                </time>
+                <span className="flex items-center gap-2">
+                  {(n.data.urgency === 'urgent' || n.data.urgency === 'immediate') && (
+                    <UrgencyBadge urgency={n.data.urgency} />
+                  )}
+                  <time dateTime={n.createdAt} className="text-xs text-ink-subtle">
+                    {formatRelativeTime(new Date(n.createdAt))}
+                  </time>
+                </span>
               </span>
               {!n.readAt && (
                 <span

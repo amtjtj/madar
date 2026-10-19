@@ -1,5 +1,5 @@
 import { schema as s, type Tx } from '@madar/db';
-import type { NotificationKind, PushPayload } from '@madar/shared';
+import type { NotificationKind, NotificationSubject, PushPayload } from '@madar/shared';
 import { and, asc, eq, gt, inArray, isNull, lte, sql } from 'drizzle-orm';
 
 import type { PushResult, PushSender, PushTarget } from './push-sender.js';
@@ -94,7 +94,7 @@ export async function claimDue(
       kind: latest.kind as NotificationKind,
       count: due.length,
       subject: single
-        ? { type: latest.subjectType as 'task' | 'project', id: latest.subjectId }
+        ? { type: latest.subjectType as NotificationSubject, id: latest.subjectId }
         : null,
     },
   };

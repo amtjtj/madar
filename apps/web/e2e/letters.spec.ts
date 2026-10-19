@@ -6,10 +6,18 @@ const PDF = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n
 
 test('write, send, refer, reply and read a letter; drafts come back; outsiders see nothing', async ({
   page,
+  browser,
   baseURL,
 }) => {
   test.slow();
-  const { manager, employee, outsider, support, createMember } = await setUpCompany(baseURL ?? '');
+  // The marketing colleague gets a copy; «سینا» (added later) is on nothing.
+  const {
+    manager,
+    employee,
+    outsider: copied,
+    support,
+    createMember,
+  } = await setUpCompany(baseURL ?? '');
   const expert = await createMember('رضا کریمی', support.id, 'member');
   await signIn(page, employee.person.username, 'علی');
 
@@ -99,7 +107,12 @@ test('write, send, refer, reply and read a letter; drafts come back; outsiders s
   const stranger = await createMember('سینا مرادی', support.id, 'manager');
   expect((await stranger.client.get(`/api/letters/${letterId}`)).status()).toBe(404);
   expect((await stranger.client.get(fileUrl)).status()).toBe(404);
-  expect((await outsider.client.get(`/api/letters/${letterId}`)).status()).toBe(200);
+  expect((await copied.client.get(`/api/letters/${letterId}`)).status()).toBe(200);
+  const strangerPage = await (await browser.newContext({ baseURL })).newPage();
+  await signIn(strangerPage, stranger.person.username, 'سینا');
+  await strangerPage.goto(`/letters/${letterId}`);
+  await expect(strangerPage.getByText('این نامه پیدا نشد یا دسترسی به آن نداری.')).toBeVisible();
+  await strangerPage.context().close();
 
   // A draft is saved and opens again from «پیش‌نویس».
   await page.goto('/letters/new');

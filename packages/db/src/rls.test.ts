@@ -231,6 +231,18 @@ describe.skipIf(!hasDatabase)('tenant isolation (RLS)', () => {
     });
   });
 
+  it('a sent letter cannot be changed, even by the app role directly', async () => {
+    await expect(
+      withTenant(app.db, { tenantId: a.tenantId }, (tx) =>
+        tx.execute(sql`update letters set subject = 'دست‌کاری' where sent_at is not null`),
+      ),
+    ).rejects.toThrow();
+    // Per-person state still changes.
+    await withTenant(app.db, { tenantId: a.tenantId }, (tx) =>
+      tx.execute(sql`update letters set sender_archived_at = now() where sent_at is not null`),
+    );
+  });
+
   it('transaction-local settings do not leak to the next query on the same connection', async () => {
     const single = appDb();
     try {

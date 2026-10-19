@@ -19,6 +19,9 @@ Phase 2, step 12a (`docs/plans/phase-2-step-12a.md`), from the team review (`doc
   - All three tables have forced RLS and composite `(tenant_id, …)` foreign keys.
   - The app role cannot DELETE letters.
   - On `letter_recipients`, a restrictive policy allows a DELETE only while the letter is a draft. Editing a draft replaces its recipients; a sent letter's list is fixed at the database level.
+  - A `BEFORE UPDATE` trigger (`app.letters_keep_sent`) refuses any change to a sent letter's content, sender, urgency, confidentiality, thread or number. Per-person state (archive) still changes.
+  - Editing, deleting, sending and referring lock the letter row (`FOR UPDATE`), and so does deleting a draft's file. A concurrent send therefore finishes first and the edit is refused with `letter_sent`; parallel referrals of the same person get `already_recipient`.
+  - Sending first removes draft recipients who were deactivated since the draft was saved, so the stored list matches who was notified and audited.
 - **Who sees a letter.** One SQL condition, `visibleLetters` in `apps/api/src/letters/access.ts`: the sender, plus everyone on `letter_recipients` once the letter is sent.
   - No role or permission is an exception: not a manager, an admin or the owner.
   - The same condition is used by the list, the letter page, the thread, attachment downloads and `Notifier.canSee`.
@@ -49,14 +52,15 @@ Phase 2, step 12a (`docs/plans/phase-2-step-12a.md`), from the team review (`doc
 - **Archive** is per person: `letter_recipients.archived_at`, or `letters.sender_archived_at` for the sender. A new reply in a thread arrives as its own row, so it lands in the inbox again.
 - **Folders.**
   - The inbox is ordered by when the letter reached the person: a referral arrives after the send.
-  - Cursor paging works on that time.
-  - Search covers the subject and number, with Persian digits normalized and `%`/`_` taken literally.
+  - Paging is a keyset cursor on `(sort time, id)` with microseconds, so letters that arrive at the same moment are never skipped.
+  - Search covers the subject (as typed, and with Latin digits) and the number (Latin digits). `%` and `_` are taken literally.
 - **Attachments** use ADR 0019 with the subject `letter`.
   - A draft binds its sender's uploads when it is saved.
   - Downloads check `visibleLetters` on every request.
   - A sent letter's files cannot be deleted; a draft's files can be deleted by the sender.
   - Files of a deleted draft are purged by the cleanup job.
-- **Audit.** Recorded as `letter.sent` (number, recipient count), `letter.referred`, and `letter.confidential_opened` (each person's first open). The body is never written to the audit log.
+- **Audit.** Recorded as `letter.sent` (number, recipient count), `letter.referred`, and `letter.confidential_opened` (each person's first open). The body is never written to the audit log, and neither is the name of a deleted draft file.
+- **Read-only company** (ADR 0003): sending, editing and referring are refused (`tenant_read_only`). Opening a letter still records `read_at`, the confidential-open audit row and a realtime event. That is a record of reading, not a change of company data.
 - **Events and notifications.**
   - `letter.sent` notifies `to` and `cc`, but not referrals added before the worker ran.
   - `letter.referred` notifies the referred people.

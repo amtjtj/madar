@@ -27,6 +27,7 @@ import { NextLink } from '@/components/next-link';
 import { AttachmentList } from '@/components/work/attachments';
 import { useArchiveLetter, useLetter } from '@/hooks/letters';
 import { useMe } from '@/hooks/use-me';
+import { ApiClientError } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
 import { letterDate } from '@/lib/letters';
 
@@ -52,7 +53,7 @@ function People({ label, people }: { label: string; people: LetterRecipient[] })
 
 /** One letter: header, body, files, referral route, actions and the rest of its thread. */
 export function LetterView({ id }: { id: string }) {
-  const { data: letter, isPending, isError } = useLetter(id);
+  const { data: letter, isPending, isError, error, refetch } = useLetter(id);
   const { data: me } = useMe();
   const timeZone = me?.tenant?.timezone;
   const router = useRouter();
@@ -87,7 +88,14 @@ export function LetterView({ id }: { id: string }) {
     return (
       <div>
         {back}
-        <EmptyState title={t('letters.notFound')} />
+        {error instanceof ApiClientError && error.status === 404 ? (
+          <EmptyState title={t('letters.notFound')} />
+        ) : (
+          <EmptyState
+            title={errorMessage(error)}
+            action={<Button onClick={() => void refetch()}>{t('letters.retry')}</Button>}
+          />
+        )}
       </div>
     );
   }
@@ -203,7 +211,7 @@ export function LetterView({ id }: { id: string }) {
         )}
 
         <div
-          role="toolbar"
+          role="group"
           aria-label={t('letters.actions')}
           className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 flex gap-2 border-t border-line bg-surface/95 px-3 py-2.5 backdrop-blur md:static md:z-auto md:flex-wrap md:border-0 md:bg-transparent md:p-0 print:hidden [&>*]:max-md:h-10 [&>*]:max-md:px-3 [&>*]:max-md:text-sm"
         >

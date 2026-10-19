@@ -1,5 +1,5 @@
 import { t } from '@madar/i18n';
-import { formatJalaliDate, formatTime, type LetterSummary } from '@madar/shared';
+import { formatJalaliDate, formatTime, type Letter, type LetterSummary } from '@madar/shared';
 
 /** «۲۸ مهر» for this year's letters, «۱۴۰۴/۱۲/۰۳» for older ones, the time for today's. */
 export function letterDate(iso: string, timeZone?: string, now = new Date()): string {
@@ -53,4 +53,33 @@ export function applyMark(
     .join('\n');
   const next = `${text.slice(0, lineStart)}${listed}${text.slice(end)}`;
   return { text: next, start: lineStart, end: lineStart + listed.length };
+}
+
+interface Person {
+  id: string;
+  displayName: string;
+}
+
+/**
+ * «پاسخ» goes to the sender (or, replying to my own letter, to its recipients); «پاسخ به همه»
+ * adds every recipient and copy. Never me, never twice, and nobody in both lists.
+ */
+export function replyRecipients(
+  letter: Pick<Letter, 'sender' | 'recipients'>,
+  all: boolean,
+  me: string | undefined,
+): { to: Person[]; cc: Person[] } {
+  const strip = (people: Person[]) =>
+    people
+      .filter((p, i) => p.id !== me && people.findIndex((q) => q.id === p.id) === i)
+      .map(({ id, displayName }) => ({ id, displayName }));
+  const direct = letter.recipients.filter((r) => r.kind === 'to');
+  const to =
+    letter.sender.id === me ? strip(direct) : strip([letter.sender, ...(all ? direct : [])]);
+  const cc = all
+    ? strip(letter.recipients.filter((r) => r.kind === 'cc')).filter(
+        (p) => !to.some((q) => q.id === p.id),
+      )
+    : [];
+  return { to, cc };
 }

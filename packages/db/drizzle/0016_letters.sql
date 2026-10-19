@@ -79,3 +79,24 @@ CREATE POLICY draft_recipients_only ON letter_recipients AS RESTRICTIVE FOR DELE
     WHERE l.tenant_id = letter_recipients.tenant_id AND l.id = letter_recipients.letter_id
       AND l.sent_at IS NULL
   ));
+--> statement-breakpoint
+-- A sent letter is a record: its content, sender, number and thread never change (ADR 0020).
+CREATE OR REPLACE FUNCTION app.letters_keep_sent() RETURNS trigger
+  LANGUAGE plpgsql
+  AS $$
+BEGIN
+  IF OLD.sent_at IS NOT NULL AND (
+    NEW.subject, NEW.body, NEW.sender_id, NEW.urgency, NEW.confidential, NEW.thread_id,
+    NEW.reply_to_id, NEW.number, NEW.jalali_year, NEW.sequence, NEW.sent_at, NEW.deleted_at
+  ) IS DISTINCT FROM (
+    OLD.subject, OLD.body, OLD.sender_id, OLD.urgency, OLD.confidential, OLD.thread_id,
+    OLD.reply_to_id, OLD.number, OLD.jalali_year, OLD.sequence, OLD.sent_at, OLD.deleted_at
+  ) THEN
+    RAISE EXCEPTION 'a sent letter cannot be changed' USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END
+$$;
+--> statement-breakpoint
+CREATE TRIGGER letters_keep_sent BEFORE UPDATE ON letters
+  FOR EACH ROW EXECUTE FUNCTION app.letters_keep_sent();

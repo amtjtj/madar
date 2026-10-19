@@ -69,7 +69,7 @@ export type Letter = z.infer<typeof letter>;
 export const letterList = z.object({
   items: z.array(letterSummary),
   /** Pass as `before` for the next page; null on the last page. */
-  nextBefore: z.iso.datetime().nullable(),
+  nextBefore: z.string().nullable(),
 });
 export type LetterList = z.infer<typeof letterList>;
 
@@ -99,8 +99,11 @@ export type ReferLetterRequest = z.infer<typeof referLetterRequest>;
 export const listLettersQuery = z.object({
   folder: z.enum(LETTER_FOLDERS).default('inbox'),
   q: z.string().trim().max(80).optional(),
-  /** ISO time of the last row of the previous page. */
-  before: z.iso.datetime().optional(),
+  /** `nextBefore` of the previous page: the last row's sort time (UTC, microseconds) and id. */
+  before: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z_[0-9a-f-]{36}$/)
+    .optional(),
   limit: z.coerce.number().int().min(1).max(100).default(30),
 });
 export type ListLettersQuery = z.infer<typeof listLettersQuery>;
