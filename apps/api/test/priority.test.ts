@@ -182,6 +182,24 @@ describe.skipIf(!hasDatabase)('task source, priority and personal order', () => 
     expect(plan.items.map((t) => t.id)).toEqual([urgent.id, high.id, low.id]);
   });
 
+  it('lists open work by score and finished work after it, and keeps unseen order', async () => {
+    const old = await create(ali.c, { title: 'کار قدیمی تمام‌شده', dueOn: '2026-01-01' });
+    await ali.c.patch(`/api/tasks/${old.id}`, { statusKey: 'done', version: old.version });
+    const all = await mine(ali.c, '&status=all');
+    const firstDone = all.findIndex((t) => t.statusCategory === 'done');
+    expect(firstDone).toBeGreaterThan(0);
+    expect(all.slice(firstDone).every((t) => t.statusCategory === 'done')).toBe(true);
+    expect(all[firstDone]?.id).toBe(old.id);
+
+    // Saving the order of two tasks keeps the rest of the earlier order after them.
+    const ids = (await mine(ali.c)).map((t) => t.id);
+    await ali.c.put('/api/me/task-order', { taskIds: ids });
+    const [a, b] = ids;
+    const saved = (await ali.c.put('/api/me/task-order', { taskIds: [b, a] })).body.taskIds;
+    expect(saved).toEqual([b, a, ...ids.slice(2)]);
+    await ali.c.delete('/api/me/task-order');
+  });
+
   it('lets only the owner change the weights, with an audit entry', async () => {
     const defaults = (await ali.c.get('/api/settings/priority')).body;
     expect(defaults).toEqual({ due: 40, priority: 25, source: 20, keyResult: 10, weight: 5 });

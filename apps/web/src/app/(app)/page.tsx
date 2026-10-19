@@ -249,13 +249,7 @@ function TodayPlan({ today }: { today: Today }) {
             label={t('today.planList')}
             items={today.items}
             itemTitle={(task) => task.title}
-            // A task still being saved has no id yet: it keeps its place.
-            onReorder={(ids) =>
-              reorder.mutate(
-                ids.filter((id) => !id.startsWith('draft-')),
-                { onError },
-              )
-            }
+            onReorder={(ids) => reorder.mutate(ids, { onError })}
             renderItem={(task, handle, { dragging }) => (
               <div className={cn(isDraft(task) && 'opacity-60')}>
                 <TaskCard
@@ -272,7 +266,11 @@ function TodayPlan({ today }: { today: Today }) {
                   tag={task.keyResult ? <GoalTag keyResult={task.keyResult} /> : undefined}
                   source={task.source}
                   reasons={isDraft(task) ? undefined : task.rank.reasons}
-                  dragHandle={isDraft(task) || today.items.length < 2 ? undefined : handle}
+                  // No dragging while a new task is still being saved: the saved order would
+                  // leave it out of the day.
+                  dragHandle={
+                    today.items.length < 2 || today.items.some(isDraft) ? undefined : handle
+                  }
                   dragging={dragging}
                   action={
                     isDraft(task) ? null : (

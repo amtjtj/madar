@@ -925,6 +925,7 @@ export const fa = {
     emptyDescription: 'تغییر نقش‌ها، دسترسی‌ها و حساب‌ها اینجا نمایش داده می‌شود.',
     /** Keyed by audit action with '.' replaced by '_' (t() treats dots as nesting). */
     actions: {
+      priority_weights_updated: 'تغییر وزن‌های اولویت‌بندی',
       tenant_created: 'ثبت شرکت',
       member_created: 'افزودن عضو',
       member_updated: 'ویرایش مشخصات عضو',
@@ -986,6 +987,7 @@ export const fa = {
     /** Why a task sits where it does in an automatic order. */
     rank: {
       label: 'چرا این‌جا؟',
+      labelWith: 'چرا این‌جا؟ {reasons}',
       none: 'اولویت عادی؛ بر اساس زمان ثبت',
       and: '{first} و {second}',
       reasons: {

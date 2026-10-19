@@ -118,12 +118,29 @@ export class TasksService {
           keyResultId: s.tasks.keyResultId,
           weight: s.tasks.weight,
           createdAt: s.tasks.createdAt,
+          statusCategory: s.tasks.statusCategory,
+          finishedAt: sql<Date>`coalesce(${s.tasks.completedAt}, ${s.tasks.updatedAt})`,
         })
         .from(s.tasks)
         .where(and(...filters))
-        .orderBy(desc(s.tasks.createdAt))
+        // A coarse version of the score in SQL, so the pool cut never drops the tasks that
+        // matter most (open, overdue, urgent, from the CEO); the exact score is applied below.
+        .orderBy(
+          sql`(${s.tasks.statusCategory} in ('todo', 'in_progress')) desc`,
+          sql`(${s.tasks.dueOn} < ${ranking.today}) desc`,
+          sql`array_position(array['urgent','high','normal','low']::task_priority[], ${s.tasks.priority})`,
+          desc(s.tasks.sourceCeo),
+          sql`${s.tasks.dueOn} asc nulls last`,
+          desc(s.tasks.createdAt),
+        )
         .limit(RANK_POOL);
-      let ranked = rows
+      // Open work by score; finished work after it, most recently finished first.
+      const open = rows.filter((r) => OPEN.includes(r.statusCategory));
+      const finished = rows
+        .filter((r) => !OPEN.includes(r.statusCategory))
+        .sort((a, b) => new Date(b.finishedAt).getTime() - new Date(a.finishedAt).getTime())
+        .map((r) => ({ id: r.id, score: 0 }));
+      let ranked = open
         .map((r) => ({ id: r.id, score: rankOf(r, ranking).score, createdAt: r.createdAt }))
         .sort((a, b) => b.score - a.score || b.createdAt.getTime() - a.createdAt.getTime());
       if (query.view === 'mine') {
@@ -132,7 +149,7 @@ export class TasksService {
       return this.hydrate(
         tx,
         ctx,
-        ranked.slice(0, query.limit).map((r) => r.id),
+        [...ranked, ...finished].slice(0, query.limit).map((r) => r.id),
         ranking,
       );
     });
@@ -605,7 +622,7 @@ export class TasksService {
     );
   }
 
-  /** Replace the member's own order of «my tasks» (drag and drop); only tasks they can see. */
+  /** Set the member's own order of «my tasks» (drag and drop); only tasks they can see. */
   setOrder(ctx: TenantContext, input: SetTaskOrderRequest): Promise<string[]> {
     return this.db.run(ctx, async (tx) => {
       const taskIds = [...new Set(input.taskIds)];
@@ -618,6 +635,14 @@ export class TasksService {
           );
         if (visible.length !== taskIds.length) throw notFound('Task');
       }
+      // The list sends what it shows; tasks ordered earlier but not shown keep their relative
+      // order after them instead of losing their place.
+      const sent = new Set(taskIds);
+      const kept = [...(await this.personalOrder(tx, ctx)).entries()]
+        .sort((a, b) => (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0))
+        .map(([id]) => id)
+        .filter((id) => !sent.has(id));
+      taskIds.push(...kept);
       await tx.delete(s.memberTaskOrder).where(eq(s.memberTaskOrder.memberId, ctx.memberId));
       if (taskIds.length) {
         const keys = generateNKeysBetween(null, null, taskIds.length);

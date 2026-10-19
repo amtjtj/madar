@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Put } from '@nestjs/common';
 import { schema as s } from '@madar/db';
 import { priorityWeights, type PriorityWeights } from '@madar/shared';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 
 import { RequirePermission, Tenant, type TenantContext } from '../common/context.js';
 import { ZodPipe } from '../common/zod.pipe.js';
@@ -31,7 +31,8 @@ export class PrioritySettingsController {
         .set({
           settings: sql`${s.tenants.settings} || ${JSON.stringify({ priority: body })}::jsonb`,
         })
-        .where(eq(s.tenants.id, ctx.tenantId));
+        // `tenants` is control-plane (no RLS): the session's tenant guards the row as well.
+        .where(and(eq(s.tenants.id, ctx.tenantId), sql`${s.tenants.id} = app.current_tenant_id()`));
       await this.db.audit(tx, ctx, {
         action: 'priority_weights.updated',
         subjectType: 'tenant',

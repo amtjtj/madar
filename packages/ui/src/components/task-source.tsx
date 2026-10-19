@@ -53,7 +53,7 @@ export function RankHint({ reasons, className }: RankHintProps) {
       trigger={
         <button
           type="button"
-          aria-label={`${t('work.rank.label')} ${text}`}
+          aria-label={t('work.rank.labelWith', { reasons: text })}
           title={text}
           className={cn(
             'grid size-6 shrink-0 place-items-center rounded-full text-ink-subtle hover:bg-sunken hover:text-ink focus-visible:outline-2 focus-visible:outline-focus [&_svg]:size-3.5',

@@ -77,7 +77,8 @@ export function TaskViews({ params, showAssignee, emptyDescription, toolbar }: T
   const { data: tasks, isPending } = useTasks(listParams);
   const filtered = Boolean(query) || status !== 'open' || source !== 'all';
   // «My tasks», unfiltered: the member's own order (ADR 0017).
-  const personal = params.view === 'mine' && mode === 'list' && !query && source === 'all';
+  const personal =
+    params.view === 'mine' && mode === 'list' && status === 'open' && !query && source === 'all';
   const { data: order } = useTaskOrder();
   const setOrder = useSetTaskOrder(workKeys.tasks(listParams));
   const clearOrder = useClearTaskOrder();

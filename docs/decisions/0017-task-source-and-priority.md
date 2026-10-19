@@ -31,8 +31,8 @@ They want the list ordered for them, with a reason they can trust, and each pers
   The default weights are 40/25/20/10/5. They are stored in `tenants.settings.priority`, and only the owner (`tenant.manage`) edits them, at `/org/priority`, with a live preview. Each edit is audited as `priority_weights.updated`. The score is computed in the API on every read, never stored, so weights and the calendar apply at once.
 - **Reasons.** The two largest contributions become `rank.reasons`. These are i18n keys (`work.rank.reasons.*`), shown as «سررسید فردا و ابلاغ مدیرعامل» behind an info button on each card and in the task detail. They are never free text from the server.
 - **Personal order lives beside the task, not in it.**
-  - «Today»: `daily_plan_items.sort_key` is nullable. Null means «placed by score». Reordering writes keys for the whole day; «مرتب‌سازی خودکار» clears them.
-  - «My tasks»: `member_task_order (member_id, task_id, sort_key)`, an RLS table private to the member.
+  - «Today»: `daily_plan_items.sort_key` is nullable. Null means «placed by score». Reordering writes keys for the whole day; «مرتب‌سازی خودکار» clears them. Migration `0013` clears every existing key once, so all plans start in the automatic order. Dragging is off while a just-added task is still saving.
+  - «My tasks»: `member_task_order (member_id, task_id, sort_key)`, an RLS table private to the member. Dragging works in the unfiltered «open» list. A save keeps earlier-ordered tasks that were not on screen, after the ones sent.
   - In both, `mergeManualOrder` slots new or unordered tasks in by score, before the first ordered task with a lower score. An urgent new task from the CEO therefore still appears at the top, while the member's own arrangement is kept.
 - **The board keeps one shared order** (`tasks.sort_key`): a board is team space, not a personal list.
 - **Drag and drop** uses dnd-kit (`SortableList` in `@madar/ui`):
@@ -41,6 +41,8 @@ They want the list ordered for them, with a reason they can trust, and each pers
   - Keyboard: Space, arrows, Space.
   - Screen readers get Persian announcements.
   - Each reorder is optimistic and rolls back on error.
+- **Lists.** Open tasks come first, by score; finished tasks follow, most recently finished first. The API scores a pool of at most 2000 tasks. The pool is picked in SQL by a coarse version of the score (open, overdue, priority, CEO, due date), so the cut never drops the tasks that matter.
+- **Weights storage.** `tenants` is a control-plane table without RLS. The one app write to it (`PUT /api/settings/priority`) matches both the context tenant and `app.current_tenant_id()`, so the database session guards the row too.
 - **Filters.** `GET /api/tasks?source=` filters by source. The list views offer «همه / شخصی / ابلاغی / درخواست همکار».
 
 ## Alternatives considered

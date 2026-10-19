@@ -53,7 +53,8 @@ export function SortableList<T extends { id: string }>({
   renderItem,
   className,
 }: SortableListProps<T>) {
-  // The order right after a drop, until the parent passes the reordered items.
+  // The order right after a drop, until the parent passes new items (with an optimistic cache
+  // update, usually on the next render).
   const [draft, setDraft] = useState<{ items: readonly T[]; order: string[] } | null>(null);
   const order = draft && draft.items === items ? draft.order : items.map((i) => i.id);
   const byId = new Map(items.map((i) => [i.id, i]));
