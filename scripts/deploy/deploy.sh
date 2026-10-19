@@ -80,7 +80,9 @@ if [ -z "$(env_value VAPID_PUBLIC_KEY)" ]; then
   keys=$(docker run --rm "madar-api:$tag" node dist/scripts/vapid.js)
   pub=$(echo "$keys" | grep VAPID_PUBLIC_KEY | cut -d= -f2-)
   priv=$(echo "$keys" | grep VAPID_PRIVATE_KEY | cut -d= -f2-)
-  sed -i "s|^VAPID_PUBLIC_KEY=.*|VAPID_PUBLIC_KEY=$pub|; s|^VAPID_PRIVATE_KEY=.*|VAPID_PRIVATE_KEY=$priv|" "$ENV_FILE"
+  # -i.bak works with both GNU (Linux) and BSD (macOS) sed.
+  sed -i.bak "s|^VAPID_PUBLIC_KEY=.*|VAPID_PUBLIC_KEY=$pub|; s|^VAPID_PRIVATE_KEY=.*|VAPID_PRIVATE_KEY=$priv|" "$ENV_FILE"
+  rm -f "$ENV_FILE.bak"
 fi
 
 mkdir -p .deploy backups

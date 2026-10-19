@@ -20,7 +20,7 @@ worker_pw=$(secret 32)
 
 umask 077
 cat > "$ENV_FILE" <<ENV
-# Madar production settings, written by scripts/deploy/init-env.sh on $(date -I).
+# Madar production settings, written by scripts/deploy/init-env.sh on $(date +%Y-%m-%d).
 # Keep this file private and backed up outside the server: it holds every password.
 
 MADAR_DOMAIN=$domain
