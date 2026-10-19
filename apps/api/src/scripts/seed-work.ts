@@ -13,6 +13,8 @@ export interface SeedProject {
   visibility: 'department' | 'tenant' | 'private';
   owner: string;
   members?: string[];
+  /** See the project and comment, but add no work (plan phase-2-step-10b). */
+  observers?: string[];
   /** Days from today. */
   dueIn?: number;
 }
@@ -45,6 +47,8 @@ export const SEED_PROJECTS: SeedProject[] = [
     department: 'support',
     visibility: 'department',
     owner: 'maryam.ahmadi',
+    // Marketing follows support's response times for its campaigns.
+    observers: ['shiva.kazemi'],
     dueIn: 30,
   },
   {
@@ -87,6 +91,10 @@ export interface SeedTask {
   today?: boolean;
   /** Was on the assignee's plan yesterday (shows as «از دیروز»). */
   yesterday?: boolean;
+  /** Progress the assignee recorded, oldest first (ADR 0018). */
+  progress?: Array<{ value: number; note?: string }>;
+  /** Progress of each subtask, in order (the parent follows them). */
+  subtaskProgress?: number[];
 }
 
 export const SEED_TASKS: SeedTask[] = [
@@ -122,6 +130,10 @@ export const SEED_TASKS: SeedTask[] = [
     assignee: 'ali.rezaei',
     dueIn: 2,
     yesterday: true,
+    progress: [
+      { value: 20, note: 'با پنج مشتری اول تماس گرفتم' },
+      { value: 40, note: 'دو نفر جواب ندادند؛ فردا دوباره زنگ می‌زنم' },
+    ],
   },
   {
     title: 'گزارش رضایت مشتریان برای جلسه هیئت‌مدیره',
@@ -131,6 +143,7 @@ export const SEED_TASKS: SeedTask[] = [
     dueIn: 1,
     today: true,
     description: 'خلاصه شکایت‌ها و رضایت مشتریان در ماه گذشته، در یک صفحه.',
+    progress: [{ value: 50, note: 'داده‌های شکایت جمع شد؛ مانده نمودارها' }],
   },
   {
     title: 'بررسی تیکت‌های مشترک با تیم فنی',
@@ -222,6 +235,7 @@ export const SEED_TASKS: SeedTask[] = [
     priority: 'high',
     weight: 5,
     subtasks: ['مدل داده تراکنش‌ها', 'قفل خوش‌بینانه برای موجودی', 'مستندات API'],
+    subtaskProgress: [100, 50, 0],
   },
   {
     title: 'نمودار قیمت لحظه‌ای در صفحه خرید',

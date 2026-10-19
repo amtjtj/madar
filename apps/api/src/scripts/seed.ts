@@ -195,6 +195,14 @@ async function main(): Promise<void> {
         memberIds: (p.members ?? []).map(idOf),
       });
       projectIds.set(p.key, project.id);
+      if (p.observers?.length) {
+        await projects.setMembers(await as(p.owner), project.id, {
+          members: [
+            ...project.members.map((m) => ({ memberId: m.id, role: m.role })),
+            ...p.observers.map((o) => ({ memberId: idOf(o), role: 'observer' as const })),
+          ],
+        });
+      }
     }
 
     const tasks = app.get(TasksService);
@@ -214,9 +222,8 @@ async function main(): Promise<void> {
         statusKey: item.status,
       });
       taskCount++;
-      taskRefs.set(item.title, { id: task.id, version: task.version, by: item.by });
-      for (const title of item.subtasks ?? []) {
-        await tasks.create(reporter, {
+      for (const [i, title] of (item.subtasks ?? []).entries()) {
+        const sub = await tasks.create(reporter, {
           title,
           parentId: task.id,
           departmentId: task.department.id,
@@ -224,7 +231,20 @@ async function main(): Promise<void> {
           assigneeId: task.assignee?.id ?? null,
         });
         taskCount++;
+        const value = item.subtaskProgress?.[i];
+        if (value === 100) {
+          await tasks.update(reporter, sub.id, { statusKey: 'done', version: sub.version });
+        } else if (value) {
+          await tasks.setProgress(reporter, sub.id, { value, version: sub.version });
+        }
       }
+      // Progress recorded by the assignee, with the notes their manager sees (ADR 0018).
+      let version = (await tasks.get(reporter, task.id)).version;
+      for (const step of item.progress ?? []) {
+        const actor = await as(item.assignee ?? item.by);
+        version = (await tasks.setProgress(actor, task.id, { ...step, version })).version;
+      }
+      taskRefs.set(item.title, { id: task.id, version, by: item.by });
       for (const comment of item.comments ?? []) {
         await tasks.addComment(await as(comment.by), task.id, { body: comment.body });
       }
