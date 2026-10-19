@@ -18,6 +18,8 @@ export interface SelectFieldProps extends Omit<
   options: SelectOption[];
   hint?: string;
   error?: string;
+  /** Visually hide the label (it stays available to screen readers). */
+  hideLabel?: boolean;
   ref?: Ref<HTMLSelectElement>;
 }
 
@@ -27,6 +29,7 @@ export function SelectField({
   options,
   hint,
   error,
+  hideLabel,
   id,
   className,
   ref,
@@ -38,7 +41,10 @@ export function SelectField({
   const message = error ?? hint;
   return (
     <div className={cn('flex flex-col gap-1.5', className)}>
-      <label htmlFor={selectId} className="text-sm font-medium text-ink">
+      <label
+        htmlFor={selectId}
+        className={cn('text-sm font-medium text-ink', hideLabel && 'sr-only')}
+      >
         {label}
       </label>
       <div className="relative">

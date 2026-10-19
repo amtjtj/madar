@@ -1,31 +1,27 @@
 'use client';
 
-import { Archive, ArrowRight, UserPlus, X } from 'lucide-react';
+import { Archive, ArrowRight, Eye } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useState } from 'react';
 
 import { t } from '@madar/i18n';
-import { formatNumber, type Project, type ProjectRole } from '@madar/shared';
+import { formatNumber, type Project } from '@madar/shared';
 import {
-  Avatar,
   AvatarGroup,
   Badge,
   Button,
   Card,
   CardContent,
   EmptyState,
-  Modal,
   ProgressBar,
-  SelectField,
   Skeleton,
   useToast,
 } from '@madar/ui';
 
 import { NewTaskButton } from '@/components/work/new-task-button';
+import { ProjectMembers } from '@/components/work/project-members';
 import { TaskViews } from '@/components/work/task-views';
-import { useMembers } from '@/hooks/queries';
-import { useArchiveProject, useProject, useSetProjectMembers, useTodayDate } from '@/hooks/work';
+import { useArchiveProject, useProject, useTodayDate } from '@/hooks/work';
 import { KeyResultSelect } from '@/components/goals/key-result-select';
 import { useLinkKeyResult } from '@/hooks/goals';
 import { errorMessage } from '@/lib/errors';
@@ -68,6 +64,7 @@ export default function ProjectPage() {
   }
 
   const { done, total } = project.tasks;
+  const observers = project.members.filter((m) => m.role === 'observer').length;
   return (
     <>
       {back}
@@ -99,7 +96,13 @@ export default function ProjectPage() {
           />
           <div className="flex items-center gap-3">
             <AvatarGroup people={project.members.map((m) => ({ name: m.displayName }))} />
-            {project.can.edit && <MembersButton project={project} />}
+            {observers > 0 && (
+              <Badge tone="neutral">
+                <Eye aria-hidden />
+                {t('projects.observers', { count: formatNumber(observers) })}
+              </Badge>
+            )}
+            {project.can.edit && <ProjectMembers project={project} />}
             {project.can.edit && project.status === 'active' && <ArchiveButton id={project.id} />}
           </div>
         </CardContent>
@@ -139,80 +142,6 @@ function ProjectKeyResult({ project }: { project: Project }) {
         )
       }
     />
-  );
-}
-
-function MembersButton({ project }: { project: Project }) {
-  const [open, setOpen] = useState(false);
-  const [adding, setAdding] = useState('');
-  const { data: members } = useMembers();
-  const setMembers = useSetProjectMembers();
-  const { toast } = useToast();
-
-  const save = (next: Array<{ memberId: string; role: ProjectRole }>) =>
-    setMembers.mutate(
-      { id: project.id, members: next },
-      { onError: (error) => toast({ tone: 'error', title: errorMessage(error) }) },
-    );
-  const current = project.members.map((m) => ({ memberId: m.id, role: m.role }));
-  const candidates = (members ?? []).filter(
-    (m) => m.status === 'active' && !project.members.some((pm) => pm.id === m.id),
-  );
-
-  return (
-    <Modal
-      open={open}
-      onOpenChange={setOpen}
-      title={t('projects.manageMembers')}
-      trigger={
-        <Button size="sm" variant="secondary" icon={<UserPlus aria-hidden />}>
-          {t('projects.members')}
-        </Button>
-      }
-    >
-      <ul className="flex flex-col divide-y divide-line">
-        {project.members.map((m) => (
-          <li key={m.id} className="flex items-center gap-3 py-2.5">
-            <Avatar name={m.displayName} size="sm" />
-            <span className="flex-1 font-medium text-ink">{m.displayName}</span>
-            {m.role === 'owner' || m.id === project.owner.id ? (
-              <Badge tone="primary">{t('projects.owner')}</Badge>
-            ) : (
-              <button
-                type="button"
-                aria-label={t('projects.removeMember', { name: m.displayName })}
-                onClick={() => save(current.filter((c) => c.memberId !== m.id))}
-                className="grid size-8 place-items-center rounded-full text-ink-subtle hover:bg-sunken hover:text-danger-ink [&_svg]:size-4"
-              >
-                <X aria-hidden />
-              </button>
-            )}
-          </li>
-        ))}
-      </ul>
-      <div className="flex items-end gap-2">
-        <SelectField
-          className="flex-1"
-          label={t('projects.addMember')}
-          value={adding}
-          onChange={(e) => setAdding(e.target.value)}
-          options={[
-            { value: '', label: '—' },
-            ...candidates.map((m) => ({ value: m.id, label: m.displayName })),
-          ]}
-        />
-        <Button
-          disabled={!adding}
-          loading={setMembers.isPending}
-          onClick={() => {
-            save([...current, { memberId: adding, role: 'member' }]);
-            setAdding('');
-          }}
-        >
-          {t('projects.addMember')}
-        </Button>
-      </div>
-    </Modal>
   );
 }
 
