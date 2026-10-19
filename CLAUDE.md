@@ -54,6 +54,7 @@ docs/
   architecture.md  Approved architecture (read before structural changes)
   pilot-assumptions.md  Assumed facts about the pilot company until confirmed
   decisions/  Architecture decision records (one file per decision)
+  feedback/   Approved feedback from team and pilot reviews (requirements and defaults for the next steps)
   plans/      Plan for each step (phase-<n>-step-<m>.md), written before code
   prompts/    The owner's prompts for each phase
 ```
