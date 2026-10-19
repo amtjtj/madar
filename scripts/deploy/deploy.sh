@@ -42,9 +42,14 @@ fi
 if [ "$build" = 1 ]; then
   docker buildx version >/dev/null 2>&1 \
     || fail "Docker BuildKit (buildx) is missing: sudo apt install docker-buildx (docs/deploy.md §2)"
-  tag=$(git rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M)
-  # Local edits get their own tag, so they never overwrite the image of a clean commit.
-  git diff --quiet HEAD 2>/dev/null || tag="$tag-dirty-$(date +%H%M%S)"
+  if [ -d .git ]; then
+    tag=$(git rev-parse --short HEAD)
+    # Local edits get their own tag, so they never overwrite the image of a clean commit.
+    git diff --quiet HEAD || tag="$tag-dirty-$(date +%H%M%S)"
+  else
+    # A downloaded copy (ZIP) has no git history; on macOS even asking git would pop up an installer.
+    tag=build-$(date +%Y%m%d%H%M%S)
+  fi
 else
   docker image inspect "madar-api:$tag" "madar-web:$tag" >/dev/null \
     || fail "images madar-api:$tag and madar-web:$tag are not loaded (docker load)"
