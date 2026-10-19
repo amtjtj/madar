@@ -25,3 +25,4 @@ Template: Status · Date · Context · Decision · Alternatives considered · Co
 | 0017 | Task source, automatic priority and personal order | Accepted |
 | 0018 | Percentage progress on tasks and projects | Accepted |
 | 0019 | File storage and attachments | Accepted |
+| 0020 | Internal letters | Accepted |
