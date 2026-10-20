@@ -22,7 +22,10 @@ import {
   Slider,
   FileTile,
   AudienceNote,
+  ConversationRow,
+  DayDivider,
   EvidenceCard,
+  MessageBubble,
   LetterRow,
   LiteText,
   RecipientChip,
@@ -394,6 +397,53 @@ export function SliderDemo({ today }: { today: string }) {
 }
 
 /** Attached files and an upload on its way (ADR 0019). */
+export function ChatDemo() {
+  return (
+    <div className="flex max-w-xl flex-col gap-4">
+      <div className="divide-y divide-line rounded-2xl border border-line bg-surface p-1">
+        <ConversationRow
+          href="#chat"
+          kind="project"
+          title={t('designSystem.chat.project')}
+          preview={t('designSystem.chat.projectPreview')}
+          time={t('designSystem.chat.time2')}
+          unread={3}
+        />
+        <ConversationRow
+          href="#chat"
+          kind="direct"
+          title={t('designSystem.chat.direct')}
+          preview={t('designSystem.chat.directPreview')}
+          time={t('designSystem.chat.time1')}
+          unread={0}
+          muted
+        />
+      </div>
+      <div className="flex flex-col gap-2 rounded-2xl border border-line bg-canvas p-3">
+        <DayDivider label={t('designSystem.chat.today')} />
+        <MessageBubble
+          mine={false}
+          author={t('designSystem.chat.direct')}
+          body={t('designSystem.chat.first')}
+          time={t('designSystem.chat.time1')}
+        />
+        <MessageBubble
+          mine
+          body={t('designSystem.chat.second')}
+          time={t('designSystem.chat.time2')}
+          edited
+          replyTo={{
+            author: t('designSystem.chat.direct'),
+            body: t('designSystem.chat.reply'),
+            deleted: false,
+          }}
+        />
+        <MessageBubble mine body="" time={t('designSystem.chat.time2')} deleted />
+      </div>
+    </div>
+  );
+}
+
 export function LettersDemo() {
   const [chips, setChips] = useState([
     t('designSystem.letters.sender'),

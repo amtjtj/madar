@@ -12,6 +12,7 @@ import { Slider } from './components/slider.js';
 import { ThemeToggle } from './components/theme.js';
 import { LetterRow, LiteText, RecipientChip, UrgencyBadge } from './components/letter.js';
 import { AudienceNote, EvidenceCard } from './components/evidence.js';
+import { ConversationRow, MessageBubble, MessageText } from './components/chat.js';
 
 afterEach(cleanup);
 
@@ -279,5 +280,39 @@ describe('Evidence', () => {
     );
     expect(screen.getByText('مریم احمدی (ثبت‌کننده)')).toBeDefined();
     expect(screen.getByText('اعضای دپارتمان «پشتیبانی»')).toBeDefined();
+  });
+});
+
+describe('Chat', () => {
+  it('links only http(s) and never renders HTML', () => {
+    const { container } = render(
+      <MessageText body={'ببین https://example.ir و <b>x</b> javascript:alert(1)'} />,
+    );
+    const links = container.querySelectorAll('a');
+    expect(links).toHaveLength(1);
+    expect(links[0]?.getAttribute('href')).toBe('https://example.ir');
+    expect(links[0]?.getAttribute('rel')).toContain('noopener');
+    expect(container.querySelector('b')).toBeNull();
+  });
+
+  it('shows a deleted message without its text, and a reply quote', () => {
+    render(
+      <MessageBubble
+        mine={false}
+        author="مریم احمدی"
+        body="متن"
+        time="۱۰:۳۰"
+        deleted
+        replyTo={{ author: 'علی رضایی', body: 'گزارش', deleted: false }}
+      />,
+    );
+    expect(screen.getByText('این پیام حذف شد')).toBeDefined();
+    expect(screen.queryByText('متن')).toBeNull();
+    expect(screen.getByText('گزارش')).toBeDefined();
+  });
+
+  it('a conversation row shows the unread count', () => {
+    render(<ConversationRow href="/chat/1" kind="group" title="شیفت صبح" unread={3} />);
+    expect(screen.getByText('۳ پیام خوانده‌نشده')).toBeDefined();
   });
 });

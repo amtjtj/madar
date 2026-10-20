@@ -45,6 +45,7 @@ import {
   SliderDemo,
   FilesDemo,
   LettersDemo,
+  ChatDemo,
   WorkDemo,
 } from './interactive';
 import { Code, Panel, Section } from './section';
@@ -435,6 +436,12 @@ export default function DesignSystemPage() {
         <Section id="files" title={t('designSystem.sections.files')}>
           <Panel>
             <FilesDemo />
+          </Panel>
+        </Section>
+
+        <Section id="chat" title={t('designSystem.sections.chat')}>
+          <Panel>
+            <ChatDemo />
           </Panel>
         </Section>
 

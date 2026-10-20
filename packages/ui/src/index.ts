@@ -107,3 +107,12 @@ export {
   type RecipientChipProps,
 } from './components/letter.js';
 export { AudienceNote, EvidenceCard, type EvidenceCardProps } from './components/evidence.js';
+export {
+  ConversationAvatar,
+  ConversationRow,
+  DayDivider,
+  MessageBubble,
+  MessageText,
+  type ConversationRowProps,
+  type MessageBubbleProps,
+} from './components/chat.js';
