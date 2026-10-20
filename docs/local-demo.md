@@ -46,6 +46,7 @@ MADAR_BASE_REGISTRY=<آینه-داکر>/library MADAR_NPM_REGISTRY=<آینه-npm
 | خاموش کردن (داده می‌ماند) | `scripts/deploy/local-demo.sh stop` |
 | روشن کردن دوباره | `scripts/deploy/local-demo.sh start` |
 | داده نمونه تازه | `scripts/deploy/local-demo.sh reset` |
+| دیدن دوباره آدرس و رمز | `scripts/deploy/local-demo.sh info` |
 | **به‌روزرسانی به آخرین نسخه** (کد تازه از گیت‌هاب، ساخت دوباره، داده نمونه تازه) | `scripts/deploy/local-demo.sh update` |
 | پاک کردن کامل | `scripts/deploy/local-demo.sh remove` |
 

@@ -7,6 +7,7 @@
 #   scripts/deploy/local-demo.sh stop       stop (data stays)
 #   scripts/deploy/local-demo.sh start      start again
 #   scripts/deploy/local-demo.sh reset      fresh demo data
+#   scripts/deploy/local-demo.sh info       show the address, accounts and password again
 #   scripts/deploy/local-demo.sh remove     delete the containers and all their data
 # Behind sanctions, set mirrors on the first run, e.g.:
 #   MADAR_BASE_REGISTRY=<docker mirror>/library MADAR_NPM_REGISTRY=<npm mirror> scripts/deploy/local-demo.sh
@@ -15,6 +16,14 @@ ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 export MADAR_ENV_FILE=${MADAR_ENV_FILE:-$ROOT/.env.local-demo}
 export MADAR_PROJECT=${MADAR_PROJECT:-madar-local}
 source "$ROOT/scripts/deploy/lib.sh"
+
+if [ "${1:-}" = info ]; then
+  [ -f "$ENV_FILE" ] || fail "Not set up yet: run scripts/deploy/local-demo.sh"
+  say "https://localhost"
+  echo "    CEO: leila.sadeghi    manager: maryam.ahmadi    employee: ali.rezaei"
+  echo "    password: $(env_value DEMO_PASSWORD)"
+  exit 0
+fi
 
 command -v docker >/dev/null || fail "Docker is not installed (docs/local-demo.md, step 1)"
 docker info >/dev/null 2>&1 || fail "Docker is not running: start Docker Desktop first"
@@ -59,5 +68,5 @@ case "${1:-up}" in
     rm -f "$ENV_FILE" "$ROOT/.deploy/demo-seeded"
     say "Removed."
     ;;
-  *) fail "usage: local-demo.sh [up|update|stop|start|reset|remove]" ;;
+  *) fail "usage: local-demo.sh [up|update|stop|start|reset|info|remove]" ;;
 esac
