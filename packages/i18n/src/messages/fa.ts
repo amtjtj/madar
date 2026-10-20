@@ -648,6 +648,7 @@ export const fa = {
     renamed: 'نام گروه عوض شد',
     groupName: 'نام گروه',
     addMembers: 'افزودن عضو',
+    addMembersHint: 'عضو تازه همه پیام‌های قبلی گروه را هم می‌بیند.',
     added: 'به گروه اضافه شد',
     remove: 'حذف {name} از گروه',
     removed: 'از گروه حذف شد',

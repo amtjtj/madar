@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 import { t } from '@madar/i18n';
-import type { Conversation } from '@madar/shared';
+import { formatNumber, type Conversation } from '@madar/shared';
 import { Avatar, Badge, Button, Modal, TextField, useToast } from '@madar/ui';
 
 import { RecipientPicker, type Person } from '@/components/letters/recipient-picker';
@@ -40,6 +40,12 @@ export function ConversationInfo({
   const remove = useRemoveMember(id);
   const leave = useLeaveGroup(id);
   const [title, setTitle] = useState(conversation.title);
+  // Someone else renamed the group: show the new name (state set during render, not in an effect).
+  const [seenTitle, setSeenTitle] = useState(conversation.title);
+  if (seenTitle !== conversation.title) {
+    setSeenTitle(conversation.title);
+    setTitle(conversation.title);
+  }
   const [adding, setAdding] = useState<Person[]>([]);
   const [leaving, setLeaving] = useState(false);
   const onError = (error: unknown) => toast({ tone: 'error', title: errorMessage(error) });
@@ -116,6 +122,7 @@ export function ConversationInfo({
                 onChange={setAdding}
                 exclude={conversation.members.map((m) => m.id)}
               />
+              <p className="text-xs text-ink-muted">{t('chat.addMembersHint')}</p>
               {adding.length > 0 && (
                 <Button
                   loading={add.isPending}
@@ -139,7 +146,7 @@ export function ConversationInfo({
           )}
 
           <ul
-            aria-label={t('chat.members', { count: String(conversation.members.length) })}
+            aria-label={t('chat.members', { count: formatNumber(conversation.members.length) })}
             className="flex max-h-72 flex-col divide-y divide-line overflow-y-auto"
           >
             {conversation.members.map((m) => (

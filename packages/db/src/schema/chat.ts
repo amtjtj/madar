@@ -122,6 +122,8 @@ export const messages = pgTable(
   },
   (t) => [
     unique('messages_tenant_id_id_key').on(t.tenantId, t.id),
+    // Target of the reply FK below: a reply always points into its own conversation.
+    unique('messages_tenant_conversation_id_key').on(t.tenantId, t.conversationId, t.id),
     index('messages_conversation_idx').on(t.tenantId, t.conversationId, t.id),
     foreignKey({
       name: 'messages_conversation_fk',
@@ -135,8 +137,8 @@ export const messages = pgTable(
     }).onDelete('restrict'),
     foreignKey({
       name: 'messages_reply_to_fk',
-      columns: [t.tenantId, t.replyToId],
-      foreignColumns: [t.tenantId, t.id],
+      columns: [t.tenantId, t.conversationId, t.replyToId],
+      foreignColumns: [t.tenantId, t.conversationId, t.id],
     }).onDelete('restrict'),
   ],
 );

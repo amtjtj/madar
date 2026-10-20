@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 
 import { t } from '@madar/i18n';
-import { formatNumber, formatTime, canStillEdit, type Message } from '@madar/shared';
+import { MESSAGE_MAX, canStillEdit, formatNumber, formatTime, type Message } from '@madar/shared';
 import {
   Button,
   ConversationAvatar,
@@ -68,14 +68,27 @@ export function ConversationView({ id }: { id: string }) {
     if (el && nearBottom.current) el.scrollTop = el.scrollHeight;
   }, [all.length]);
 
-  // Seeing the newest message moves the read mark forward.
+  // Seeing the newest message moves the read mark forward: when it arrives while the person is
+  // at the bottom, when they scroll back down, and when they return to the tab.
   const marked = useRef<string | null>(null);
+  const latest = useRef<string | undefined>(undefined);
+  const mark = useRef(() => {});
   useEffect(() => {
-    if (!lastId || marked.current === lastId || !nearBottom.current) return;
-    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
-    marked.current = lastId;
-    markRead.mutate(lastId);
+    latest.current = lastId;
+    mark.current = () => {
+      const id = latest.current;
+      if (!id || marked.current === id || !nearBottom.current) return;
+      if (document.visibilityState !== 'visible') return;
+      marked.current = id;
+      markRead.mutate(id);
+    };
+    mark.current();
   }, [lastId, markRead]);
+  useEffect(() => {
+    const onVisible = () => mark.current();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
 
   const onError = (err: unknown) => toast({ tone: 'error', title: errorMessage(err) });
 
@@ -171,6 +184,7 @@ export function ConversationView({ id }: { id: string }) {
         onScroll={(e) => {
           const el = e.currentTarget;
           nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+          if (nearBottom.current) mark.current();
         }}
         className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto py-3"
         aria-live="polite"
@@ -336,7 +350,7 @@ export function ConversationView({ id }: { id: string }) {
               id={`composer-${id}`}
               ref={input}
               rows={1}
-              maxLength={4000}
+              maxLength={MESSAGE_MAX}
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={onKeyDown}

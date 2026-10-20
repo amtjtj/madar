@@ -5,7 +5,8 @@ import { CHAT_SOCKET, REALTIME_EVENTS, REALTIME_PATH, type Message } from '@mada
 import { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 
-import { applyLiveMessage } from './chat';
+import { applyLiveMessage } from '@/lib/chat';
+
 import { chatKeys, dashboardKeys, letterKeys, notificationKeys, workKeys } from './keys';
 
 /**
@@ -22,7 +23,9 @@ export function useRealtime(enabled: boolean, tenantId?: string): boolean {
     const pending = new Set<string>();
     let timer: ReturnType<typeof setTimeout> | undefined;
     // Several hints often arrive together (a move emits status + completion): refetch once.
-    const refresh = (what: 'work' | 'today' | 'notifications' | 'letters' | 'chat') => {
+    const refresh = (
+      what: 'work' | 'today' | 'notifications' | 'letters' | 'chat' | 'chatLists',
+    ) => {
       pending.add(what);
       clearTimeout(timer);
       timer = setTimeout(() => {
@@ -37,11 +40,14 @@ export function useRealtime(enabled: boolean, tenantId?: string): boolean {
           void client.invalidateQueries({ queryKey: notificationKeys.all });
         }
         if (pending.has('letters')) void client.invalidateQueries({ queryKey: letterKeys.all });
-        if (pending.has('chat')) {
+        if (pending.has('chat') || pending.has('chatLists')) {
           void client.invalidateQueries({ queryKey: chatKeys.list });
           void client.invalidateQueries({ queryKey: chatKeys.unread });
-          void client.invalidateQueries({ queryKey: ['chat', 'conversation'] });
           void client.invalidateQueries({ queryKey: ['chat', 'by-project'] });
+        }
+        // Membership, names and settings: only on the membership hint, not on every message.
+        if (pending.has('chat')) {
+          void client.invalidateQueries({ queryKey: ['chat', 'conversation'] });
         }
         pending.clear();
       }, 250);
@@ -72,6 +78,7 @@ export function useRealtime(enabled: boolean, tenantId?: string): boolean {
     // The one event with data (ADR 0022): straight into the open conversation's cache.
     socket.on(CHAT_SOCKET.message, (message: Message) => {
       applyLiveMessage(client, message);
+      refresh('chatLists');
     });
     return () => {
       clearTimeout(timer);

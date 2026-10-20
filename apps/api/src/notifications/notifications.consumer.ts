@@ -83,6 +83,7 @@ export class NotificationsConsumer implements EventConsumer {
             memberId: s.conversationMembers.memberId,
             muted: s.conversationMembers.muted,
             lastRead: s.conversationMembers.lastReadMessageId,
+            joinedAt: s.conversationMembers.joinedAt,
           })
           .from(s.conversationMembers)
           .where(
@@ -105,7 +106,8 @@ export class NotificationsConsumer implements EventConsumer {
               p.kind === 'direct'
                 ? { title: '', data: { direct: 1 } }
                 : { title: conversation.title ?? '' },
-            dedupeKey: `chat:${conversation.id}:${person.lastRead ?? 'none'}`,
+            // One per read mark; a re-added member (new joinedAt, no read mark) is told again.
+            dedupeKey: `chat:${conversation.id}:${person.lastRead ?? `joined-${person.joinedAt.getTime()}`}`,
           });
         }
         return;

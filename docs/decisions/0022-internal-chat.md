@@ -25,11 +25,12 @@ Phase 2, step 15a (`docs/plans/phase-2-step-15a.md`), from the team review (`doc
   No role or permission is an exception. Owners, admins, department managers and overseeing departments do not see conversations they are not in, including channels of projects they could otherwise see (product owner, answer 5).
 - **Who writes** is `postableConversations()`: the same rule, minus project observers and department viewers, and only while the project is active and the department is not archived. A read-only tenant cannot post (the existing write guard). This also blocks moving the read mark, because that is a POST; accepted, since a suspended company only reads.
 - **Groups.** The creator owns the group (up to 50 members). Any member may add people. Only the owner renames it or removes members. Anyone may leave. If the owner leaves, ownership passes to the member who joined first. Leaving sets `left_at`, so history stays and the person can be added again.
+  - **History belongs to the conversation.** A current member reads all of it, as in a project channel. That includes someone who joins later, and someone added back after leaving or being removed, who also sees what was said while they were away. A work group is a shared space, not a set of private letters. The add-members box says so in its hint, so nobody adds a person without knowing. People wanting a fresh start create a new group. A re-added member starts with nothing unread and is notified again for new messages (the notification dedupe key includes their join time).
 - **Messages.**
   - Plain text up to 4000 characters, rendered as React text. Only `http`/`https` links become links (`messageSegments` in `@madar/shared`). No HTML, no markdown.
   - The author may edit or delete for 15 minutes (`canStillEdit`).
   - Delete is soft: the body is cleared in the database, and «این پیام حذف شد» stays.
-  - A reply points to a message in the same conversation.
+  - A reply points to a message in the same conversation. The schema enforces it: the reply FK is `(tenant_id, conversation_id, reply_to_id)`. The API shows a quote only from the same conversation.
   - The app role has no DELETE on any chat table.
 - **Ids are UUIDv7**, so «newer» is «larger id».
   - Pages go by id (`before` / `after`), with the index `(tenant_id, conversation_id, id)`.
@@ -39,7 +40,8 @@ Phase 2, step 15a (`docs/plans/phase-2-step-15a.md`), from the team review (`doc
   - This is the one realtime event that carries data (`chat:message`), an exception to ADR 0011's data-free hints. It goes only to people the access rule allows at that moment.
   - Conversation rooms with a `chat:join` step would need sockets moved out at the instant someone leaves a project, a department or a group, from every code path that changes membership. A forgotten path would leak messages. Computing the audience per message has no such state to get wrong.
   - The cost is one audience query per message, which is fine for companies of a few hundred people.
-  - A data-free `chat.changed` hint refreshes lists and unread counts.
+  - The client refreshes the list and the unread count when a `chat:message` arrives, so a message needs no second hint. The unread count has its own single query, because it runs after every message.
+  - A data-free `chat.changed` hint is sent for membership and name changes: groups (add, remove, leave, rename) and project members (from the realtime consumer). Department membership changes send no event yet; the list catches up on the next refetch (focus or navigation).
 - **Notifications** (`chat_message`) are only for direct and group conversations; channels show unread counts only (product owner, question 1). They come from the `message.created` event through `Notifier`, so quiet hours and muted kinds apply. Muted conversations are skipped.
   - One notification per recipient until they read: the dedupe key is `chat:{conversation}:{read mark}`, so a busy group does not flood the bell.
   - The push payload has no text (ADR 0012): «پیام تازه‌ای در گفت‌وگوهایت داری».

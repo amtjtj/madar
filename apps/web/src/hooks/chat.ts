@@ -17,7 +17,7 @@ import type {
 } from '@madar/shared';
 
 import { api } from '@/lib/api';
-import { upsertMessage } from '@/lib/chat';
+import { applyLiveMessage } from '@/lib/chat';
 
 import { chatKeys, notificationKeys } from './keys';
 
@@ -69,15 +69,6 @@ export function useMessages(id: string) {
     // Live messages arrive through the socket; a refetch would only reorder the cache.
     staleTime: Infinity,
   });
-}
-
-/** Merges a live (or just confirmed) message into the open conversation's cache. */
-export function applyLiveMessage(client: QueryClient, message: Message): boolean {
-  const key = chatKeys.messages(message.conversationId);
-  const data = client.getQueryData<Pages>(key);
-  if (!data) return false;
-  client.setQueryData<Pages>(key, upsertMessage(data, message));
-  return true;
 }
 
 function refreshLists(client: QueryClient) {

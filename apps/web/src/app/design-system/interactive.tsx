@@ -396,7 +396,7 @@ export function SliderDemo({ today }: { today: string }) {
   );
 }
 
-/** Attached files and an upload on its way (ADR 0019). */
+/** Conversation rows and message bubbles (ADR 0022). */
 export function ChatDemo() {
   return (
     <div className="flex max-w-xl flex-col gap-4">
@@ -522,6 +522,7 @@ export function LettersDemo() {
   );
 }
 
+/** Attached files and an upload on its way (ADR 0019). */
 export function FilesDemo() {
   return (
     <div className="flex max-w-xl flex-col gap-2">

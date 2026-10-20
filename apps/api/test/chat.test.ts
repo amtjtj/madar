@@ -1,4 +1,4 @@
-import { schema as s, withTenant, type DbHandle } from '@madar/db';
+import { createDb, schema as s, withTenant, type DbHandle } from '@madar/db';
 import {
   CHAT_SOCKET,
   REALTIME_PATH,
@@ -411,6 +411,101 @@ describe.skipIf(!hasDatabase)('chat', () => {
     expect(forMaryam.map((m) => m.body)).toContain('پیام زنده');
     await new Promise((r) => setTimeout(r, 300));
     expect(forLead.map((m) => m.body)).not.toContain('پیام زنده');
+  });
+
+  it('a removed member stops receiving live messages; a re-added one is notified again', async () => {
+    const group: Conversation = (
+      await ali.c.post('/api/conversations/group', {
+        title: 'بازگشت',
+        memberIds: [maryam.memberId, lead.memberId],
+      })
+    ).body;
+    await send(ali, group.id, 'قبل از حذف');
+    await settle();
+    const notesFor = (memberId: string) =>
+      withTenant(handle.db, { tenantId }, (tx) =>
+        tx
+          .select()
+          .from(s.notifications)
+          .where(
+            and(eq(s.notifications.recipientId, memberId), eq(s.notifications.subjectId, group.id)),
+          ),
+      );
+    expect(await notesFor(lead.memberId)).toHaveLength(1);
+
+    const forLead = await live(lead);
+    const forMaryam = await live(maryam);
+    expect(
+      (await ali.c.delete(`/api/conversations/${group.id}/members/${lead.memberId}`)).status,
+    ).toBe(204);
+    await send(ali, group.id, 'بعد از حذف');
+    const end = Date.now() + 5000;
+    while (!forMaryam.some((m) => m.body === 'بعد از حذف') && Date.now() < end) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    expect(forMaryam.map((m) => m.body)).toContain('بعد از حذف');
+    await new Promise((r) => setTimeout(r, 300));
+    expect(forLead.map((m) => m.body)).not.toContain('بعد از حذف');
+    expect((await lead.c.get(`/api/conversations/${group.id}/messages`)).status).toBe(404);
+
+    // Back in the group: a fresh notification (not swallowed by the old one), and the history.
+    await maryam.c.post(`/api/conversations/${group.id}/members`, { memberIds: [lead.memberId] });
+    await send(ali, group.id, 'خوش برگشتی');
+    await settle();
+    expect(await notesFor(lead.memberId)).toHaveLength(2);
+    const page: MessagePage = (await lead.c.get(`/api/conversations/${group.id}/messages`)).body;
+    expect(page.items.map((m) => m.body)).toEqual(['قبل از حذف', 'بعد از حذف', 'خوش برگشتی']);
+  });
+
+  it('archived projects and departments keep a read-only channel', async () => {
+    const project = (
+      await lead.c.post('/api/projects', { name: 'بایگانی', memberIds: [ali.memberId] })
+    ).body;
+    const channel: ConversationSummary = (
+      await ali.c.get(`/api/conversations/by-project/${project.id}`)
+    ).body;
+    await send(ali, channel.id, 'آخرین پیام');
+    expect((await lead.c.post(`/api/projects/${project.id}/archive`)).status).toBe(204);
+    const archived = await send(ali, channel.id, 'بعد از بایگانی');
+    expect(archived.status).toBe(403);
+    expect(archived.body.error.code).toBe('chat_read_only');
+    expect(
+      ((await ali.c.get(`/api/conversations/${channel.id}`)).body as Conversation).can.post,
+    ).toBe(false);
+    expect((await ali.c.get(`/api/conversations/${channel.id}/messages`)).status).toBe(200);
+
+    const temp = (await owner.post('/api/departments', { name: 'موقت' })).body;
+    const member = await memberSession(app, env, owner, {
+      departments: [{ departmentId: temp.id, deptRole: 'member', isPrimary: true }],
+    });
+    const deptChannel: ConversationSummary = (
+      await member.c.get(`/api/conversations/by-department/${temp.id}`)
+    ).body;
+    expect((await send(member, deptChannel.id, 'سلام')).status).toBe(201);
+    expect((await owner.post(`/api/departments/${temp.id}/archive`)).status).toBe(204);
+    expect((await send(member, deptChannel.id, 'هنوز؟')).status).toBe(403);
+    expect((await member.c.get(`/api/conversations/${deptChannel.id}/messages`)).status).toBe(200);
+  });
+
+  it('a read-only company reads chat but cannot post', async () => {
+    const dm: Conversation = (
+      await ali.c.post('/api/conversations/direct', { memberId: maryam.memberId })
+    ).body;
+    await send(ali, dm.id, 'پیش از تعلیق');
+    loadEnv(); // also reads the repo .env into process.env
+    const ownerDb = createDb(process.env.DATABASE_URL ?? '');
+    const setStatus = (status: 'active' | 'read_only') =>
+      ownerDb.db.update(s.tenants).set({ status }).where(eq(s.tenants.id, tenantId));
+    try {
+      await setStatus('read_only');
+      expect((await maryam.c.get(`/api/conversations/${dm.id}/messages`)).status).toBe(200);
+      const denied = await send(maryam, dm.id, 'جواب');
+      expect(denied.status).toBe(423);
+      expect(denied.body.error.code).toBe('tenant_read_only');
+    } finally {
+      await setStatus('active');
+      await ownerDb.pool.end();
+    }
   });
 
   it('keeps other companies out', async () => {

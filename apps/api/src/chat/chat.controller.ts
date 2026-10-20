@@ -170,6 +170,7 @@ export class MessagesController {
   constructor(private readonly chat: ChatService) {}
 
   @Patch(':id')
+  @RateLimit({ max: 30, windowMs: 60_000 })
   edit(
     @Tenant() ctx: TenantContext,
     @Param('id', ParseUUIDPipe) id: string,
@@ -179,6 +180,7 @@ export class MessagesController {
   }
 
   @Delete(':id')
+  @RateLimit({ max: 30, windowMs: 60_000 })
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Tenant() ctx: TenantContext, @Param('id', ParseUUIDPipe) id: string): Promise<void> {
     return this.chat.remove(ctx, id);

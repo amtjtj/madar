@@ -301,6 +301,38 @@ describe.skipIf(!hasDatabase)('tenant isolation (RLS)', () => {
     ).rejects.toThrow();
   });
 
+  it('a reply cannot point into another conversation', async () => {
+    await withTenant(app.db, { tenantId: a.tenantId }, async (tx) => {
+      const [one, two] = await tx
+        .insert(s.conversations)
+        .values([
+          { kind: 'group', title: 'one', createdBy: a.memberId },
+          { kind: 'group', title: 'two', createdBy: a.memberId },
+        ])
+        .returning({ id: s.conversations.id });
+      const [original] = await tx
+        .insert(s.messages)
+        .values({ conversationId: one?.id ?? '', authorId: a.memberId, body: 'secret' })
+        .returning({ id: s.messages.id });
+      await expect(
+        tx.transaction((inner) =>
+          inner.insert(s.messages).values({
+            conversationId: two?.id ?? '',
+            authorId: a.memberId,
+            body: 'quote',
+            replyToId: original?.id ?? null,
+          }),
+        ),
+      ).rejects.toThrow();
+      await tx.insert(s.messages).values({
+        conversationId: one?.id ?? '',
+        authorId: a.memberId,
+        body: 'fine',
+        replyToId: original?.id ?? null,
+      });
+    });
+  });
+
   it('transaction-local settings do not leak to the next query on the same connection', async () => {
     const single = appDb();
     try {

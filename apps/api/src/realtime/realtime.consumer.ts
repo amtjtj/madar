@@ -88,6 +88,8 @@ export class RealtimeConsumer implements EventConsumer {
         // Sockets already connected start receiving the project's updates at once.
         emits.push(() => this.emitter.in(members).socketsJoin(projectRoom(t, String(p.projectId))));
         emits.push(() => this.emitter.to(members).emit(REALTIME_EVENTS.workChanged));
+        // The project's team chat appears in their conversations (ADR 0022).
+        emits.push(() => this.emitter.to(members).emit(REALTIME_EVENTS.chatChanged));
       }
       return;
     }
@@ -98,6 +100,7 @@ export class RealtimeConsumer implements EventConsumer {
           this.emitter.in(members).socketsLeave(projectRoom(t, String(p.projectId))),
         );
         emits.push(() => this.emitter.to(members).emit(REALTIME_EVENTS.workChanged));
+        emits.push(() => this.emitter.to(members).emit(REALTIME_EVENTS.chatChanged));
       }
       return;
     }

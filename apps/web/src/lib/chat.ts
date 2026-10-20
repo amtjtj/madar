@@ -1,3 +1,4 @@
+import type { InfiniteData, QueryClient } from '@tanstack/react-query';
 import { t } from '@madar/i18n';
 import {
   formatJalaliDate,
@@ -6,6 +7,8 @@ import {
   type Message,
   type MessagePage,
 } from '@madar/shared';
+
+import { chatKeys } from '@/hooks/keys';
 
 /** Optimistic messages carry a temporary id until the server confirms them. */
 export const PENDING_PREFIX = 'pending-';
@@ -19,21 +22,44 @@ interface Pages {
   pageParams: Array<string | undefined>;
 }
 
-/** Inserts or replaces a message; the newest page (index 0) gets new ones at its end. */
+/**
+ * Puts a message into the cached pages (pages[0] is the newest):
+ * - a known id is replaced (edits, deletes, the server's copy of a sent message);
+ * - my own message from the socket takes the place of its pending copy;
+ * - an edit or delete of a message that is not loaded is ignored (it belongs to an older page);
+ * - a new message goes into the newest page in id order (ids are UUIDv7, pending ids sort last).
+ */
 export function upsertMessage<T extends Pages>(data: T, message: Message): T {
-  const exists = data.pages.some((p) => p.items.some((m) => m.id === message.id));
-  if (exists) {
-    return {
-      ...data,
-      pages: data.pages.map((p) => ({
-        ...p,
-        items: p.items.map((m) => (m.id === message.id ? message : m)),
-      })),
-    };
+  const all = data.pages.flatMap((p) => p.items);
+  const replace = (id: string): T => ({
+    ...data,
+    pages: data.pages.map((p) => ({
+      ...p,
+      items: p.items.map((m) => (m.id === id ? message : m)),
+    })),
+  });
+  if (all.some((m) => m.id === message.id)) return replace(message.id);
+  if (!isPending(message)) {
+    const pending = all.find(
+      (m) => isPending(m) && m.author.id === message.author.id && m.body === message.body,
+    );
+    if (pending) return replace(pending.id);
+    if (message.editedAt || message.deleted) return data;
   }
   const [first, ...rest] = data.pages;
-  const items = [...(first?.items ?? []), message];
+  const items = [...(first?.items ?? []), message].sort((a, b) =>
+    a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
+  );
   return { ...data, pages: [{ hasMore: first?.hasMore ?? false, items }, ...rest] };
+}
+
+/** Merges a live (or just confirmed) message into its conversation's cache, if loaded. */
+export function applyLiveMessage(client: QueryClient, message: Message): boolean {
+  const key = chatKeys.messages(message.conversationId);
+  const data = client.getQueryData<InfiniteData<MessagePage, string | undefined>>(key);
+  if (!data) return false;
+  client.setQueryData(key, upsertMessage(data, message));
+  return true;
 }
 
 /** Oldest first, across pages (pages[0] is the newest page). */

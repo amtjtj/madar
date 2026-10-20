@@ -29,6 +29,23 @@ describe('chat helpers', () => {
     expect(flattenMessages(edited.pages).find((m) => m.id === '1')?.body).toBe('تازه');
   });
 
+  it('keeps id order, swaps my pending copy, and ignores edits of messages not loaded', () => {
+    const data = {
+      pages: [{ items: [msg('3', 'a', '2026-10-20T08:00:00Z')], hasMore: true }],
+      pageParams: [undefined],
+    };
+    const pending = upsertMessage(data, msg('pending-1', 'me', '2026-10-20T08:02:00Z', 'سلام'));
+    // Committed in the other order: still shown by id.
+    const late = upsertMessage(pending, msg('2', 'b', '2026-10-20T07:59:00Z'));
+    expect(flattenMessages(late.pages).map((m) => m.id)).toEqual(['2', '3', 'pending-1']);
+    // My message comes back through the socket before the send returns: no second bubble.
+    const live = upsertMessage(late, msg('4', 'me', '2026-10-20T08:02:00Z', 'سلام'));
+    expect(flattenMessages(live.pages).map((m) => m.id)).toEqual(['2', '3', '4']);
+    // A delete of an older, unloaded message does not appear at the bottom.
+    const old = { ...msg('1', 'a', '2026-10-19T08:00:00Z', ''), deleted: true };
+    expect(upsertMessage(live, old)).toBe(live);
+  });
+
   it('groups by day and shows the author once per run', () => {
     const groups = groupMessages(
       [

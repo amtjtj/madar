@@ -49,9 +49,10 @@ function unreadCondition(memberId: string) {
   return sql`m.author_id <> ${memberId} and m.deleted_at is null and (
     case when mine.last_read_message_id is not null then m.id > mine.last_read_message_id
     else m.created_at > coalesce(
-      mine.joined_at,
+      -- Channels: when I joined the project or department (my state row is created lazily).
       (select pm.created_at from project_members pm where pm.project_id = c.project_id and pm.member_id = ${memberId}),
       (select dm.created_at from department_memberships dm where dm.department_id = c.department_id and dm.member_id = ${memberId}),
+      mine.joined_at,
       c.created_at)
     end)`;
 }
@@ -86,10 +87,19 @@ export class ChatService {
     });
   }
 
+  /** Unread across all conversations except muted ones, in one query (it runs on every hint). */
   unreadCount(ctx: TenantContext): Promise<number> {
-    return this.list(ctx).then((items) =>
-      items.filter((c) => !c.muted).reduce((sum, c) => sum + c.unreadCount, 0),
-    );
+    return this.db.run(ctx, async (tx) => {
+      const me = ctx.memberId;
+      const result = await tx.execute<{ count: number }>(sql`
+        select count(*)::int as count
+        from conversations c
+        left join conversation_members mine on mine.conversation_id = c.id and mine.member_id = ${me}
+        join messages m on m.conversation_id = c.id
+        where ${visibleConversationsRaw(me)} and coalesce(mine.muted, false) = false
+          and ${unreadCondition(me)}`);
+      return result.rows[0]?.count ?? 0;
+    });
   }
 
   get(ctx: TenantContext, id: string): Promise<Conversation> {
@@ -167,8 +177,8 @@ export class ChatService {
     return conversation;
   }
 
-  rename(ctx: TenantContext, id: string, title: string): Promise<Conversation> {
-    return this.db.run(ctx, async (tx) => {
+  async rename(ctx: TenantContext, id: string, title: string): Promise<Conversation> {
+    const { conversation, members } = await this.db.run(ctx, async (tx) => {
       const row = await this.requireGroup(tx, ctx, id);
       if (!(await this.isOwner(tx, id, ctx.memberId))) throw ownerOnly();
       const [updated] = await tx
@@ -176,8 +186,13 @@ export class ChatService {
         .set({ title })
         .where(eq(s.conversations.id, row.id))
         .returning();
-      return this.detail(tx, ctx, updated ?? row);
+      return {
+        conversation: await this.detail(tx, ctx, updated ?? row),
+        members: await this.activeMemberIds(tx, id),
+      };
     });
+    await this.hint(ctx.tenantId, members);
+    return conversation;
   }
 
   /** Any member of a group may add people (up to 50 in all). */
@@ -205,49 +220,59 @@ export class ChatService {
             set: { leftAt: null, joinedAt: new Date(), lastReadMessageId: null, role: 'member' },
           });
       }
-      return { conversation: await this.detail(tx, ctx, row), fresh };
+      return {
+        conversation: await this.detail(tx, ctx, row),
+        members: await this.activeMemberIds(tx, id),
+      };
     });
-    await this.hint(ctx.tenantId, result.fresh);
+    await this.hint(ctx.tenantId, result.members);
     return result.conversation;
   }
 
   async removeMember(ctx: TenantContext, id: string, memberId: string): Promise<void> {
-    await this.db.run(ctx, async (tx) => {
+    const remaining = await this.db.run(ctx, async (tx) => {
       await this.requireGroup(tx, ctx, id, true);
       if (!(await this.isOwner(tx, id, ctx.memberId))) throw ownerOnly();
       if (memberId === ctx.memberId) throw badRequest('Leave the group instead');
       await this.markLeft(tx, id, memberId);
+      return this.activeMemberIds(tx, id);
     });
-    await this.hint(ctx.tenantId, [memberId]);
+    await this.hint(ctx.tenantId, [memberId, ...remaining]);
   }
 
   /** Leaving: if the owner leaves, the longest-standing member takes over. */
-  leave(ctx: TenantContext, id: string): Promise<void> {
-    return this.db.run(ctx, async (tx) => {
+  async leave(ctx: TenantContext, id: string): Promise<void> {
+    const remaining = await this.db.run(ctx, async (tx) => {
       await this.requireGroup(tx, ctx, id, true);
       const wasOwner = await this.isOwner(tx, id, ctx.memberId);
       await this.markLeft(tx, id, ctx.memberId);
-      if (!wasOwner) return;
-      const [next] = await tx
-        .select({ memberId: s.conversationMembers.memberId })
-        .from(s.conversationMembers)
-        .where(
-          and(eq(s.conversationMembers.conversationId, id), isNull(s.conversationMembers.leftAt)),
-        )
-        .orderBy(asc(s.conversationMembers.joinedAt))
-        .limit(1);
-      if (next) {
-        await tx
-          .update(s.conversationMembers)
-          .set({ role: 'owner' })
-          .where(
-            and(
-              eq(s.conversationMembers.conversationId, id),
-              eq(s.conversationMembers.memberId, next.memberId),
-            ),
-          );
-      }
+      if (wasOwner) await this.handOver(tx, id);
+      return this.activeMemberIds(tx, id);
     });
+    await this.hint(ctx.tenantId, [ctx.memberId, ...remaining]);
+  }
+
+  /** The member who joined first becomes the owner. */
+  private async handOver(tx: Tx, id: string): Promise<void> {
+    const [next] = await tx
+      .select({ memberId: s.conversationMembers.memberId })
+      .from(s.conversationMembers)
+      .where(
+        and(eq(s.conversationMembers.conversationId, id), isNull(s.conversationMembers.leftAt)),
+      )
+      .orderBy(asc(s.conversationMembers.joinedAt))
+      .limit(1);
+    if (next) {
+      await tx
+        .update(s.conversationMembers)
+        .set({ role: 'owner' })
+        .where(
+          and(
+            eq(s.conversationMembers.conversationId, id),
+            eq(s.conversationMembers.memberId, next.memberId),
+          ),
+        );
+    }
   }
 
   setMuted(ctx: TenantContext, id: string, muted: boolean): Promise<void> {
@@ -406,10 +431,10 @@ export class ChatService {
   // ---------------------------------------------------------------------------------------------
 
   private async deliver(tenantId: string, audience: string[], message: Message): Promise<void> {
+    // The message itself tells clients to refresh lists and counts; no extra hint is needed.
     await this.realtime
       .toMembers(tenantId, audience, CHAT_SOCKET.message, message)
       .catch(() => undefined);
-    await this.hint(tenantId, audience);
   }
 
   private hint(tenantId: string, memberIds: string[]): Promise<void> {
@@ -553,7 +578,9 @@ export class ChatService {
     const name = new Map(people.map((p) => [p.id, p.displayName]));
     const replyMap = new Map(replies.map((r) => [r.id, r]));
     return rows.map((r) => {
-      const reply = r.replyToId ? replyMap.get(r.replyToId) : undefined;
+      // A quote is only ever shown from the same conversation (the schema enforces it too).
+      const found = r.replyToId ? replyMap.get(r.replyToId) : undefined;
+      const reply = found?.conversationId === r.conversationId ? found : undefined;
       return {
         id: r.id,
         conversationId: r.conversationId,
