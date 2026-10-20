@@ -58,3 +58,5 @@ export const forbidden = (message = 'Not allowed') =>
   new ApiError(HttpStatus.FORBIDDEN, 'forbidden', message);
 export const notFound = (what = 'Resource') =>
   new ApiError(HttpStatus.NOT_FOUND, 'not_found', `${what} not found`);
+export const badRequest = (message: string) =>
+  new ApiError(HttpStatus.BAD_REQUEST, 'validation_failed', message);

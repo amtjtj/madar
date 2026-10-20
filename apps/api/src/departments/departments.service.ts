@@ -9,6 +9,7 @@ import type {
 } from '@madar/shared';
 import { and, count, eq, isNull, sql } from 'drizzle-orm';
 
+import { createChannel } from '../chat/channels.js';
 import type { TenantContext } from '../common/context.js';
 import { ApiError, notFound } from '../common/errors.js';
 import { TenantDb } from '../database/tenant-db.service.js';
@@ -53,6 +54,7 @@ export class DepartmentsService {
         })
         .returning();
       if (!row) throw new Error('department insert failed');
+      await createChannel(tx, { departmentId: row.id });
       if (row.headMemberId) await setHeadMembership(tx, row.id, row.headMemberId, null);
       await this.db.audit(tx, ctx, {
         action: 'department.created',

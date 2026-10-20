@@ -102,11 +102,8 @@ export const addMembersRequest = z.object({ memberIds: z.array(z.uuid()).min(1).
 export const muteRequest = z.object({ muted: z.boolean() });
 export const markReadRequest = z.object({ messageId: z.uuid() });
 
-/** Socket events for chat rooms (ADR 0022): the only realtime messages that carry data. */
-export const CHAT_SOCKET = {
-  /** client → server: join a conversation's room after an access check. */
-  join: 'chat:join',
-  leave: 'chat:leave',
-  /** server → client, in the room: a new, edited or deleted message (`Message`). */
-  message: 'chat:message',
-} as const;
+/**
+ * The one realtime event that carries data (ADR 0022): a new, edited or deleted `Message`, sent by
+ * the API after commit to the personal rooms of the people who may read it at that moment.
+ */
+export const CHAT_SOCKET = { message: 'chat:message' } as const;

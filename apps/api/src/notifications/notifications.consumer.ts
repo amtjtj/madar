@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { schema as s, type OutboxEvent, type Tx } from '@madar/db';
 import { calendarDateIn } from '@madar/shared';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 
 import type { EventConsumer } from '../events/consumer.js';
 import { Notifier } from './notifier.js';
@@ -14,6 +14,7 @@ const HANDLED = [
   'letter.sent',
   'letter.referred',
   'task.evidence_pinned',
+  'message.created',
 ];
 
 /** Turns domain events into in-app notifications. */
@@ -66,6 +67,47 @@ export class NotificationsConsumer implements EventConsumer {
           payload: { title: task.title, data: { progress: Number(p.to) } },
           dedupeKey: `task_progress:${task.id}:${day}`,
         });
+        return;
+      }
+      case 'message.created': {
+        // Direct and group only, one notification per conversation until it is read (ADR 0022);
+        // channels show an unread count instead.
+        if (p.kind !== 'direct' && p.kind !== 'group') return;
+        const [conversation] = await tx
+          .select({ id: s.conversations.id, title: s.conversations.title })
+          .from(s.conversations)
+          .where(eq(s.conversations.id, String(p.conversationId)));
+        if (!conversation) return;
+        const people = await tx
+          .select({
+            memberId: s.conversationMembers.memberId,
+            muted: s.conversationMembers.muted,
+            lastRead: s.conversationMembers.lastReadMessageId,
+          })
+          .from(s.conversationMembers)
+          .where(
+            and(
+              eq(s.conversationMembers.conversationId, conversation.id),
+              isNull(s.conversationMembers.leftAt),
+            ),
+          );
+        for (const person of people) {
+          if (person.muted) continue;
+          // Already read up to (or past) this message: nothing to tell.
+          if (person.lastRead && person.lastRead >= String(p.messageId)) continue;
+          await this.notifier.notify(tx, {
+            ...base,
+            recipientId: person.memberId,
+            kind: 'chat_message',
+            subjectType: 'conversation',
+            subjectId: conversation.id,
+            payload:
+              p.kind === 'direct'
+                ? { title: '', data: { direct: 1 } }
+                : { title: conversation.title ?? '' },
+            dedupeKey: `chat:${conversation.id}:${person.lastRead ?? 'none'}`,
+          });
+        }
         return;
       }
       case 'task.evidence_pinned': {

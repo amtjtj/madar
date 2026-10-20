@@ -9,6 +9,7 @@ import {
 import { and, eq, isNull } from 'drizzle-orm';
 
 import { loadMemberInTx } from '../auth/tenant-context.service.js';
+import { visibleConversations } from '../chat/access.js';
 import { visibleGoals } from '../goals/access.js';
 import { visibleLetters } from '../letters/access.js';
 import { readsReport, visibleProjects, visibleTasks } from '../work/access.js';
@@ -94,6 +95,13 @@ export class Notifier {
         .from(s.weeklyReports)
         .where(eq(s.weeklyReports.id, subjectId));
       return report ? readsReport(actor, report.departmentId) : false;
+    }
+    if (subjectType === 'conversation') {
+      const [row] = await tx
+        .select({ id: s.conversations.id })
+        .from(s.conversations)
+        .where(and(eq(s.conversations.id, subjectId), visibleConversations(actor.memberId)));
+      return Boolean(row);
     }
     if (subjectType === 'letter') {
       const [row] = await tx

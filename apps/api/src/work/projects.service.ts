@@ -10,6 +10,7 @@ import {
 } from '@madar/shared';
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
+import { createChannel } from '../chat/channels.js';
 import type { TenantContext } from '../common/context.js';
 import { forbidden, notFound } from '../common/errors.js';
 import { atRiskProjects, viewerScope } from '../dashboard/at-risk.js';
@@ -102,6 +103,7 @@ export class ProjectsService {
         })
         .returning();
       if (!row) throw new Error('project insert failed');
+      await createChannel(tx, { projectId: row.id });
       const members = new Map<string, ProjectRole>([[ctx.memberId, 'owner']]);
       for (const memberId of input.memberIds ?? []) {
         if (!members.has(memberId)) members.set(memberId, 'member');
