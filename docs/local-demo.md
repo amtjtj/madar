@@ -19,6 +19,7 @@
    "registry-mirrors": ["https://<آینه-داخلی>"]
    ```
 2. بار اول آینه‌ها را به اسکریپت هم بدهید (بخش ۲).
+3. اگر قبلاً یک بار ساخته‌اید و حالا خطای `TLS handshake timeout` یا `auth.docker.io` می‌گیرید، بدون دانلود اجرا کنید: `scripts/deploy/local-demo.sh offline`
 
 ## ۲. اجرای بار اول
 
@@ -47,6 +48,7 @@ MADAR_BASE_REGISTRY=<آینه-داکر>/library MADAR_NPM_REGISTRY=<آینه-npm
 | روشن کردن دوباره | `scripts/deploy/local-demo.sh start` |
 | داده نمونه تازه | `scripts/deploy/local-demo.sh reset` |
 | دیدن دوباره آدرس و رمز | `scripts/deploy/local-demo.sh info` |
+| اجرا بدون اینترنت، با ایمیج‌هایی که قبلاً روی همین کامپیوتر ساخته شده‌اند (وقتی Docker Hub بسته است) | `scripts/deploy/local-demo.sh offline` |
 | **به‌روزرسانی به آخرین نسخه** (کد تازه از گیت‌هاب، ساخت دوباره، داده نمونه تازه) | `scripts/deploy/local-demo.sh update` |
 | پاک کردن کامل | `scripts/deploy/local-demo.sh remove` |
 

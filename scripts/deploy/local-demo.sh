@@ -8,6 +8,7 @@
 #   scripts/deploy/local-demo.sh start      start again
 #   scripts/deploy/local-demo.sh reset      fresh demo data
 #   scripts/deploy/local-demo.sh info       show the address, accounts and password again
+#   scripts/deploy/local-demo.sh offline    start from images already on this computer (no downloads)
 #   scripts/deploy/local-demo.sh remove     delete the containers and all their data
 # Behind sanctions, set mirrors on the first run, e.g.:
 #   MADAR_BASE_REGISTRY=<docker mirror>/library MADAR_NPM_REGISTRY=<npm mirror> scripts/deploy/local-demo.sh
@@ -72,6 +73,27 @@ case "${1:-up}" in
     compose exec -T demo node dist/scripts/demo-reset.js
     show
     ;;
+  offline)
+    # Docker Hub unreachable: run the newest madar images already built on this computer.
+    tag=""
+    for t in $(docker image ls madar-api --format '{{.Tag}}'); do
+      [ "$t" = latest ] && continue
+      if docker image inspect "madar-web:$t" >/dev/null 2>&1; then
+        tag=$t
+        break
+      fi
+    done
+    [ -n "$tag" ] || fail "No madar images on this computer yet: a first build needs Docker Hub or a mirror (docs/local-demo.md)"
+    if [ ! -f "$ENV_FILE" ]; then
+      wipe
+      "$ROOT/scripts/deploy/init-env.sh" localhost demo@localhost --demo
+      sed -i.bak "s|^CADDY_TLS=.*|CADDY_TLS=tls internal|" "$ENV_FILE"
+      rm -f "$ENV_FILE.bak"
+    fi
+    say "Starting the images $tag (built earlier on this computer)"
+    "$ROOT/scripts/deploy/deploy.sh" --no-build "$tag"
+    show
+    ;;
   stop) compose stop && say "Stopped. Start again with: scripts/deploy/local-demo.sh start" ;;
   start) compose up -d --wait && show ;;
   reset) compose exec -T demo node dist/scripts/demo-reset.js && show ;;
@@ -81,5 +103,5 @@ case "${1:-up}" in
     rm -f "$ENV_FILE"
     say "Removed."
     ;;
-  *) fail "usage: local-demo.sh [up|update|stop|start|reset|info|remove]" ;;
+  *) fail "usage: local-demo.sh [up|update|offline|stop|start|reset|info|remove]" ;;
 esac

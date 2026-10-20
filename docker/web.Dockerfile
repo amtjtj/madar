@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 # Web app: Next.js standalone server (ADR 0016). Build from the repo root:
 #   docker build -f docker/web.Dockerfile -t madar-web .
 ARG BASE_REGISTRY=docker.io/library

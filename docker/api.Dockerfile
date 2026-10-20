@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 # API, worker and migrations in one image (ADR 0016). Build from the repo root:
 #   docker build -f docker/api.Dockerfile -t madar-api .
 # Behind sanctions, point BASE_REGISTRY and NPM_REGISTRY at a domestic mirror.
