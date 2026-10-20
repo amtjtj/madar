@@ -14,7 +14,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
 import { t } from '@madar/i18n';
-import { formatJalaliDate, formatTime, type LetterRecipient } from '@madar/shared';
+import { formatJalaliDate, formatNumber, formatTime, type LetterRecipient } from '@madar/shared';
 import {
   Avatar,
   Button,
@@ -257,6 +257,12 @@ export function LetterView({ id }: { id: string }) {
           )}
         </div>
 
+        {letter.pinnedElsewhere > 0 && (
+          <p className="flex items-center gap-1.5 rounded-xl bg-info-soft px-3 py-2 text-sm text-info-ink [&_svg]:size-4">
+            <Stamp aria-hidden />
+            {t('evidence.pinnedElsewhere', { count: formatNumber(letter.pinnedElsewhere) })}
+          </p>
+        )}
         {letter.pinnedTo.length > 0 && (
           <section aria-label={t('evidence.pinnedTo')} className="flex flex-col gap-2">
             <h2 className="flex items-center gap-1.5 font-bold text-ink [&_svg]:size-4">

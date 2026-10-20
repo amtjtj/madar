@@ -4,7 +4,7 @@ import { Search, Stamp } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { t } from '@madar/i18n';
-import type { Letter, Task } from '@madar/shared';
+import { formatNumber, type Letter, type Task } from '@madar/shared';
 import { Button, Modal, Skeleton, TextField, useToast } from '@madar/ui';
 
 import { useEditableTasks, usePinEvidence } from '@/hooks/evidence';
@@ -74,12 +74,15 @@ export function PinToTask({ letter }: { letter: Letter }) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
+          <p role="status" className="sr-only">
+            {t('evidence.results', { count: formatNumber(options.length) })}
+          </p>
           {isPending ? (
             <Skeleton className="h-16 rounded-xl" />
           ) : !options.length ? (
             <p className="py-2 text-sm text-ink-muted">{t('evidence.noTasks')}</p>
           ) : (
-            <ul aria-live="polite" className="flex max-h-80 flex-col gap-1 overflow-y-auto">
+            <ul className="flex max-h-80 flex-col gap-1 overflow-y-auto">
               {options.map((task) => (
                 <li key={task.id}>
                   <button

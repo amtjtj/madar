@@ -53,7 +53,7 @@ export const pinEvidenceRequest = z.object({
 });
 export type PinEvidenceRequest = z.infer<typeof pinEvidenceRequest>;
 
-export const AUDIENCE_ROLES = ['assignee', 'reporter', 'collaborator'] as const;
+export const AUDIENCE_ROLES = ['assignee', 'reporter', 'collaborator', 'watcher'] as const;
 export const AUDIENCE_GROUPS = [
   /** Members of the task's (private or shared) project. */
   'project_members',

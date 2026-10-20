@@ -591,7 +591,16 @@ export const fa = {
     audienceTitle: 'چه کسانی این نامه را خواهند دید',
     audienceIntro:
       'هر کسی که این کار را می‌بیند، متن و پیوست‌های همین نامه را (نه بقیه رشته را) فقط‌خواندنی می‌بیند:',
-    roles: { assignee: 'مسئول', reporter: 'ثبت‌کننده', collaborator: 'همکار' },
+    roles: {
+      assignee: 'مسئول',
+      reporter: 'ثبت‌کننده',
+      collaborator: 'همکار',
+      watcher: 'دنبال‌کننده',
+    },
+    person: '{name} ({role})',
+    emptyViewer: 'شاهدی روی این کار سنجاق نشده است.',
+    results: '{count} نتیجه',
+    pinnedElsewhere: 'این نامه به {count} کار دیگر هم سنجاق شده که شما آن‌ها را نمی‌بینید.',
     groups: {
       project_members: 'اعضای پروژه «{name}»',
       department: 'اعضای دپارتمان «{name}»',

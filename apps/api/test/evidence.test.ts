@@ -1,4 +1,4 @@
-import { schema as s, withTenant, type DbHandle } from '@madar/db';
+import { createDb, schema as s, withTenant, type DbHandle } from '@madar/db';
 import type {
   Evidence,
   EvidenceAudience,
@@ -301,10 +301,141 @@ describe.skipIf(!hasDatabase)('task evidence', () => {
     expect(forLead.map((t) => t.id)).toContain(task.id);
   });
 
+  it('a pin in a private project stays inside the project, even from the owner', async () => {
+    const project = (
+      await lead.c.post('/api/projects', {
+        name: 'پروژه محرمانه قرارداد',
+        visibility: 'private',
+        departmentId: support.id,
+        memberIds: [ali.memberId],
+      })
+    ).body;
+    const privateTask = (
+      await lead.c.post('/api/tasks', {
+        title: 'کار پروژه خصوصی',
+        projectId: project.id,
+        assigneeId: ali.memberId,
+      })
+    ).body as Task;
+    const up: Upload = (await ali.c.upload('/api/uploads', PDF, 'پیوست خصوصی.pdf')).body;
+    const privateLetter = await sendLetter(ali, {
+      subject: 'نامه پروژه خصوصی',
+      to: [legal.memberId],
+      uploadIds: [up.id],
+    });
+    const pinned = (await pin(ali, privateTask.id, privateLetter.id)).body as Evidence;
+    expect((await owner.get(`/api/tasks/${privateTask.id}/evidence`)).status).toBe(404);
+    expect((await owner.get(`/api/tasks/${privateTask.id}/evidence/${pinned.id}`)).status).toBe(
+      404,
+    );
+    expect((await owner.download(`/api/attachments/${up.id}/file`)).status).toBe(404);
+    expect((await maryam.c.download(`/api/attachments/${up.id}/file`)).status).toBe(404);
+    expect((await lead.c.download(`/api/attachments/${up.id}/file`)).status).toBe(200);
+    // The sender learns the letter is pinned where they cannot look, not where.
+    const forSender: Letter = (await ali.c.get(`/api/letters/${privateLetter.id}`)).body;
+    expect(forSender.pinnedElsewhere).toBe(0); // Ali is in the project
+  });
+
+  it('a reply in a confidential thread cannot be pinned either', async () => {
+    const secret = await sendLetter(legal, { to: [ali.memberId], confidential: true });
+    const reply = await sendLetter(ali, {
+      subject: 'پاسخ',
+      to: [legal.memberId],
+      replyToId: secret.id,
+    });
+    expect((await pin(ali, task.id, reply.id)).status).toBe(422);
+    expect((await ali.c.get(`/api/letters/${reply.id}`)).body.can.pin).toBe(false);
+  });
+
+  it('the sender sees a count of pins on tasks they cannot see', async () => {
+    // Legal (not the sender) pins Ali's letter... Legal cannot edit Ali's tasks, so Maryam
+    // receives a letter from Ali and pins it on her own task, which Legal, the sender here, cannot see.
+    const fromLegal = await sendLetter(legal, { subject: 'از حقوقی', to: [maryam.memberId] });
+    const maryamTask = (await maryam.c.post('/api/tasks', { title: 'کار مریم' })).body as Task;
+    expect((await pin(maryam, maryamTask.id, fromLegal.id)).status).toBe(201);
+    const forSender: Letter = (await legal.c.get(`/api/letters/${fromLegal.id}`)).body;
+    expect(forSender.pinnedTo).toEqual([]);
+    expect(forSender.pinnedElsewhere).toBe(1);
+    expect((await maryam.c.get(`/api/letters/${fromLegal.id}`)).body.pinnedElsewhere).toBe(0);
+  });
+
+  it('names watchers as watchers in the audience', async () => {
+    await lead.c.put(`/api/tasks/${task.id}/collaborators`, {
+      members: [{ memberId: maryam.memberId, kind: 'watcher' }],
+    });
+    const audience: EvidenceAudience = (await ali.c.get(`/api/tasks/${task.id}/evidence/audience`))
+      .body;
+    expect(audience.people).toContainEqual(
+      expect.objectContaining({ id: maryam.memberId, role: 'watcher' }),
+    );
+  });
+
+  it('notifies the person who assigned the task even when someone else created it', async () => {
+    const created = (
+      await maryam.c.post('/api/tasks', { title: 'کار بدون مسئول', assigneeId: null })
+    ).body as Task;
+    const fresh = await lead.c.patch(`/api/tasks/${created.id}`, {
+      version: created.version,
+      assigneeId: ali.memberId,
+    });
+    expect(fresh.status).toBe(200);
+    const extra = await sendLetter(ali, { subject: 'شاهد کار بدون مسئول', to: [legal.memberId] });
+    expect((await pin(ali, created.id, extra.id)).status).toBe(201);
+    await settle();
+    const of = (memberId: string) =>
+      withTenant(handle.db, { tenantId }, (tx) =>
+        tx
+          .select({ subjectId: s.notifications.subjectId })
+          .from(s.notifications)
+          .where(
+            and(
+              eq(s.notifications.recipientId, memberId),
+              eq(s.notifications.kind, 'task_evidence_pinned'),
+            ),
+          ),
+      );
+    // The worker handles events asynchronously: wait for this one.
+    const until = Date.now() + 10_000;
+    while (
+      !(await of(lead.memberId)).some((n) => n.subjectId === created.id) &&
+      Date.now() < until
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    expect((await of(lead.memberId)).map((n) => n.subjectId)).toContain(created.id);
+    expect((await of(maryam.memberId)).map((n) => n.subjectId)).not.toContain(created.id);
+  });
+
+  it('audits unpinning; a read-only company can look but not pin or unpin', async () => {
+    const [current] = (await ali.c.get(`/api/tasks/${task.id}/evidence`)).body as Evidence[];
+    loadEnv();
+    const ownerDb = createDb(process.env.DATABASE_URL ?? '');
+    const setStatus = (status: 'active' | 'read_only') =>
+      ownerDb.db.update(s.tenants).set({ status }).where(eq(s.tenants.id, tenantId));
+    try {
+      await setStatus('read_only');
+      expect((await ali.c.get(`/api/tasks/${task.id}/evidence`)).status).toBe(200);
+      const denied = await ali.c.delete(`/api/tasks/${task.id}/evidence/${current?.id}`);
+      expect(denied.status).toBe(423);
+      expect(denied.body.error.code).toBe('tenant_read_only');
+      expect((await pin(ali, task.id, letter.id)).status).toBe(423);
+    } finally {
+      await setStatus('active');
+      await ownerDb.pool.end();
+    }
+    expect((await ali.c.delete(`/api/tasks/${task.id}/evidence/${current?.id}`)).status).toBe(204);
+    const audit = (await owner.get('/api/audit-logs')).body as Array<{ action: string }>;
+    expect(audit.map((a) => a.action)).toContain('task.evidence_unpinned');
+  });
+
   it('keeps other companies out', async () => {
     expect((await other.get(`/api/tasks/${task.id}/evidence`)).status).toBe(404);
     expect((await other.get(`/api/tasks/${task.id}/evidence/audience`)).status).toBe(404);
     expect((await other.download(`/api/attachments/${fileId}/file`)).status).toBe(404);
+    const [mine] = (await lead.c.get(`/api/tasks/${task.id}/evidence`)).body as Evidence[];
+    const anyId = mine?.id ?? '00000000-0000-7000-8000-000000000000';
+    expect((await other.get(`/api/tasks/${task.id}/evidence/${anyId}`)).status).toBe(404);
+    expect((await other.delete(`/api/tasks/${task.id}/evidence/${anyId}`)).status).toBe(404);
     const theirDept = (await other.post('/api/departments', { name: 'فروش' })).body;
     const theirTask = (
       await other.post('/api/tasks', { title: 'کار شرکت دیگر', departmentId: theirDept.id })

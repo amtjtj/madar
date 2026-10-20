@@ -720,9 +720,13 @@ export class TasksService {
   /** A task the person may see and edit (assignee, reporter, collaborator, manager). */
   async requireEditable(tx: Tx, ctx: TenantContext, id: string): Promise<TaskRow> {
     const task = await this.requireVisible(tx, ctx, id);
-    const collaboratorIds = await collaboratorsOf(tx, id, 'collaborator');
-    if (!canEditTask(ctx.actor, { ...task, collaboratorIds })) throw forbidden();
+    if (!(await this.canEdit(tx, ctx, task))) throw forbidden();
     return task;
+  }
+
+  async canEdit(tx: Tx, ctx: TenantContext, task: TaskRow): Promise<boolean> {
+    const collaboratorIds = await collaboratorsOf(tx, task.id, 'collaborator');
+    return canEditTask(ctx.actor, { ...task, collaboratorIds });
   }
 
   async requireVisible(tx: Tx, ctx: TenantContext, id: string): Promise<TaskRow> {

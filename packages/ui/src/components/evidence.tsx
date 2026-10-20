@@ -35,7 +35,7 @@ export function EvidenceCard({
       type="button"
       onClick={onUnpin}
       aria-label={t('evidence.unpin', { subject: summary?.subject ?? '' })}
-      className="grid size-9 shrink-0 place-items-center rounded-full text-ink-subtle hover:bg-sunken hover:text-danger-ink focus-visible:outline-2 focus-visible:outline-focus [&_svg]:size-4"
+      className="grid size-11 shrink-0 place-items-center rounded-full text-ink-subtle hover:bg-sunken hover:text-danger-ink focus-visible:outline-2 focus-visible:outline-focus [&_svg]:size-4"
     >
       <X aria-hidden />
     </button>
@@ -139,7 +139,7 @@ export function AudienceNote({
       <ul className="flex flex-col gap-1 ps-5 marker:text-info-ink [list-style:disc]">
         {audience.people.map((p) => (
           <li key={p.id}>
-            {p.displayName} ({t(`evidence.roles.${p.role}`)})
+            {t('evidence.person', { name: p.displayName, role: t(`evidence.roles.${p.role}`) })}
           </li>
         ))}
         {audience.groups.map((g) => (

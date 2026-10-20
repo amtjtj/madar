@@ -20,6 +20,7 @@ import type { TenantContext } from '../common/context.js';
 import { ApiError, notFound } from '../common/errors.js';
 import { TenantDb } from '../database/tenant-db.service.js';
 import { attachmentRows, bindUploads, toAttachment } from '../files/attachments-db.js';
+import { checkLetterPin } from '../evidence/letter-provider.js';
 import { visibleTasks } from '../work/access.js';
 import { visibleLetters } from './access.js';
 
@@ -589,8 +590,32 @@ export class LettersService {
             )
             .orderBy(asc(s.taskEvidence.createdAt))
         : [],
-      // Confidential letters are never pinned (ADR 0021).
-      can: { edit: draft, refer: sent, reply: sent, pin: sent && !letter.confidential },
+      // The sender learns that their letter is shown elsewhere, without learning where.
+      pinnedElsewhere:
+        sent && isSender
+          ? ((
+              await tx
+                .select({ n: sql<number>`count(*)::int` })
+                .from(s.taskEvidence)
+                .innerJoin(s.tasks, eq(s.tasks.id, s.taskEvidence.taskId))
+                .where(
+                  and(
+                    eq(s.taskEvidence.kind, 'letter'),
+                    eq(s.taskEvidence.subjectId, letter.id),
+                    isNull(s.taskEvidence.unpinnedAt),
+                    isNull(s.tasks.deletedAt),
+                    sql`not coalesce(${visibleTasks(ctx.actor)}, false)`,
+                  ),
+                )
+            )[0]?.n ?? 0)
+          : 0,
+      // Confidential letters, and letters of a confidential thread, are never pinned (ADR 0021).
+      can: {
+        edit: draft,
+        refer: sent,
+        reply: sent,
+        pin: sent && (await checkLetterPin(tx, me, letter.id)) === 'ok',
+      },
     };
   }
 

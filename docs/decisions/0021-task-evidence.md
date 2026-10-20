@@ -11,7 +11,8 @@ Phase 2, step 12b (`docs/plans/phase-2-step-12b.md`), from the team review (`doc
   - It has forced RLS and composite FKs to `tasks` and `members`. The API checks the subject exists in the same company.
   - A partial unique index allows one active pin per `(task, kind, subject)`. Unpinning is soft (the app role has no DELETE), so the same item can be pinned again later and the trail stays.
 - **Providers.** Each kind has a provider (`apps/api/src/evidence/letter-provider.ts` for letters) that answers two things:
-  - May this person pin this item? For a letter: they see it (`visibleLetters`), it was sent, and it is not confidential (otherwise `evidence_not_allowed`).
+  - May this person pin this item? For a letter: they see it (`visibleLetters`), it was sent, and neither it nor any letter of its thread is confidential, because a reply may quote a confidential letter (otherwise `evidence_not_allowed`).
+  - One SQL rule, `pinnableLetter()`, is applied on every path: pinning, summaries, bodies and file downloads. No path relies on another path's check, or only on the trigger that freezes sent letters (ADR 0020).
   - What is the read-only summary and body?
   - New kinds add a provider and an enum value; the table, routes and screens stay.
 - **Who pins:** someone who sees the item and can edit the task (`canEditTask`: assignee, reporter, collaborator, department manager, owner). A plain viewer of the task cannot.
@@ -21,7 +22,9 @@ Phase 2, step 12b (`docs/plans/phase-2-step-12b.md`), from the team review (`doc
     - pins and unpins are audited (`task.evidence_pinned`, `task.evidence_unpinned`, without subject or body);
     - confidential letters are never pinned.
   - Attachment downloads of a letter accept a second path: the letter is pinned (actively) to a live task the person sees. Unpinning closes that path at once.
-- **Read state** on the card is one flag: every main («to») recipient has opened it. Who read it is never shown (ADR 0020).
+- **Read state** on the card is one flag: every main («to») recipient has opened it. Who read it is never shown (ADR 0020). With a single main recipient, the flag is in effect that person's read receipt; the product owner accepted this (plan question 3).
+- **The sender is told.** Any party on a letter (including a copy or a referral) may pin it if they edit the task. So the sender's letter page shows how many active pins sit on tasks they cannot see (`pinnedElsewhere`, a count, never the tasks). Pins on tasks they see are listed in `pinnedTo`.
+- **The audience note** names the assignee, the reporter, collaborators and watchers, and describes the rest as groups.
 - **Unpin:** the pinner, or anyone who can edit the task.
 - **Trail and notifications.**
   - The task history records `evidence_pinned` and `evidence_unpinned` with the letter number.

@@ -14,9 +14,13 @@ import type { TenantContext } from '../common/context.js';
 import { ApiError, forbidden, notFound } from '../common/errors.js';
 import { TenantDb } from '../database/tenant-db.service.js';
 import { visibleLetters } from '../letters/access.js';
-import { canEditTask } from '../work/access.js';
 import { TasksService } from '../work/tasks.service.js';
-import { checkLetterPin, letterBodyOf, letterSummaries } from './letter-provider.js';
+import {
+  checkLetterPin,
+  letterBodyOf,
+  letterSummaries,
+  pinnableLetter,
+} from './letter-provider.js';
 
 type EvidenceRow = typeof s.taskEvidence.$inferSelect;
 
@@ -63,7 +67,7 @@ export class EvidenceService {
     return this.db.run(ctx, async (tx) => {
       const task = await this.tasks.requireVisible(tx, ctx, taskId);
       const people = new Map<string, EvidenceAudience['people'][number]>();
-      const add = async (id: string | null, role: 'assignee' | 'reporter' | 'collaborator') => {
+      const add = async (id: string | null, role: EvidenceAudience['people'][number]['role']) => {
         if (!id || people.has(id)) return;
         const [m] = await tx
           .select({ displayName: s.members.displayName })
@@ -73,12 +77,13 @@ export class EvidenceService {
       };
       await add(task.assigneeId, 'assignee');
       await add(task.reporterId, 'reporter');
+      // Watchers see the task too (ADR 0010), so they are named as well.
       const collaborators = await tx
-        .select({ memberId: s.taskCollaborators.memberId })
+        .select({ memberId: s.taskCollaborators.memberId, kind: s.taskCollaborators.kind })
         .from(s.taskCollaborators)
         .where(eq(s.taskCollaborators.taskId, taskId))
-        .orderBy(asc(s.taskCollaborators.memberId));
-      for (const c of collaborators) await add(c.memberId, 'collaborator');
+        .orderBy(asc(s.taskCollaborators.kind), asc(s.taskCollaborators.memberId));
+      for (const c of collaborators) await add(c.memberId, c.kind);
 
       const [department] = await tx
         .select({ name: s.departments.name })
@@ -113,8 +118,7 @@ export class EvidenceService {
         .where(
           and(
             isNull(s.letters.deletedAt),
-            sql`${s.letters.sentAt} is not null`,
-            eq(s.letters.confidential, false),
+            pinnableLetter(),
             visibleLetters(ctx.memberId),
             sql`not exists (select 1 from task_evidence e where e.task_id = ${taskId}
               and e.kind = 'letter' and e.subject_id = ${s.letters.id} and e.unpinned_at is null)`,
@@ -250,17 +254,8 @@ export class EvidenceService {
     return row;
   }
 
-  private async edits(tx: Tx, ctx: TenantContext, task: typeof s.tasks.$inferSelect) {
-    const collaborators = await tx
-      .select({ memberId: s.taskCollaborators.memberId })
-      .from(s.taskCollaborators)
-      .where(
-        and(eq(s.taskCollaborators.taskId, task.id), eq(s.taskCollaborators.kind, 'collaborator')),
-      );
-    return canEditTask(ctx.actor, {
-      ...task,
-      collaboratorIds: collaborators.map((c) => c.memberId),
-    });
+  private edits(tx: Tx, ctx: TenantContext, task: typeof s.tasks.$inferSelect) {
+    return this.tasks.canEdit(tx, ctx, task);
   }
 
   private async present(

@@ -64,6 +64,8 @@ export const letter = letterSummary.extend({
   archived: z.boolean(),
   /** Tasks this letter is pinned to that the viewer may see (ADR 0021). */
   pinnedTo: z.array(z.object({ evidenceId: z.uuid(), taskId: z.uuid(), title: z.string() })),
+  /** For the sender only: pins on tasks they cannot see (a count, never the tasks). */
+  pinnedElsewhere: z.number().int(),
   can: z.object({ edit: z.boolean(), refer: z.boolean(), reply: z.boolean(), pin: z.boolean() }),
 });
 export type Letter = z.infer<typeof letter>;

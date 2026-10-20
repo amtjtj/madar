@@ -4,7 +4,7 @@ import { Search, Stamp } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { t } from '@madar/i18n';
-import { formatRelativeTime, type Evidence, type LetterSummary } from '@madar/shared';
+import { formatNumber, formatRelativeTime, type Evidence, type LetterSummary } from '@madar/shared';
 import {
   AudienceNote,
   Button,
@@ -58,7 +58,7 @@ export function TaskEvidence({ taskId, canPin }: { taskId: string; canPin: boole
         <Skeleton className="h-20 rounded-xl" />
       ) : !items?.length ? (
         <p className="rounded-xl border border-dashed border-line px-4 py-3 text-sm text-ink-muted">
-          {t('evidence.empty')}
+          {t(canPin ? 'evidence.empty' : 'evidence.emptyViewer')}
         </p>
       ) : (
         <ul className="flex flex-col gap-2">
@@ -240,12 +240,15 @@ function PinLetterDialog({ taskId }: { taskId: string }) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
+          <p role="status" className="sr-only">
+            {t('evidence.results', { count: formatNumber(letters?.length ?? 0) })}
+          </p>
           {isPending ? (
             <Skeleton className="h-16 rounded-xl" />
           ) : !letters?.length ? (
             <p className="py-2 text-sm text-ink-muted">{t('evidence.noCandidates')}</p>
           ) : (
-            <ul aria-live="polite" className="flex max-h-80 flex-col gap-1 overflow-y-auto">
+            <ul className="flex max-h-80 flex-col gap-1 overflow-y-auto">
               {letters.map((l) => (
                 <li key={l.id}>
                   <button
