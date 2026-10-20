@@ -29,6 +29,7 @@ import { eq } from 'drizzle-orm';
 import { AppModule } from '../app.module.js';
 import { AccountsService } from '../auth/accounts.service.js';
 import { AttachmentsService } from '../files/attachments.service.js';
+import { EvidenceService } from '../evidence/evidence.service.js';
 import { LettersService } from '../letters/letters.service.js';
 import { FILE_STORAGE, objectKeyFor, type FileStorage } from '../files/storage.js';
 import { TenantContextService } from '../auth/tenant-context.service.js';
@@ -497,6 +498,14 @@ async function main(): Promise<void> {
       urgency: 'normal',
       confidential: false,
     });
+
+    // «شاهد کار» (ADR 0021): the withdrawal-limit letter backs Ali's ticket queue task.
+    if (queue) {
+      await app
+        .get(EvidenceService)
+        .pin(await as('ali.rezaei'), queue.id, { kind: 'letter', subjectId: limits.id })
+        .catch((error: unknown) => logger.warn(`pin evidence: ${String(error)}`));
+    }
 
     for (const [title, krKey] of Object.entries(SEED_TASK_LINKS)) {
       const task = taskRefs.get(title);
