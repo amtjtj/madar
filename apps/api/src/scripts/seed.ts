@@ -29,6 +29,7 @@ import { eq } from 'drizzle-orm';
 import { AppModule } from '../app.module.js';
 import { AccountsService } from '../auth/accounts.service.js';
 import { AttachmentsService } from '../files/attachments.service.js';
+import { ChatService } from '../chat/chat.service.js';
 import { EvidenceService } from '../evidence/evidence.service.js';
 import { LettersService } from '../letters/letters.service.js';
 import { FILE_STORAGE, objectKeyFor, type FileStorage } from '../files/storage.js';
@@ -506,6 +507,41 @@ async function main(): Promise<void> {
         .pin(await as('ali.rezaei'), queue.id, { kind: 'letter', subjectId: limits.id })
         .catch((error: unknown) => logger.warn(`pin evidence: ${String(error)}`));
     }
+
+    // Chat (ADR 0022): the support channel, a project channel, a direct conversation, a group.
+    const chat = app.get(ChatService);
+    const post = async (by: string, conversationId: string, body: string, replyToId?: string) =>
+      chat.send(await as(by), conversationId, { body, replyToId: replyToId ?? null });
+    const supportChannel = await chat.forSource(
+      await as('maryam.ahmadi'),
+      'department',
+      departmentIds.get('support') ?? '',
+    );
+    const shift = await post(
+      'maryam.ahmadi',
+      supportChannel.id,
+      'صبح بخیر تیم. امروز به‌خاطر نوسان قیمت طلا حجم تیکت‌ها بالاست؛ اولویت با تیکت‌های برداشت است.',
+    );
+    await post('ali.rezaei', supportChannel.id, 'چشم. صف برداشت را من برمی‌دارم.', shift.id);
+    await post('zahra.mohammadi', supportChannel.id, 'من هم تیکت‌های احراز هویت را جواب می‌دهم.');
+    const kycChannel = await chat.forSource(
+      await as('amir.hosseini'),
+      'project',
+      projectIds.get('kyc') ?? '',
+    );
+    await post(
+      'amir.hosseini',
+      kycChannel.id,
+      'نسخه آزمایشی مسیر جدید احراز هویت روی سرور تست است: https://staging.example.ir/kyc',
+    );
+    await post('maryam.ahmadi', kycChannel.id, 'عالی. امروز با دو کاربر واقعی امتحانش می‌کنیم.');
+    const dm = await chat.direct(await as('maryam.ahmadi'), idOf('ali.rezaei'));
+    await post('maryam.ahmadi', dm.id, 'علی جان، گزارش تیکت‌های دیروز را تا ظهر می‌فرستی؟');
+    const group = await chat.createGroup(await as('maryam.ahmadi'), {
+      title: 'شیفت صبح',
+      memberIds: [idOf('ali.rezaei'), idOf('zahra.mohammadi'), idOf('hossein.yousefi')],
+    });
+    await post('hossein.yousefi', group.id, 'من فردا ده دقیقه دیرتر می‌رسم.');
 
     for (const [title, krKey] of Object.entries(SEED_TASK_LINKS)) {
       const task = taskRefs.get(title);
