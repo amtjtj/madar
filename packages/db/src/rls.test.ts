@@ -51,6 +51,9 @@ const DATA_PLANE = [
   'letter_recipients',
   'letter_counters',
   'task_evidence',
+  'conversations',
+  'conversation_members',
+  'messages',
   'goal_periods',
   'goals',
   'key_results',
@@ -79,6 +82,9 @@ const NO_DELETE = [
   'letters',
   'letter_counters',
   'task_evidence',
+  'conversations',
+  'conversation_members',
+  'messages',
 ];
 
 describe.skipIf(!hasDatabase)('tenant isolation (RLS)', () => {
@@ -279,6 +285,20 @@ describe.skipIf(!hasDatabase)('tenant isolation (RLS)', () => {
         .where(sql`${s.taskEvidence.id} = ${mine?.id ?? ''}`);
       await tx.insert(s.taskEvidence).values(again);
     });
+  });
+
+  it("a message cannot be written into another tenant's conversation", async () => {
+    const [theirs] = await withTenant(app.db, { tenantId: b.tenantId }, (tx) =>
+      tx.select({ id: s.conversations.id }).from(s.conversations).limit(1),
+    );
+    expect(theirs).toBeDefined();
+    await expect(
+      withTenant(app.db, { tenantId: a.tenantId }, (tx) =>
+        tx
+          .insert(s.messages)
+          .values({ conversationId: theirs?.id ?? '', authorId: a.memberId, body: 'x' }),
+      ),
+    ).rejects.toThrow();
   });
 
   it('transaction-local settings do not leak to the next query on the same connection', async () => {

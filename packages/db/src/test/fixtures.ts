@@ -184,6 +184,17 @@ export async function createTenantFixture(handle: DbHandle, label = 't'): Promis
     });
     await tx.insert(s.letterRecipients).values({ letterId, memberId: member.id, kind: 'to' });
     await tx.insert(s.letterCounters).values({ jalaliYear: 1405, lastNumber: 1 });
+    const conversationId = uuidv7();
+    await tx.insert(s.conversations).values({
+      id: conversationId,
+      kind: 'direct',
+      directKey: `${member.id}:${uuidv7()}`,
+      createdBy: member.id,
+    });
+    await tx
+      .insert(s.conversationMembers)
+      .values({ conversationId, memberId: member.id, role: 'owner' });
+    await tx.insert(s.messages).values({ conversationId, authorId: member.id, body: 'سلام' });
     await tx
       .insert(s.taskEvidence)
       .values({ taskId: task.id, kind: 'letter', subjectId: letterId, pinnedBy: member.id });

@@ -7,3 +7,4 @@ export * from './reports.js';
 export * from './files.js';
 export * from './letters.js';
 export * from './evidence.js';
+export * from './chat.js';
