@@ -28,6 +28,17 @@ fi
 command -v docker >/dev/null || fail "Docker is not installed (docs/local-demo.md, step 1)"
 docker info >/dev/null 2>&1 || fail "Docker is not running: start Docker Desktop first"
 
+# Containers and volumes of the local demo, found by their Compose label (works even when the
+# settings file is gone, which is how a database with old passwords used to be left behind).
+wipe() {
+  local label="label=com.docker.compose.project=$PROJECT" ids
+  ids=$(docker ps -aq --filter "$label")
+  [ -z "$ids" ] || docker rm -f $ids >/dev/null
+  ids=$(docker volume ls -q --filter "$label")
+  [ -z "$ids" ] || docker volume rm $ids >/dev/null
+  rm -f "$ROOT/.deploy/demo-seeded"
+}
+
 show() {
   say "Ready: https://localhost  (the browser warns once about the local certificate: accept it)"
   echo "    version: $(git -C "$ROOT" log -1 --format='%h  %cd  %s' --date=format:'%Y-%m-%d %H:%M')"
@@ -38,6 +49,8 @@ show() {
 case "${1:-up}" in
   up)
     if [ ! -f "$ENV_FILE" ]; then
+      # New passwords: data left from an earlier install could not be opened with them.
+      wipe
       "$ROOT/scripts/deploy/init-env.sh" localhost demo@localhost --demo
       sed -i.bak "s|^CADDY_TLS=.*|CADDY_TLS=tls internal|" "$ENV_FILE"
       [ -n "${MADAR_BASE_REGISTRY:-}" ] && sed -i.bak "s|^BASE_REGISTRY=.*|BASE_REGISTRY=$MADAR_BASE_REGISTRY|" "$ENV_FILE"
@@ -64,8 +77,8 @@ case "${1:-up}" in
   reset) compose exec -T demo node dist/scripts/demo-reset.js && show ;;
   remove)
     confirm "This deletes the local demo and all its data."
-    compose --profile demo down -v
-    rm -f "$ENV_FILE" "$ROOT/.deploy/demo-seeded"
+    wipe
+    rm -f "$ENV_FILE"
     say "Removed."
     ;;
   *) fail "usage: local-demo.sh [up|update|stop|start|reset|info|remove]" ;;
