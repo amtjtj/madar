@@ -36,6 +36,9 @@ export type ErrorCode =
   | 'already_recipient'
   | 'evidence_not_allowed'
   | 'already_pinned'
+  | 'message_edit_window'
+  | 'chat_read_only'
+  | 'group_owner_only'
   | 'conflict';
 
 export class ApiError extends HttpException {

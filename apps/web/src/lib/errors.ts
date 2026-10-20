@@ -30,6 +30,9 @@ const API_CODES = new Set([
   'already_recipient',
   'evidence_not_allowed',
   'already_pinned',
+  'message_edit_window',
+  'chat_read_only',
+  'group_owner_only',
 ]);
 
 /** Persian message for any error thrown by `api()` or the auth helpers. */
