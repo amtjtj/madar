@@ -27,3 +27,4 @@ Template: Status · Date · Context · Decision · Alternatives considered · Co
 | 0019 | File storage and attachments | Accepted |
 | 0020 | Internal letters | Accepted |
 | 0021 | Task evidence («شاهد کار») | Accepted |
+| 0022 | Internal chat | Accepted |
