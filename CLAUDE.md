@@ -127,6 +127,7 @@ Requirements: Node 22.12+ (24 LTS recommended), pnpm 10 (`corepack enable`), Doc
 | Attachments in development | stored in `.data/files` (git-ignored); `STORAGE_DRIVER=s3` with `S3_*` for an S3-compatible service |
 | Install the licensed Abar Low fonts (git-ignored) | `pnpm fonts:install <dir-with-AbarLow-files>` |
 | Generate Web Push (VAPID) keys for `.env` (after a build) | `pnpm --filter @madar/api vapid:generate` |
+| Production: fresh Ubuntu server in one command (`docs/deploy.md` §0) | `scripts/deploy/install.sh <domain> <email> [--demo]` |
 | Production: first settings / deploy or update / health (on the server; `docs/deploy.md`) | `scripts/deploy/init-env.sh <domain> <email> [--demo]` / `scripts/deploy/deploy.sh` / `scripts/deploy/status.sh` |
 | Production: backup now / restore / smoke-test a demo stack | `scripts/deploy/backup-now.sh` / `scripts/deploy/restore.sh <file>` / `scripts/deploy/smoke.sh [--restore]` |
 | The production stack on your own computer, with the demo company at https://localhost (`docs/local-demo.md`) | `scripts/deploy/local-demo.sh [update\|stop\|start\|reset\|remove]` (after new commits: `update`) |
