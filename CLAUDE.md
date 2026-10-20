@@ -129,7 +129,7 @@ Requirements: Node 22.12+ (24 LTS recommended), pnpm 10 (`corepack enable`), Doc
 | Generate Web Push (VAPID) keys for `.env` (after a build) | `pnpm --filter @madar/api vapid:generate` |
 | Production: first settings / deploy or update / health (on the server; `docs/deploy.md`) | `scripts/deploy/init-env.sh <domain> <email> [--demo]` / `scripts/deploy/deploy.sh` / `scripts/deploy/status.sh` |
 | Production: backup now / restore / smoke-test a demo stack | `scripts/deploy/backup-now.sh` / `scripts/deploy/restore.sh <file>` / `scripts/deploy/smoke.sh [--restore]` |
-| The production stack on your own computer, with the demo company at https://localhost (`docs/local-demo.md`) | `scripts/deploy/local-demo.sh [stop\|start\|reset\|remove]` |
+| The production stack on your own computer, with the demo company at https://localhost (`docs/local-demo.md`) | `scripts/deploy/local-demo.sh [update\|stop\|start\|reset\|remove]` (after new commits: `update`) |
 | One package only | `pnpm --filter @madar/<name> <script>` (e.g. `pnpm --filter @madar/api test`) |
 
 Notes:
