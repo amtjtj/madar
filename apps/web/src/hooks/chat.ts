@@ -19,7 +19,7 @@ import type {
 import { api } from '@/lib/api';
 import { upsertMessage } from '@/lib/chat';
 
-import { chatKeys } from './keys';
+import { chatKeys, notificationKeys } from './keys';
 
 type Pages = InfiniteData<MessagePage, string | undefined>;
 
@@ -168,7 +168,11 @@ export function useMarkRead(id: string) {
   return useMutation({
     mutationFn: (messageId: string) =>
       api<undefined>(`/api/conversations/${id}/read`, { method: 'POST', body: { messageId } }),
-    onSuccess: () => refreshLists(client),
+    onSuccess: () => {
+      refreshLists(client);
+      // Reading also clears this conversation's chat notifications.
+      void client.invalidateQueries({ queryKey: notificationKeys.all });
+    },
   });
 }
 

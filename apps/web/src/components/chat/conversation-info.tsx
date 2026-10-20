@@ -194,14 +194,13 @@ export function ConversationInfo({
             variant="danger"
             className="flex-1"
             loading={leave.isPending}
+            // mutateAsync: the refetch after leaving 404s and unmounts this dialog, which would
+            // drop mutate()'s per-call callbacks before the redirect.
             onClick={() =>
-              leave.mutate(undefined, {
-                onSuccess: () => {
-                  toast({ tone: 'success', title: t('chat.left') });
-                  router.replace('/chat');
-                },
-                onError,
-              })
+              leave.mutateAsync(undefined).then(() => {
+                toast({ tone: 'success', title: t('chat.left') });
+                router.replace('/chat');
+              }, onError)
             }
           >
             {t('chat.leave')}
