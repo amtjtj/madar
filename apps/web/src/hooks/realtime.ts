@@ -1,11 +1,12 @@
 'use client';
 
 import { useQueryClient } from '@tanstack/react-query';
-import { REALTIME_EVENTS, REALTIME_PATH } from '@madar/shared';
+import { CHAT_SOCKET, REALTIME_EVENTS, REALTIME_PATH, type Message } from '@madar/shared';
 import { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 
-import { dashboardKeys, letterKeys, notificationKeys, workKeys } from './keys';
+import { applyLiveMessage } from './chat';
+import { chatKeys, dashboardKeys, letterKeys, notificationKeys, workKeys } from './keys';
 
 /**
  * Live updates: the server sends content-free hints and the matching queries refetch through
@@ -21,7 +22,7 @@ export function useRealtime(enabled: boolean, tenantId?: string): boolean {
     const pending = new Set<string>();
     let timer: ReturnType<typeof setTimeout> | undefined;
     // Several hints often arrive together (a move emits status + completion): refetch once.
-    const refresh = (what: 'work' | 'today' | 'notifications' | 'letters') => {
+    const refresh = (what: 'work' | 'today' | 'notifications' | 'letters' | 'chat') => {
       pending.add(what);
       clearTimeout(timer);
       timer = setTimeout(() => {
@@ -36,6 +37,12 @@ export function useRealtime(enabled: boolean, tenantId?: string): boolean {
           void client.invalidateQueries({ queryKey: notificationKeys.all });
         }
         if (pending.has('letters')) void client.invalidateQueries({ queryKey: letterKeys.all });
+        if (pending.has('chat')) {
+          void client.invalidateQueries({ queryKey: chatKeys.list });
+          void client.invalidateQueries({ queryKey: chatKeys.unread });
+          void client.invalidateQueries({ queryKey: ['chat', 'conversation'] });
+          void client.invalidateQueries({ queryKey: ['chat', 'by-project'] });
+        }
         pending.clear();
       }, 250);
     };
@@ -48,6 +55,9 @@ export function useRealtime(enabled: boolean, tenantId?: string): boolean {
         refresh('today');
         refresh('notifications');
         refresh('letters');
+        refresh('chat');
+        // Open conversations may have missed messages: reload them.
+        void client.invalidateQueries({ queryKey: ['chat', 'messages'] });
       }
     });
     socket.on('disconnect', () => {
@@ -58,6 +68,11 @@ export function useRealtime(enabled: boolean, tenantId?: string): boolean {
     socket.on(REALTIME_EVENTS.todayChanged, () => refresh('today'));
     socket.on(REALTIME_EVENTS.notificationsChanged, () => refresh('notifications'));
     socket.on(REALTIME_EVENTS.lettersChanged, () => refresh('letters'));
+    socket.on(REALTIME_EVENTS.chatChanged, () => refresh('chat'));
+    // The one event with data (ADR 0022): straight into the open conversation's cache.
+    socket.on(CHAT_SOCKET.message, (message: Message) => {
+      applyLiveMessage(client, message);
+    });
     return () => {
       clearTimeout(timer);
       socket.disconnect();

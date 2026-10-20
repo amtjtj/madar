@@ -73,3 +73,13 @@ export const evidenceKeys = {
   detail: (taskId: string, id: string) => ['task', taskId, 'evidence', 'detail', id] as const,
   editableTasks: (q: string) => ['tasks', 'editable', q] as const,
 };
+
+/** Internal chat (ADR 0022). */
+export const chatKeys = {
+  all: ['chat'] as const,
+  list: ['chat', 'list'] as const,
+  unread: ['chat', 'unread'] as const,
+  conversation: (id: string) => ['chat', 'conversation', id] as const,
+  messages: (id: string) => ['chat', 'messages', id] as const,
+  byProject: (projectId: string) => ['chat', 'by-project', projectId] as const,
+};

@@ -19,6 +19,8 @@ import {
 } from '@madar/ui';
 
 import { NewTaskButton } from '@/components/work/new-task-button';
+import { TeamChatButton } from '@/components/chat/team-chat-button';
+import { useMe } from '@/hooks/use-me';
 import { ProjectMembers } from '@/components/work/project-members';
 import { TaskViews } from '@/components/work/task-views';
 import { useArchiveProject, useProject, useTodayDate } from '@/hooks/work';
@@ -28,6 +30,7 @@ import { errorMessage } from '@/lib/errors';
 
 export default function ProjectPage() {
   const { id } = useParams<{ id: string }>();
+  const { data: me } = useMe();
   const { data: project, isPending, isError } = useProject(id);
   const today = useTodayDate();
 
@@ -102,6 +105,10 @@ export default function ProjectPage() {
                 {t('projects.observers', { count: formatNumber(observers) })}
               </Badge>
             )}
+            <TeamChatButton
+              projectId={project.id}
+              member={project.members.some((m) => m.id === me?.member?.id)}
+            />
             {project.can.edit && <ProjectMembers project={project} />}
             {project.can.edit && project.status === 'active' && <ArchiveButton id={project.id} />}
           </div>
