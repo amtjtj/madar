@@ -33,6 +33,23 @@ Phase 2, step 12b (`docs/plans/phase-2-step-12b.md`), from the team review (`doc
 - **Counts and lists.** Tasks carry `evidenceCount` (active pins), shown on `TaskCard`. `GET /api/tasks?editable=true` (SQL `editableTasks`, the twin of `canEditTask`) feeds the task picker on a letter, and a letter carries `pinnedTo` (only the tasks the viewer sees) and `can.pin`.
 - **A removed source** (possible for minutes and messages later) shows as «این مورد دیگر در دسترس نیست»; sent letters are never removed.
 
+## Messages as evidence (step 15c)
+
+Plan: `docs/plans/phase-2-step-15c.md`. The product owner accepted pinning direct and group messages too, with the audience note.
+
+- **Kind `message`:** a new `evidence_kind` value (migration `0021`); the table is unchanged.
+- **Provider:** `evidence/message-provider.ts`.
+  - **Who may pin:** someone who reads the message now (`visibleConversations`) and edits the task.
+  - **The card:** where it was said, who said it, the start of the text with mentions as names, the file count and an «edited» mark.
+  - **Direct conversations** are named by their kind only, so a task viewer does not learn who talked.
+- **What a task viewer reaches:** only that message and its files, read-only, through an active pin on a visible task (`messagePinnedToVisibleTask` in `AttachmentsService`). The conversation and its other messages stay closed. A deleted message shows as «no longer available».
+- **Making a task from a message** (`POST /api/messages/:id/task`):
+  - `TasksService.createIn` and `EvidenceService.pinIn` run in one transaction.
+  - The title comes from the message's first line.
+  - The message text is never copied into the task: the pin is the only link.
+- **The pin count on a message:** a message carries `pinnedCount` only, because the same payload goes live to every reader. `GET /api/messages/:id/tasks` lists the tasks that reader sees and counts the rest.
+- **History and notifications** name a message by its kind only («یک پیام گفت‌وگو»), never its text.
+
 ## Alternatives considered
 - **Copying the letter into the task (a snapshot):** a second copy of sensitive text that the letter's own rules no longer govern. A live, read-only view through one checked path is safer.
 - **Letting any task viewer pin:** anyone could attach their correspondence to other people's work. Pinning is a statement about the work, so it belongs to those who edit it.

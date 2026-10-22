@@ -71,6 +71,22 @@ Plan: `docs/plans/phase-2-step-15b.md`. The product owner accepted all three pro
   - Every reader sees who reacted (a long press on a chip shows the names on phones). The updated message goes live with `chat:message` to the current audience, and the web works out «mine» from the list, because the same payload goes to everyone.
 - **Data:** both new tables have forced RLS and composite FKs. The app role may DELETE their rows (a reaction taken back, a mention edited away); messages still have no DELETE.
 
+## Search and export (step 15c)
+
+- **Search** (`GET /api/chat/search`):
+  - Only conversations the person reads now (`visibleConversationsRaw`), never deleted messages.
+  - Uses `ilike` on the text; Persian and Latin digits match each other.
+  - Newest first, 30 at a time.
+  - Results show the text around the match, with mentions as names.
+  - Opening a result loads the page `around` that message (`?m=` on the conversation page). From there, «رفتن به آخرین پیام‌ها» returns to the live view.
+  - A full-text index waits until volume needs it; the existing `(tenant_id, conversation_id, id)` index covers one conversation.
+- **Export** (`/api/chat/exports/*`, page «سازمان ← خروجی گفت‌وگوها»):
+  - **Scope:** project and department channels only (product owner, answer 3), optionally a date range.
+  - **Who:** people with the new permission `chat.export`, which the owner and admin roles have (migration `0021` grants it to existing companies). They need not be members of the channel.
+  - **Direct and group conversations** are "not found" there, like anywhere one may not reach.
+  - **Audit:** every export writes `chat.exported` with the channel, the range and the message count, never the text.
+  - **Format:** the API returns JSON. The web writes the CSV with a byte order mark and the Persian headings from the i18n file, so the API keeps no user-facing text.
+
 ## Alternatives considered
 - **Copying channel members into `conversation_members`:** two sources of truth that drift whenever a project or department changes from any of its code paths. Reading the source tables keeps the channel exactly in step.
 - **Conversation rooms with join and leave:** described above. Safer only if every membership change also moved sockets, and that is easy to miss.
