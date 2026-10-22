@@ -1,6 +1,11 @@
 import { t } from '@madar/i18n';
-import { formatNumber, type EvidenceAudience, type EvidenceSummary } from '@madar/shared';
-import { Check, Clock, Eye, Mail, Paperclip, X } from 'lucide-react';
+import {
+  formatNumber,
+  type EvidenceAudience,
+  type EvidenceSummary,
+  type MessageEvidenceSummary,
+} from '@madar/shared';
+import { Check, Clock, Eye, Mail, MessageSquare, Paperclip, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { cn } from '../lib/cn.js';
@@ -115,12 +120,109 @@ export function EvidenceCard({
   );
 }
 
+export interface MessageEvidenceCardProps {
+  /** Null when the message was deleted. */
+  message: MessageEvidenceSummary | null;
+  /** Short date, already formatted. */
+  date?: string;
+  meta?: string;
+  onOpen?: () => void;
+  onUnpin?: () => void;
+  className?: string;
+}
+
+/**
+ * A chat message pinned to a task (plan phase-2-step-15c): where it was said (a direct
+ * conversation by its kind only), who said it, and the start of the text.
+ */
+export function MessageEvidenceCard({
+  message,
+  date,
+  meta,
+  onOpen,
+  onUnpin,
+  className,
+}: MessageEvidenceCardProps) {
+  const place = message ? (message.conversation.title ?? t('ui.chat.directPlace')) : '';
+  const unpin = onUnpin && (
+    <button
+      type="button"
+      onClick={onUnpin}
+      aria-label={t('evidence.unpinMessage', { place })}
+      className="grid size-11 shrink-0 place-items-center rounded-full text-ink-subtle hover:bg-sunken hover:text-danger-ink focus-visible:outline-2 focus-visible:outline-focus [&_svg]:size-4"
+    >
+      <X aria-hidden />
+    </button>
+  );
+  if (!message) {
+    return (
+      <div
+        className={cn(
+          'flex items-center gap-3 rounded-xl border border-dashed border-line bg-sunken p-3 text-sm text-ink-muted',
+          className,
+        )}
+      >
+        <MessageSquare aria-hidden className="size-5 shrink-0" />
+        <span className="flex-1">{t('evidence.unavailable')}</span>
+        {unpin}
+      </div>
+    );
+  }
+  const body: ReactNode = (
+    <>
+      <span className="truncate text-sm font-semibold text-ink">
+        {t('evidence.messageFrom', { name: message.author.displayName, place })}
+      </span>
+      <span className="line-clamp-2 text-sm text-ink-muted">{message.excerpt}</span>
+      <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-subtle">
+        {date && <span>{date}</span>}
+        {message.edited && <span>{t('ui.chat.edited')}</span>}
+        {message.attachmentCount > 0 && (
+          <span className="inline-flex items-center gap-0.5 [&_svg]:size-3.5">
+            <Paperclip aria-hidden />
+            {t('ui.letter.attachments', { count: formatNumber(message.attachmentCount) })}
+          </span>
+        )}
+      </span>
+      {meta && <span className="text-xs text-ink-subtle">{meta}</span>}
+    </>
+  );
+  return (
+    <div
+      className={cn(
+        'flex items-start gap-3 rounded-xl border border-line bg-surface p-3',
+        className,
+      )}
+    >
+      <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary-soft text-primary-ink [&_svg]:size-5">
+        <MessageSquare aria-hidden />
+      </span>
+      {onOpen ? (
+        <button
+          type="button"
+          onClick={onOpen}
+          aria-label={t('evidence.openMessage', { place })}
+          className="flex min-w-0 flex-1 flex-col gap-0.5 rounded-lg text-start focus-visible:outline-2 focus-visible:outline-focus"
+        >
+          {body}
+        </button>
+      ) : (
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">{body}</span>
+      )}
+      {unpin}
+    </div>
+  );
+}
+
 /** «چه کسانی خواهند دید»: the people on the task by name, the rest as groups. */
 export function AudienceNote({
   audience,
+  kind = 'letter',
   className,
 }: {
   audience: EvidenceAudience;
+  /** What is being pinned (the intro names it). */
+  kind?: 'letter' | 'message';
   className?: string;
 }) {
   return (
@@ -135,7 +237,7 @@ export function AudienceNote({
         <Eye aria-hidden />
         {t('evidence.audienceTitle')}
       </p>
-      <p>{t('evidence.audienceIntro')}</p>
+      <p>{t(kind === 'message' ? 'evidence.audienceIntroMessage' : 'evidence.audienceIntro')}</p>
       <ul className="flex flex-col gap-1 ps-5 marker:text-info-ink [list-style:disc]">
         {audience.people.map((p) => (
           <li key={p.id}>

@@ -1,10 +1,10 @@
 'use client';
 
 import { Search, Stamp } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import { t } from '@madar/i18n';
-import { formatNumber, type Letter, type Task } from '@madar/shared';
+import { formatNumber, type EvidenceKind, type Letter, type Task } from '@madar/shared';
 import { Button, Modal, Skeleton, TextField, useToast } from '@madar/ui';
 
 import { useEditableTasks, usePinEvidence } from '@/hooks/evidence';
@@ -15,6 +15,41 @@ import { ConfirmPin } from './task-evidence';
 /** «سنجاق به کار» on a letter: pick a task I edit, see who will see it, pin. */
 export function PinToTask({ letter }: { letter: Letter }) {
   const [open, setOpen] = useState(false);
+  return (
+    <PinToTaskDialog
+      kind="letter"
+      subjectId={letter.id}
+      excludeTaskIds={letter.pinnedTo.map((p) => p.taskId)}
+      open={open}
+      onOpenChange={setOpen}
+      trigger={
+        <Button variant="secondary" icon={<Stamp aria-hidden />}>
+          {t('evidence.pinToTask')}
+        </Button>
+      }
+    />
+  );
+}
+
+/** Picking a task to pin a letter or a message to (plan phase-2-step-15c). */
+export function PinToTaskDialog({
+  kind,
+  subjectId,
+  excludeTaskIds = [],
+  open,
+  onOpenChange,
+  onPinned,
+  trigger,
+}: {
+  kind: EvidenceKind;
+  subjectId: string;
+  excludeTaskIds?: string[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onPinned?: () => void;
+  trigger?: ReactNode;
+}) {
+  const setOpen = onOpenChange;
   const [query, setQuery] = useState('');
   const [search, setSearch] = useState('');
   const [chosen, setChosen] = useState<Task | null>(null);
@@ -25,7 +60,7 @@ export function PinToTask({ letter }: { letter: Letter }) {
   const { data: tasks, isPending } = useEditableTasks(search, open);
   const pin = usePinEvidence();
   const { toast } = useToast();
-  const pinned = new Set(letter.pinnedTo.map((p) => p.taskId));
+  const pinned = new Set(excludeTaskIds);
   const options = (tasks ?? []).filter((task) => !pinned.has(task.id)).slice(0, 20);
   const close = () => {
     setOpen(false);
@@ -37,25 +72,26 @@ export function PinToTask({ letter }: { letter: Letter }) {
     <Modal
       open={open}
       onOpenChange={(next) => (next ? setOpen(true) : close())}
-      title={t('evidence.pinToTaskTitle')}
-      trigger={
-        <Button variant="secondary" icon={<Stamp aria-hidden />}>
-          {t('evidence.pinToTask')}
-        </Button>
-      }
+      title={t(kind === 'message' ? 'evidence.pinMessageTitle' : 'evidence.pinToTaskTitle')}
+      trigger={trigger}
     >
       {chosen ? (
         <ConfirmPin
           taskId={chosen.id}
           subject={chosen.title}
+          kind={kind}
           busy={pin.isPending}
           onBack={() => setChosen(null)}
           onPin={() =>
             pin.mutate(
-              { taskId: chosen.id, letterId: letter.id },
+              { taskId: chosen.id, kind, subjectId },
               {
                 onSuccess: () => {
-                  toast({ tone: 'success', title: t('evidence.pinned') });
+                  toast({
+                    tone: 'success',
+                    title: t(kind === 'message' ? 'evidence.messagePinned' : 'evidence.pinned'),
+                  });
+                  onPinned?.();
                   close();
                 },
                 onError: (error) => toast({ tone: 'error', title: errorMessage(error) }),

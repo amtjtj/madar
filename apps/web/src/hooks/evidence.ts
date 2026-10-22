@@ -5,6 +5,7 @@ import type {
   Evidence,
   EvidenceAudience,
   EvidenceDetail,
+  EvidenceKind,
   LetterSummary,
   Task,
 } from '@madar/shared';
@@ -73,10 +74,18 @@ function refresh(client: ReturnType<typeof useQueryClient>, taskId: string) {
 export function usePinEvidence() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({ taskId, letterId }: { taskId: string; letterId: string }) =>
+    mutationFn: ({
+      taskId,
+      kind,
+      subjectId,
+    }: {
+      taskId: string;
+      kind: EvidenceKind;
+      subjectId: string;
+    }) =>
       api<Evidence>(`/api/tasks/${taskId}/evidence`, {
         method: 'POST',
-        body: { kind: 'letter', subjectId: letterId },
+        body: { kind, subjectId },
       }),
     onSettled: (_data, _error, { taskId }) => refresh(client, taskId),
   });

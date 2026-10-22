@@ -106,7 +106,13 @@ export {
   type LiteTextProps,
   type RecipientChipProps,
 } from './components/letter.js';
-export { AudienceNote, EvidenceCard, type EvidenceCardProps } from './components/evidence.js';
+export {
+  AudienceNote,
+  EvidenceCard,
+  MessageEvidenceCard,
+  type EvidenceCardProps,
+  type MessageEvidenceCardProps,
+} from './components/evidence.js';
 export {
   ConversationAvatar,
   ConversationRow,

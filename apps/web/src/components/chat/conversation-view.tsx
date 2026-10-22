@@ -1,6 +1,16 @@
 'use client';
 
-import { ArrowRight, Info, MoreVertical, Pencil, Reply, SmilePlus, Trash2 } from 'lucide-react';
+import {
+  ArrowRight,
+  CheckSquare,
+  Info,
+  MoreVertical,
+  Pencil,
+  Reply,
+  SmilePlus,
+  Stamp,
+  Trash2,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
@@ -20,6 +30,7 @@ import {
   useToast,
 } from '@madar/ui';
 
+import { PinToTaskDialog } from '@/components/evidence/pin-to-task';
 import { AttachmentList } from '@/components/work/attachments';
 
 import { ApiClientError } from '@/lib/api';
@@ -29,6 +40,7 @@ import {
   useEditMessage,
   useMarkRead,
   useMessages,
+  useCountPin,
   useReact,
   useSendMessage,
 } from '@/hooks/chat';
@@ -44,6 +56,7 @@ import { errorMessage } from '@/lib/errors';
 
 import { Composer } from './composer';
 import { ConversationInfo } from './conversation-info';
+import { MakeTaskDialog, PinnedTasks } from './message-tasks';
 
 /** One conversation: header, messages by day, the «unread» line, and the composer. */
 export function ConversationView({ id }: { id: string }) {
@@ -62,6 +75,9 @@ export function ConversationView({ id }: { id: string }) {
   const { toast } = useToast();
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [reacting, setReacting] = useState<Message | null>(null);
+  const [making, setMaking] = useState<Message | null>(null);
+  const [pinning, setPinning] = useState<Message | null>(null);
+  const countPin = useCountPin();
   const [editing, setEditing] = useState<Message | null>(null);
   const [deleting, setDeleting] = useState<Message | null>(null);
   const [infoOpen, setInfoOpen] = useState(false);
@@ -245,14 +261,17 @@ export function ConversationView({ id }: { id: string }) {
                         ) : undefined
                       }
                       reactions={
-                        <ReactionBar
-                          reactions={reactionViews(message, me?.member?.id)}
-                          onToggle={
-                            conversation.can.post && !isPending(message)
-                              ? (emoji, active) => toggleReaction(message, emoji, active)
-                              : undefined
-                          }
-                        />
+                        <>
+                          <ReactionBar
+                            reactions={reactionViews(message, me?.member?.id)}
+                            onToggle={
+                              conversation.can.post && !isPending(message)
+                                ? (emoji, active) => toggleReaction(message, emoji, active)
+                                : undefined
+                            }
+                          />
+                          <PinnedTasks message={message} mine={mine} />
+                        </>
                       }
                       time={formatTime(new Date(message.createdAt), timeZone)}
                       edited={Boolean(message.editedAt)}
@@ -281,6 +300,18 @@ export function ConversationView({ id }: { id: string }) {
                               </button>
                             }
                             items={[
+                              {
+                                key: 'task',
+                                label: t('chat.makeTask'),
+                                icon: <CheckSquare aria-hidden />,
+                                onSelect: () => setMaking(message),
+                              },
+                              {
+                                key: 'pin',
+                                label: t('chat.pinToTask'),
+                                icon: <Stamp aria-hidden />,
+                                onSelect: () => setPinning(message),
+                              },
                               ...(conversation.can.post
                                 ? [
                                     {
@@ -375,6 +406,20 @@ export function ConversationView({ id }: { id: string }) {
       )}
 
       <ConversationInfo conversation={conversation} open={infoOpen} onOpenChange={setInfoOpen} />
+      <MakeTaskDialog
+        message={making}
+        conversation={conversation}
+        onClose={() => setMaking(null)}
+      />
+      {pinning && (
+        <PinToTaskDialog
+          kind="message"
+          subjectId={pinning.id}
+          open
+          onOpenChange={(open) => !open && setPinning(null)}
+          onPinned={() => countPin(pinning)}
+        />
+      )}
       <Modal
         open={reacting !== null}
         onOpenChange={(open) => !open && setReacting(null)}

@@ -82,4 +82,9 @@ export const chatKeys = {
   conversation: (id: string) => ['chat', 'conversation', id] as const,
   messages: (id: string) => ['chat', 'messages', id] as const,
   byProject: (projectId: string) => ['chat', 'by-project', projectId] as const,
+  messageTasks: (messageId: string) => ['chat', 'message-tasks', messageId] as const,
+  search: (q: string, conversationId?: string) =>
+    ['chat', 'search', q, conversationId ?? null] as const,
+  around: (id: string, messageId: string) => ['chat', 'around', id, messageId] as const,
+  exports: ['chat', 'exports'] as const,
 };

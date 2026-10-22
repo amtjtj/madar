@@ -13,8 +13,11 @@ import type {
   ConversationSummary,
   CreateGroupRequest,
   Message,
+  CreateTaskFromMessageRequest,
   MessagePage,
+  MessageTasks,
   ReactionEmoji,
+  Task,
   Upload,
 } from '@madar/shared';
 
@@ -260,4 +263,38 @@ export function useMuteConversation(id: string) {
   return useConversationMutation((muted: boolean) =>
     api<undefined>(`/api/conversations/${id}/mute`, { method: 'PUT', body: { muted } }),
   );
+}
+
+/** Where a message is pinned: tasks I see, and a count of the others (asked on demand). */
+export function useMessageTasks(messageId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: chatKeys.messageTasks(messageId),
+    enabled,
+    queryFn: () => api<MessageTasks>(`/api/messages/${messageId}/tasks`),
+  });
+}
+
+/** One more pin on a cached message, so «کار شد» shows at once. */
+export function useCountPin() {
+  const client = useQueryClient();
+  return (message: Message) => {
+    const current = findMessage(client, message.conversationId, message.id) ?? message;
+    applyLiveMessage(client, { ...current, pinnedCount: current.pinnedCount + 1 });
+    void client.invalidateQueries({ queryKey: chatKeys.messageTasks(message.id) });
+  };
+}
+
+/** «ساختن کار» from a message: the task is created and the message pinned to it. */
+export function useCreateTaskFromMessage() {
+  const client = useQueryClient();
+  const countPin = useCountPin();
+  return useMutation({
+    mutationFn: ({ message, body }: { message: Message; body: CreateTaskFromMessageRequest }) =>
+      api<Task>(`/api/messages/${message.id}/task`, { method: 'POST', body }),
+    onSuccess: (_task, { message }) => {
+      countPin(message);
+      void client.invalidateQueries({ queryKey: ['tasks'] });
+      void client.invalidateQueries({ queryKey: ['today'] });
+    },
+  });
 }

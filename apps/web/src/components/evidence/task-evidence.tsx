@@ -11,6 +11,7 @@ import {
   ConfidentialBadge,
   EvidenceCard,
   LetterNumber,
+  MessageEvidenceCard,
   LiteText,
   Modal,
   Skeleton,
@@ -64,16 +65,29 @@ export function TaskEvidence({ taskId, canPin }: { taskId: string; canPin: boole
         <ul className="flex flex-col gap-2">
           {items.map((e) => (
             <li key={e.id}>
-              <EvidenceCard
-                summary={e.summary}
-                date={e.summary ? letterDate(e.summary.date, timeZone) : undefined}
-                meta={t('evidence.pinnedBy', {
-                  name: e.pinnedBy.displayName,
-                  time: formatRelativeTime(new Date(e.pinnedAt)),
-                })}
-                onOpen={e.summary ? () => setViewing(e.id) : undefined}
-                onUnpin={e.can.unpin ? () => setRemoving(e) : undefined}
-              />
+              {e.kind === 'message' ? (
+                <MessageEvidenceCard
+                  message={e.message}
+                  date={e.message ? letterDate(e.message.date, timeZone) : undefined}
+                  meta={t('evidence.pinnedBy', {
+                    name: e.pinnedBy.displayName,
+                    time: formatRelativeTime(new Date(e.pinnedAt)),
+                  })}
+                  onOpen={e.message ? () => setViewing(e.id) : undefined}
+                  onUnpin={e.can.unpin ? () => setRemoving(e) : undefined}
+                />
+              ) : (
+                <EvidenceCard
+                  summary={e.summary}
+                  date={e.summary ? letterDate(e.summary.date, timeZone) : undefined}
+                  meta={t('evidence.pinnedBy', {
+                    name: e.pinnedBy.displayName,
+                    time: formatRelativeTime(new Date(e.pinnedAt)),
+                  })}
+                  onOpen={e.summary ? () => setViewing(e.id) : undefined}
+                  onUnpin={e.can.unpin ? () => setRemoving(e) : undefined}
+                />
+              )}
             </li>
           ))}
         </ul>
@@ -122,15 +136,36 @@ function EvidenceViewer({
   const { data, isPending, isError, error } = useEvidenceDetail(taskId, id);
   const { data: me } = useMe();
   const summary = data?.summary;
+  const message = data?.message;
+  const place = message ? (message.conversation.title ?? t('ui.chat.directPlace')) : '';
   return (
     <Modal
       open={id !== null}
       onOpenChange={(open) => !open && onClose()}
-      title={summary?.subject ?? t('evidence.title')}
+      title={
+        message
+          ? t('evidence.messageFrom', { name: message.author.displayName, place })
+          : (summary?.subject ?? t('evidence.title'))
+      }
       className="sm:max-w-2xl"
     >
       {isPending ? (
         <Skeleton className="h-48 rounded-xl" />
+      ) : data && message ? (
+        <div className="flex flex-col gap-4">
+          <p className="rounded-lg bg-info-soft px-3 py-2 text-xs text-info-ink">
+            {t('evidence.messageViewerNote')}
+          </p>
+          <p className="text-xs text-ink-subtle">
+            {letterDate(message.date, me?.tenant?.timezone)}
+          </p>
+          <p className="break-words whitespace-pre-wrap text-ink">{data.messageText}</p>
+          {data.attachments.length > 0 && (
+            <section aria-label={t('letters.attachments')} className="border-t border-line pt-3">
+              <AttachmentList attachments={data.attachments} />
+            </section>
+          )}
+        </div>
       ) : isError || !data || !summary ? (
         <p className="text-sm text-ink-muted">
           {isError ? errorMessage(error) : t('evidence.unavailable')}
@@ -218,7 +253,7 @@ function PinLetterDialog({ taskId }: { taskId: string }) {
           onBack={() => setChosen(null)}
           onPin={() =>
             pin.mutate(
-              { taskId, letterId: chosen.id },
+              { taskId, kind: 'letter', subjectId: chosen.id },
               {
                 onSuccess: () => {
                   toast({ tone: 'success', title: t('evidence.pinned') });
@@ -280,12 +315,14 @@ function PinLetterDialog({ taskId }: { taskId: string }) {
 export function ConfirmPin({
   taskId,
   subject,
+  kind = 'letter',
   busy,
   onBack,
   onPin,
 }: {
   taskId: string;
   subject: string;
+  kind?: 'letter' | 'message';
   busy: boolean;
   onBack: () => void;
   onPin: () => void;
@@ -297,7 +334,7 @@ export function ConfirmPin({
       {isPending || !audience ? (
         <Skeleton className="h-28 rounded-xl" />
       ) : (
-        <AudienceNote audience={audience} />
+        <AudienceNote audience={audience} kind={kind} />
       )}
       <div className="flex gap-3">
         <Button
