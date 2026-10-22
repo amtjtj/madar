@@ -24,6 +24,7 @@ export const attachmentSubject = pgEnum('attachment_subject', [
   'comment',
   'letter',
   'message',
+  'minutes',
 ]);
 export const attachmentStatus = pgEnum('attachment_status', ['pending', 'ready']);
 

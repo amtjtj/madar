@@ -203,6 +203,28 @@ export async function createTenantFixture(handle: DbHandle, label = 't'): Promis
     await tx
       .insert(s.taskEvidence)
       .values({ taskId: task.id, kind: 'letter', subjectId: letterId, pinnedBy: member.id });
+    const meetingId = uuidv7();
+    await tx.insert(s.meetings).values({
+      id: meetingId,
+      type: 'okr_review',
+      title: 'جلسه آزمایشی',
+      startsAt: new Date('2026-10-22T06:30:00Z'),
+      endsAt: new Date('2026-10-22T07:30:00Z'),
+      organizerId: member.id,
+      departmentId: department.id,
+    });
+    await tx.insert(s.meetingParticipants).values({ meetingId, memberId: member.id });
+    await tx
+      .insert(s.meetingMinutes)
+      .values({ meetingId, body: 'نتیجه', recordedBy: member.id, updatedBy: member.id });
+    await tx.insert(s.meetingDecisions).values({
+      meetingId,
+      text: 'مصوبه',
+      taskId: task.id,
+      keyResultId: kr.id,
+      createdBy: member.id,
+    });
+    await tx.insert(s.meetingDecisions).values({ meetingId, text: 'بی‌کار', createdBy: member.id });
     await tx.insert(s.pushSubscriptions).values({
       memberId: member.id,
       endpoint: `https://fcm.googleapis.com/fcm/send/${suffix}`,

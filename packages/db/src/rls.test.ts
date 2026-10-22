@@ -56,6 +56,10 @@ const DATA_PLANE = [
   'messages',
   'message_mentions',
   'message_reactions',
+  'meetings',
+  'meeting_participants',
+  'meeting_minutes',
+  'meeting_decisions',
   'goal_periods',
   'goals',
   'key_results',
@@ -87,6 +91,8 @@ const NO_DELETE = [
   'conversations',
   'conversation_members',
   'messages',
+  'meetings',
+  'meeting_minutes',
 ];
 
 describe.skipIf(!hasDatabase)('tenant isolation (RLS)', () => {
@@ -362,6 +368,55 @@ describe.skipIf(!hasDatabase)('tenant isolation (RLS)', () => {
             .values({ messageId: theirs?.id ?? '', memberId: a.memberId }),
         ),
       ).rejects.toThrow();
+    });
+  });
+
+  it("meetings never take another company's people, tasks or key results", async () => {
+    const [theirs] = await withTenant(app.db, { tenantId: b.tenantId }, (tx) =>
+      tx.select({ id: s.meetings.id }).from(s.meetings).limit(1),
+    );
+    const [theirTask] = await withTenant(app.db, { tenantId: b.tenantId }, (tx) =>
+      tx.select({ id: s.tasks.id }).from(s.tasks).limit(1),
+    );
+    await withTenant(app.db, { tenantId: a.tenantId }, async (tx) => {
+      const [mine] = await tx.select({ id: s.meetings.id }).from(s.meetings).limit(1);
+      const meetingId = mine?.id ?? '';
+      const attempts = [
+        () => tx.insert(s.meetingParticipants).values({ meetingId, memberId: b.memberId }),
+        () =>
+          tx
+            .insert(s.meetingParticipants)
+            .values({ meetingId: theirs?.id ?? '', memberId: a.memberId }),
+        () =>
+          tx.insert(s.meetingDecisions).values({
+            meetingId,
+            text: 'x',
+            taskId: theirTask?.id ?? '',
+            createdBy: a.memberId,
+          }),
+        () =>
+          tx
+            .update(s.meetings)
+            .set({ organizerId: b.memberId })
+            .where(sql`${s.meetings.id} = ${meetingId}`),
+      ];
+      for (const attempt of attempts) {
+        await expect(tx.transaction(async () => attempt())).rejects.toThrow();
+      }
+    });
+  });
+
+  it('a meeting ends after it starts; a decision with a task cannot be deleted', async () => {
+    await withTenant(app.db, { tenantId: a.tenantId }, async (tx) => {
+      await expect(
+        tx.transaction((inner) => inner.execute(sql`update meetings set ends_at = starts_at`)),
+      ).rejects.toThrow();
+      const withTask = await tx.execute(
+        sql`delete from meeting_decisions where task_id is not null`,
+      );
+      expect(withTask.rowCount).toBe(0);
+      const without = await tx.execute(sql`delete from meeting_decisions where task_id is null`);
+      expect(without.rowCount).toBe(1);
     });
   });
 

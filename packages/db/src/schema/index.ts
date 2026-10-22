@@ -8,3 +8,4 @@ export * from './files.js';
 export * from './letters.js';
 export * from './evidence.js';
 export * from './chat.js';
+export * from './meetings.js';
