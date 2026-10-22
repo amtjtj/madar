@@ -28,3 +28,4 @@ Template: Status · Date · Context · Decision · Alternatives considered · Co
 | 0020 | Internal letters | Accepted |
 | 0021 | Task evidence («شاهد کار») | Accepted |
 | 0022 | Internal chat | Accepted |
+| 0023 | Meetings, minutes and decisions | Accepted |
