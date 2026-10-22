@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 import { t } from '@madar/i18n';
 import {
   DEFAULT_WORKFLOW,
@@ -112,6 +114,25 @@ export function TaskFields({ task }: { task: Task }) {
             <dt className="text-ink-muted">{t('task.source')}</dt>
             <dd className="min-w-0">
               <SourceBadge source={task.source} full />
+            </dd>
+          </div>
+        )}
+        {task.meeting && (
+          <div className="flex items-center justify-between gap-3">
+            <dt className="text-ink-muted">{t('task.meeting')}</dt>
+            <dd className="min-w-0 text-end font-medium">
+              {task.meeting.visible ? (
+                <Link
+                  href={`/meetings/${task.meeting.id}`}
+                  className="text-primary-ink hover:underline"
+                >
+                  {t('meetings.fromMeeting', { title: task.meeting.title })}
+                </Link>
+              ) : (
+                <span className="text-ink">
+                  {t('meetings.fromMeeting', { title: task.meeting.title })}
+                </span>
+              )}
             </dd>
           </div>
         )}

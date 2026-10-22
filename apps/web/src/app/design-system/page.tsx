@@ -35,6 +35,9 @@ import {
   TextField,
   ThemeToggle,
   cn,
+  DecisionItem,
+  MeetingRow,
+  MeetingTypeBadge,
 } from '@madar/ui';
 
 import {
@@ -448,6 +451,58 @@ export default function DesignSystemPage() {
         <Section id="letters" title={t('designSystem.sections.letters')}>
           <Panel>
             <LettersDemo />
+          </Panel>
+        </Section>
+
+        <Section id="meetings" title={t('designSystem.sections.meetings')}>
+          <Panel>
+            <div className="flex max-w-xl flex-col gap-4">
+              <div className="divide-y divide-line rounded-2xl border border-line bg-surface p-1">
+                <MeetingRow
+                  href="#meetings"
+                  title={t('designSystem.meetings.title')}
+                  type="regular"
+                  time={t('designSystem.meetings.time')}
+                  participantCount={4}
+                  hasMinutes={false}
+                  canceled={false}
+                  live
+                />
+                <MeetingRow
+                  href="#meetings"
+                  title={t('designSystem.meetings.okr')}
+                  type="okr_review"
+                  time={t('designSystem.meetings.time2')}
+                  participantCount={6}
+                  hasMinutes
+                  canceled={false}
+                />
+                <MeetingRow
+                  href="#meetings"
+                  title={t('designSystem.meetings.canceled')}
+                  type="one_on_one"
+                  time={t('designSystem.meetings.time3')}
+                  participantCount={2}
+                  hasMinutes={false}
+                  canceled
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <MeetingTypeBadge type="regular" />
+                <MeetingTypeBadge type="okr_review" />
+                <MeetingTypeBadge type="one_on_one" />
+              </div>
+              <DecisionItem
+                text={t('designSystem.meetings.decision')}
+                keyResult={t('designSystem.meetings.keyResult')}
+                task={{
+                  title: t('designSystem.meetings.task'),
+                  assignee: t('designSystem.meetings.assignee'),
+                  href: '#meetings',
+                }}
+              />
+              <DecisionItem text={t('designSystem.meetings.decision2')} />
+            </div>
           </Panel>
         </Section>
 

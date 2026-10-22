@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronLeft } from 'lucide-react';
+import { CalendarClock, ChevronLeft } from 'lucide-react';
 import Link from 'next/link';
 
 import { t } from '@madar/i18n';
@@ -10,7 +10,16 @@ import { PageHeader, useOrgNavItems } from '@/components/app-shell';
 
 /** Mobile hub for the organization screens (the tab bar has room for four tabs). */
 export default function OrgPage() {
-  const items = useOrgNavItems();
+  // Meetings live in the sidebar on desktop; on phones they are reached from here and the today card.
+  const items = [
+    {
+      key: '/meetings',
+      label: t('meetings.nav'),
+      href: '/meetings',
+      icon: <CalendarClock aria-hidden />,
+    },
+    ...useOrgNavItems(),
+  ];
   return (
     <>
       <PageHeader title={t('org.title')} subtitle={t('org.subtitle')} />

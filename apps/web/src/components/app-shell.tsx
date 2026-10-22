@@ -3,6 +3,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import {
   ArrowDownWideNarrow,
+  CalendarClock,
   BellRing,
   Download,
   MessagesSquare,
@@ -182,6 +183,12 @@ export function AppShell({ children }: { children: ReactNode }) {
       icon: <Mail aria-hidden />,
       count: unreadLetters,
     },
+    {
+      key: '/meetings',
+      label: t('meetings.nav'),
+      href: '/meetings',
+      icon: <CalendarClock aria-hidden />,
+    },
     ...(readsReports
       ? [
           {
@@ -194,12 +201,11 @@ export function AppShell({ children }: { children: ReactNode }) {
       : []),
     ...orgItems,
   ];
-  // The mobile tab bar has room for five: the organization screens share one «سازمان» hub.
+  // The mobile tab bar has room for five: meetings and the organization screens share one
+  // «سازمان» hub (it always has meetings).
   const bottomItems: NavItem[] = [
     ...workItems,
-    ...(orgItems.length
-      ? [{ key: '/org', label: t('shell.org'), href: '/org', icon: <Network aria-hidden /> }]
-      : []),
+    { key: '/org', label: t('shell.org'), href: '/org', icon: <Network aria-hidden /> },
   ];
   const activeKey =
     items
@@ -207,7 +213,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       .filter((key) => (key === '/' ? pathname === '/' : pathname.startsWith(key)))
       .sort((a, b) => b.length - a.length)[0] ?? '/';
   const bottomActiveKey =
-    pathname === '/org' || orgItems.some((i) => i.key === activeKey) ? '/org' : activeKey;
+    pathname === '/org' || activeKey === '/meetings' || orgItems.some((i) => i.key === activeKey)
+      ? '/org'
+      : activeKey;
 
   async function signOut() {
     // Shared phones: the next person must not get this member's notifications.

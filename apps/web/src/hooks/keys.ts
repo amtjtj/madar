@@ -88,3 +88,11 @@ export const chatKeys = {
   around: (id: string, messageId: string) => ['chat', 'around', id, messageId] as const,
   exports: ['chat', 'exports'] as const,
 };
+
+/** Meetings (ADR 0023). */
+export const meetingKeys = {
+  all: ['meetings'] as const,
+  list: (range: string) => ['meetings', 'list', range] as const,
+  today: ['meetings', 'today'] as const,
+  meeting: (id: string) => ['meetings', 'detail', id] as const,
+};

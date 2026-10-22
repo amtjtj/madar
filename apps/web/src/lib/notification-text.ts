@@ -1,8 +1,14 @@
 import { t } from '@madar/i18n';
-import { formatCalendarDate, formatNumber, type Notification } from '@madar/shared';
+import {
+  formatCalendarDate,
+  formatJalaliDate,
+  formatNumber,
+  formatTime,
+  type Notification,
+} from '@madar/shared';
 
 /** The Persian sentence for a notification (all text from i18n). */
-export function notificationText(n: Notification): string {
+export function notificationText(n: Notification, timeZone?: string): string {
   const actor = n.actor?.displayName ?? t('notifications.someone');
   const day = typeof n.data.dueOn === 'string' ? n.data.dueOn : n.data.week;
   const date = typeof day === 'string' ? formatCalendarDate(day) : '';
@@ -28,11 +34,21 @@ export function notificationText(n: Notification): string {
   if ((n.kind === 'letter_received' || n.kind === 'letter_referred') && n.data.confidential) {
     return t(`notifications.kinds.${n.kind}_confidential`, { actor });
   }
+  if (typeof n.data.startsAt === 'string') {
+    const startsAt = new Date(n.data.startsAt);
+    return t(`notifications.kinds.${n.kind}`, {
+      actor,
+      title: n.title,
+      date: formatJalaliDate(startsAt, 'full', timeZone),
+      time: formatTime(startsAt, timeZone),
+    });
+  }
   return t(`notifications.kinds.${n.kind}`, { actor, title: n.title, date });
 }
 
 export function notificationHref(n: Notification): string {
   if (n.subjectType === 'letter') return `/letters/${n.subjectId}`;
+  if (n.subjectType === 'meeting') return `/meetings/${n.subjectId}`;
   if (n.subjectType === 'conversation') return `/chat/${n.subjectId}`;
   if (n.subjectType === 'goal') return `/goals/${n.subjectId}`;
   if (n.subjectType === 'report') {

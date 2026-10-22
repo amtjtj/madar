@@ -2,6 +2,9 @@
 
 import {
   AlarmClock,
+  CalendarClock,
+  CalendarX,
+  FileText,
   FolderKanban,
   Forward,
   Mail,
@@ -16,6 +19,7 @@ import { formatRelativeTime, type Notification } from '@madar/shared';
 import { Avatar, UrgencyBadge, cn } from '@madar/ui';
 
 import { useMarkRead } from '@/hooks/notifications';
+import { useMe } from '@/hooks/use-me';
 import { notificationHref, notificationText } from '@/lib/notification-text';
 
 const kindIcon: Partial<Record<Notification['kind'], typeof AlarmClock>> = {
@@ -28,6 +32,10 @@ const kindIcon: Partial<Record<Notification['kind'], typeof AlarmClock>> = {
   task_overdue_escalation: AlarmClock,
   project_member_added: FolderKanban,
   task_assigned: UserPlus,
+  meeting_invited: CalendarClock,
+  meeting_changed: CalendarClock,
+  meeting_canceled: CalendarX,
+  meeting_minutes: FileText,
 };
 
 /** Notification rows: tap marks it read and opens the task or project. */
@@ -41,6 +49,7 @@ export function NotificationRows({
 }) {
   const router = useRouter();
   const markRead = useMarkRead();
+  const { data: me } = useMe();
   return (
     <ul className="flex flex-col">
       {items.map((n) => {
@@ -80,7 +89,7 @@ export function NotificationRows({
                     n.readAt ? 'text-ink-muted' : 'font-semibold text-ink',
                   )}
                 >
-                  {notificationText(n)}
+                  {notificationText(n, me?.tenant?.timezone)}
                 </span>
                 <span className="flex items-center gap-2">
                   {(n.data.urgency === 'urgent' || n.data.urgency === 'immediate') && (

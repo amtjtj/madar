@@ -31,6 +31,7 @@ import { PageHeader } from '@/components/app-shell';
 import { GoalTag } from '@/components/goals/goal-tag';
 import { CompanyView } from '@/components/home/company-view';
 import { MyGoalsCard } from '@/components/home/my-goals-card';
+import { TodayMeetings } from '@/components/meetings/today-meetings';
 import { TeamView } from '@/components/home/team-view';
 import { InstallCard } from '@/components/pwa/install';
 import { NewTaskButton } from '@/components/work/new-task-button';
@@ -166,6 +167,7 @@ function TodayTab() {
   const { data: today, isPending } = useToday();
   return (
     <>
+      <TodayMeetings />
       {isPending || !today ? <TodaySkeleton /> : <TodayPlan today={today} />}
       <MyGoalsCard />
     </>
