@@ -12,7 +12,14 @@ import { Slider } from './components/slider.js';
 import { ThemeToggle } from './components/theme.js';
 import { LetterRow, LiteText, RecipientChip, UrgencyBadge } from './components/letter.js';
 import { AudienceNote, EvidenceCard } from './components/evidence.js';
-import { ConversationRow, MessageBubble, MessageText } from './components/chat.js';
+import {
+  ConversationRow,
+  MentionSuggestions,
+  MessageBubble,
+  MessageText,
+  ReactionBar,
+  ReactionPicker,
+} from './components/chat.js';
 
 afterEach(cleanup);
 
@@ -309,6 +316,64 @@ describe('Chat', () => {
     expect(screen.getByText('این پیام حذف شد')).toBeDefined();
     expect(screen.queryByText('متن')).toBeNull();
     expect(screen.getByText('گزارش')).toBeDefined();
+  });
+
+  it('shows mentions with current names as elements, and an unknown one as «@کسی»', () => {
+    const id = '0190a1b2-0000-7000-8000-000000000001';
+    const other = '0190a1b2-0000-7000-8000-000000000009';
+    const { container } = render(
+      <MessageText
+        body={`<@${id}> ببین و <@${other}>`}
+        mentions={[{ id, displayName: 'مریم احمدی' }]}
+        meId={id}
+      />,
+    );
+    expect(screen.getByText('@مریم احمدی').className).toContain('bg-primary-soft');
+    expect(screen.getByText('@کسی')).toBeDefined();
+    expect(container.textContent).not.toContain(id);
+  });
+
+  it('reaction chips toggle the person’s own reaction; readers get no buttons', () => {
+    const onToggle = vi.fn();
+    const reactions = [
+      { emoji: '👍' as const, names: ['مریم احمدی', 'علی رضایی'], mine: true },
+      { emoji: '🎉' as const, names: ['علی رضایی'], mine: false },
+    ];
+    render(<ReactionBar reactions={reactions} onToggle={onToggle} />);
+    const like = screen.getByRole('button', { name: '👍 ۲: مریم احمدی، علی رضایی' });
+    expect(like.getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(like);
+    expect(onToggle).toHaveBeenCalledWith('👍', false);
+    fireEvent.click(screen.getByRole('button', { name: '🎉 ۱: علی رضایی' }));
+    expect(onToggle).toHaveBeenLastCalledWith('🎉', true);
+    cleanup();
+    render(<ReactionBar reactions={reactions} />);
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+    expect(screen.getByRole('img', { name: '🎉 ۱: علی رضایی' })).toBeDefined();
+  });
+
+  it('the reaction picker offers the six reactions', () => {
+    const onPick = vi.fn();
+    render(<ReactionPicker mine={['❤️']} onPick={onPick} />);
+    expect(screen.getAllByRole('button')).toHaveLength(6);
+    fireEvent.click(screen.getByRole('button', { name: 'واکنش ❤️' }));
+    expect(onPick).toHaveBeenCalledWith('❤️', false);
+  });
+
+  it('mention suggestions mark the active person and pick on press', () => {
+    const onPick = vi.fn();
+    const people = [
+      { id: 'a', displayName: 'مریم احمدی' },
+      { id: 'b', displayName: 'علی رضایی' },
+    ];
+    render(<MentionSuggestions id="m" people={people} activeIndex={1} onPick={onPick} />);
+    const options = screen.getAllByRole('option');
+    expect(options[1]?.getAttribute('aria-selected')).toBe('true');
+    fireEvent.mouseDown(options[0] as HTMLElement);
+    expect(onPick).toHaveBeenCalledWith(people[0]);
+    cleanup();
+    render(<MentionSuggestions id="m" people={[]} activeIndex={0} onPick={onPick} />);
+    expect(screen.getByText('کسی پیدا نشد')).toBeDefined();
   });
 
   it('a conversation row shows the unread count', () => {

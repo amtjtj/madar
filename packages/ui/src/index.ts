@@ -111,8 +111,13 @@ export {
   ConversationAvatar,
   ConversationRow,
   DayDivider,
+  MentionSuggestions,
   MessageBubble,
   MessageText,
+  ReactionBar,
+  ReactionPicker,
   type ConversationRowProps,
+  type MentionRef,
   type MessageBubbleProps,
+  type ReactionView,
 } from './components/chat.js';

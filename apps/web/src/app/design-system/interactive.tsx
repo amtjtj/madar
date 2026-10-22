@@ -4,7 +4,7 @@ import { ChartColumn, Flame, House, ListTodo, Settings, Target, Users } from 'lu
 import { useState } from 'react';
 
 import { t } from '@madar/i18n';
-import { addDays, formatNumber } from '@madar/shared';
+import { addDays, formatNumber, mentionToken, type ReactionEmoji } from '@madar/shared';
 import {
   Avatar,
   Badge,
@@ -26,6 +26,9 @@ import {
   DayDivider,
   EvidenceCard,
   MessageBubble,
+  MentionSuggestions,
+  ReactionBar,
+  ReactionPicker,
   LetterRow,
   LiteText,
   RecipientChip,
@@ -397,7 +400,23 @@ export function SliderDemo({ today }: { today: string }) {
 }
 
 /** Conversation rows and message bubbles (ADR 0022). */
+const DEMO_MARYAM = '0190a1b2-0000-7000-8000-00000000d001';
+const DEMO_ALI = '0190a1b2-0000-7000-8000-00000000d002';
+
 export function ChatDemo() {
+  const maryam = t('designSystem.chat.direct');
+  const ali = t('designSystem.chat.ali');
+  const [mine, setMine] = useState<ReactionEmoji[]>(['👍']);
+  const [active, setActive] = useState(0);
+  const toggle = (emoji: ReactionEmoji, on: boolean) =>
+    setMine((list) => (on ? [...list, emoji] : list.filter((e) => e !== emoji)));
+  const reactions = (['👍', '🎉'] as const)
+    .map((emoji) => {
+      const others = emoji === '👍' ? [maryam] : [];
+      const names = mine.includes(emoji) ? [...others, ali] : others;
+      return { emoji, names, mine: mine.includes(emoji) };
+    })
+    .filter((r) => r.names.length > 0);
   return (
     <div className="flex max-w-xl flex-col gap-4">
       <div className="divide-y divide-line rounded-2xl border border-line bg-surface p-1">
@@ -408,6 +427,7 @@ export function ChatDemo() {
           preview={t('designSystem.chat.projectPreview')}
           time={t('designSystem.chat.time2')}
           unread={3}
+          mentioned
         />
         <ConversationRow
           href="#chat"
@@ -439,6 +459,27 @@ export function ChatDemo() {
           }}
         />
         <MessageBubble mine body="" time={t('designSystem.chat.time2')} deleted />
+        <MessageBubble
+          mine={false}
+          author={maryam}
+          body={`${mentionToken(DEMO_ALI)} ${t('designSystem.chat.mentionBody')}`}
+          mentions={[{ id: DEMO_ALI, displayName: ali }]}
+          meId={DEMO_ALI}
+          time={t('designSystem.chat.time2')}
+          reactions={<ReactionBar reactions={reactions} onToggle={toggle} />}
+        />
+        <ReactionPicker mine={mine} onPick={toggle} className="self-start" />
+      </div>
+      <div className="flex flex-col gap-1">
+        <MentionSuggestions
+          id="demo-mentions"
+          people={[
+            { id: DEMO_MARYAM, displayName: maryam },
+            { id: DEMO_ALI, displayName: ali },
+          ]}
+          activeIndex={active}
+          onPick={(p) => setActive(p.id === DEMO_ALI ? 1 : 0)}
+        />
       </div>
     </div>
   );
