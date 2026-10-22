@@ -100,6 +100,8 @@ export const OVERSIGHT_RESOURCES = [
   'member',
   'leave',
   'org_chart',
+  /** Meetings of the company, except one-on-ones (ADR 0023). */
+  'meeting',
 ] as const;
 export type OversightResource = (typeof OVERSIGHT_RESOURCES)[number];
 

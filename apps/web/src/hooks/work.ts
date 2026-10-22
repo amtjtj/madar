@@ -235,6 +235,7 @@ function draftTask(id: string, body: CreateTaskRequest): Task {
     attachmentCount: 0,
     evidenceCount: 0,
     keyResult: null,
+    meeting: null,
     // The server decides source and rank; the placeholder shows neither.
     source: null,
     rank: { score: 0, reasons: [] },

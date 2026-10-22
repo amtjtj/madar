@@ -9,6 +9,7 @@ export const NOTIFICATION_SUBJECTS = [
   'report',
   'letter',
   'conversation',
+  'meeting',
 ] as const;
 export type NotificationSubject = (typeof NOTIFICATION_SUBJECTS)[number];
 
@@ -25,6 +26,10 @@ export const NOTIFICATION_KINDS = [
   'letter_referred',
   'chat_message',
   'chat_mention',
+  'meeting_invited',
+  'meeting_changed',
+  'meeting_canceled',
+  'meeting_minutes',
   'key_result_checkin_due',
   'weekly_report_ready',
 ] as const;

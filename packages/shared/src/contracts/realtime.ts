@@ -16,4 +16,6 @@ export const REALTIME_EVENTS = {
   lettersChanged: 'letters.changed',
   /** The member's conversations or unread counts changed (ADR 0022). */
   chatChanged: 'chat.changed',
+  /** A meeting the member takes part in was scheduled, changed or got minutes (ADR 0023). */
+  meetingsChanged: 'meetings.changed',
 } as const;

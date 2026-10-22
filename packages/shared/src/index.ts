@@ -7,6 +7,8 @@ export * from './contracts/health.js';
 export * from './contracts/letters.js';
 export * from './contracts/evidence.js';
 export * from './contracts/chat.js';
+export * from './contracts/meetings.js';
+export * from './meetings.js';
 export * from './chat-text.js';
 export * from './contracts/me.js';
 export * from './contracts/members.js';
