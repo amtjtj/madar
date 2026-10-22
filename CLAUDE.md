@@ -123,7 +123,7 @@ Requirements: Node 22.12+ (24 LTS recommended), pnpm 10 (`corepack enable`), Doc
 | Generate a migration from the Drizzle schema | `pnpm db:generate` |
 | Apply migrations (also creates the `madar_app` role) | `pnpm db:migrate` |
 | Drop everything and re-migrate (development only) | `pnpm db:reset` |
-| Seed the demo company «زرین‌مدار» (20 people, 5 projects, ~240 tasks with 8 weeks of history, 9 goals, a few internal letters with a referral, a reply, a confidential letter, a draft and one letter pinned to a task as evidence, chat in a department channel, a project channel, a direct conversation and a group; password `SEED_PASSWORD`) | `pnpm db:seed` |
+| Seed the demo company «زرین‌مدار» (20 people, 5 projects, ~240 tasks with 8 weeks of history, 9 goals, a few internal letters with a referral, a reply, a confidential letter, a draft and one letter pinned to a task as evidence, chat in a department channel, a project channel (with a screenshot, a PDF, a mention and reactions), a direct conversation and a group; password `SEED_PASSWORD`) | `pnpm db:seed` |
 | Attachments in development | stored in `.data/files` (git-ignored); `STORAGE_DRIVER=s3` with `S3_*` for an S3-compatible service |
 | Install the licensed Abar Low fonts (git-ignored) | `pnpm fonts:install <dir-with-AbarLow-files>` |
 | Generate Web Push (VAPID) keys for `.env` (after a build) | `pnpm --filter @madar/api vapid:generate` |

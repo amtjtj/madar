@@ -203,3 +203,84 @@ test('group: create, rename, and leave', async ({ page, baseURL }) => {
   expect(detail.members.map((m) => m.displayName).sort()).toEqual(['شیوا کاظمی', 'علی رضایی']);
   expect(detail.members.some((m) => m.owner)).toBe(true);
 });
+
+const PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAAEklEQVR4nGNgYGD4z4AFMOAUAQA7ZQEFyBkiXQAAAABJRU5ErkJggg==',
+  'base64',
+);
+const PDF = Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n');
+
+test('files, a mention in a muted channel, and a reaction that goes live', async ({
+  page,
+  browser,
+  baseURL,
+}) => {
+  test.slow();
+  const { manager, employee } = await setUpCompany(baseURL ?? '');
+  const project = await ok<{ id: string }>(
+    await manager.client.post('/api/projects', {
+      data: { name: 'اپ موبایل', memberIds: [employee.person.memberId] },
+    }),
+  );
+  const channel = await ok<{ id: string }>(
+    await manager.client.get(`/api/conversations/by-project/${project.id}`),
+  );
+  // Maryam mutes the channel: plain messages stay quiet, a mention still reaches her.
+  await ok(
+    await manager.client.put(`/api/conversations/${channel.id}/mute`, { data: { muted: true } }),
+  );
+  const managerPage = await (await browser.newContext({ baseURL })).newPage();
+  await signIn(managerPage, manager.person.username, 'مریم');
+  await expect(bell(managerPage)).toHaveAccessibleName('اعلان‌ها');
+
+  await signIn(page, employee.person.username, 'علی');
+  await page.goto(`/chat/${channel.id}`);
+  const view = page.getByRole('region', { name: 'اپ موبایل' });
+  const composer = view.getByRole('form', { name: 'نوشتن پیام' });
+  await composer.locator('input[type=file]').setInputFiles([
+    { name: 'خطای صفحه.png', mimeType: 'image/png', buffer: PNG },
+    { name: 'گزارش آزمون.pdf', mimeType: 'application/pdf', buffer: PDF },
+  ]);
+  const attached = composer.getByRole('list', { name: 'فایل‌های این پیام' });
+  await expect(attached.getByText('گزارش آزمون.pdf')).toBeVisible();
+  await expect(attached.getByText('خطای صفحه.png')).toBeVisible();
+
+  // «@» opens the people of this conversation; picking one writes the name.
+  const box = composer.getByLabel('پیام بنویس…');
+  await box.pressSequentially('@مری');
+  await composer.getByRole('option', { name: 'مریم احمدی' }).click();
+  await box.pressSequentially('این خطا را ببین');
+  await box.press('Enter');
+
+  await expect(view.getByText('@مریم احمدی')).toBeVisible();
+  await expect(view.getByRole('button', { name: 'دیدن تصویر خطای صفحه.png' })).toBeVisible();
+  await expect(view.getByText('گزارش آزمون.pdf')).toBeVisible();
+  await expect(attached).toHaveCount(0);
+
+  // Maryam: a mention notification despite the mute, and «@» on the conversation.
+  await expect(bell(managerPage)).toHaveAccessibleName('اعلان‌ها، ۱ خوانده‌نشده', {
+    timeout: 15_000,
+  });
+  await managerPage.goto('/chat');
+  const row = managerPage.getByRole('link', { name: /اپ موبایل/ });
+  await expect(row.getByRole('img', { name: 'از تو نام برده‌اند' })).toBeVisible();
+  await row.click();
+  const managerView = managerPage.getByRole('region', { name: 'اپ موبایل' });
+  await managerView.getByRole('button', { name: 'دیدن تصویر خطای صفحه.png' }).click();
+  await expect(managerPage.getByRole('dialog', { name: 'خطای صفحه.png' })).toBeVisible();
+  await managerPage.keyboard.press('Escape');
+
+  // She reacts from the message menu; Ali sees it live; tapping the chip takes it back.
+  await managerView.getByRole('button', { name: 'کارهای پیام' }).last().click();
+  await managerPage.getByRole('menuitem', { name: 'واکنش' }).click();
+  await managerPage
+    .getByRole('dialog', { name: 'واکنش' })
+    .getByRole('button', { name: 'واکنش 👍' })
+    .click();
+  const chip = view.getByRole('button', { name: '👍 ۱: مریم احمدی' });
+  await expect(chip).toBeVisible({ timeout: 15_000 });
+  await expect(chip).toHaveAttribute('aria-pressed', 'false');
+  await managerView.getByRole('button', { name: '👍 ۱: مریم احمدی' }).click();
+  await expect(chip).toHaveCount(0, { timeout: 15_000 });
+  await managerPage.context().close();
+});

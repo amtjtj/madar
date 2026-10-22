@@ -52,9 +52,28 @@ Phase 2, step 15a (`docs/plans/phase-2-step-15a.md`), from the team review (`doc
   - Chat sits in the sidebar with its unread count. On phones it sits in the header next to letters and the bell (product owner, question 2).
   - A project page has «گفت‌وگوی تیم» for its members.
 
+## Files, mentions and reactions (step 15b)
+
+Plan: `docs/plans/phase-2-step-15b.md`. The product owner accepted all three proposals: no `@everyone`, mentions notify in muted conversations, a fixed set of six reactions.
+
+- **Files** use attachments (ADR 0019) with the new subject `message`. They are bound with `bindUploads()` in the send transaction (up to 10 per message; a message may be files only, otherwise `message_empty`).
+  - `AttachmentsService` opens a message file only while the message is not deleted and the person passes `visibleConversations()`, checked on every download. Someone who left loses the files with the messages.
+  - Deleting the message soft-deletes its files at once; the nightly cleanup removes the bytes. A single file is never deleted on its own (it goes with its message).
+- **Mentions** are `<@member-id>` tokens in the body, shown with the person's current name, so a renamed person reads right in old messages. There is no separate `mentionIds` field: the server reads the tokens.
+  - A token is kept only for someone in the conversation's audience at send time. Anyone else becomes plain «@name» text, so a mention never brings a person into a conversation.
+  - `message_mentions` holds the kept ones, for notifications and the unread «@» count. Editing re-reads them; only people newly mentioned are told (`message.updated`).
+  - `chat_mention` notifies in every kind of conversation, including channels and muted conversations, once per message and person. Quiet hours and the kind switch still apply. In a direct conversation or group, someone mentioned gets the mention notification instead of the message one.
+  - Previews and reply quotes turn tokens into names on the server; raw ids never reach a notification or a push.
+- **Reactions:** `message_reactions` with a check on the six emoji (👍 ❤️ 😂 🎉 🙏 👀).
+  - Who may react follows `postableConversations()`. Reactions never notify.
+  - Every reader sees who reacted. The updated message goes live with `chat:message` to the current audience, and the web works out «mine» from the list, because the same payload goes to everyone.
+- **Data:** both new tables have forced RLS and composite FKs. The app role may DELETE their rows (a reaction taken back, a mention edited away); messages still have no DELETE.
+
 ## Alternatives considered
 - **Copying channel members into `conversation_members`:** two sources of truth that drift whenever a project or department changes from any of its code paths. Reading the source tables keeps the channel exactly in step.
 - **Conversation rooms with join and leave:** described above. Safer only if every membership change also moved sockets, and that is easy to miss.
 - **Owners and managers reading every conversation:** it would make direct messages unsafe to use and conflicts with the privacy promise; audit and export of chat for legal needs is a separate, audited feature in 15b.
 - **Notifying every channel message:** a 30-person channel would drown the bell. Channel mentions come with 15b.
 - **A foreign or separate chat server (Matrix, Rocket.Chat):** a second user database, another permission model and another thing to host and back up. Chat has to follow Madar's projects, departments and tenant isolation, so it lives in the core.
+- **Mentions as a list next to the text** (positions or ids sent separately): two things to keep in step on every edit. A token in the text is one source of truth and renders anywhere the body is shown.
+- **Any emoji as a reaction:** a picker, search and more ways to read wrongly in Persian fonts, for little gain. The fixed six cover acknowledgement, thanks and celebration.
