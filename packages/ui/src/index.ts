@@ -107,6 +107,13 @@ export {
   type RecipientChipProps,
 } from './components/letter.js';
 export {
+  DecisionItem,
+  MeetingRow,
+  MeetingTypeBadge,
+  type DecisionItemProps,
+  type MeetingRowProps,
+} from './components/meeting.js';
+export {
   AudienceNote,
   EvidenceCard,
   MessageEvidenceCard,

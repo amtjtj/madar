@@ -12,6 +12,7 @@ import { Slider } from './components/slider.js';
 import { ThemeToggle } from './components/theme.js';
 import { LetterRow, LiteText, RecipientChip, UrgencyBadge } from './components/letter.js';
 import { AudienceNote, EvidenceCard } from './components/evidence.js';
+import { DecisionItem, MeetingRow, MeetingTypeBadge } from './components/meeting.js';
 import {
   ConversationRow,
   MentionSuggestions,
@@ -382,5 +383,48 @@ describe('Chat', () => {
   it('a conversation row shows the unread count', () => {
     render(<ConversationRow href="/chat/1" kind="group" title="شیفت صبح" unread={3} />);
     expect(screen.getByText('۳ پیام خوانده‌نشده')).toBeDefined();
+  });
+});
+
+describe('meetings', () => {
+  it('shows a canceled meeting struck through with its badges', () => {
+    render(
+      <MeetingRow
+        href="/meetings/1"
+        title="بررسی صف برداشت"
+        type="okr_review"
+        time="ساعت ۱۰:۰۰ تا ۱۱:۰۰"
+        participantCount={3}
+        hasMinutes
+        canceled
+      />,
+    );
+    const link = screen.getByRole('link');
+    expect(link.getAttribute('href')).toBe('/meetings/1');
+    expect(screen.getByText('بررسی صف برداشت').className).toContain('line-through');
+    expect(screen.getByText('لغو شد')).toBeTruthy();
+    expect(screen.getByText('صورت‌جلسه دارد')).toBeTruthy();
+    expect(screen.getByText('بررسی OKR')).toBeTruthy();
+    expect(screen.getByText('۳ نفر')).toBeTruthy();
+  });
+
+  it('names the meeting type', () => {
+    render(<MeetingTypeBadge type="one_on_one" />);
+    expect(screen.getByText('یک‌به‌یک')).toBeTruthy();
+  });
+
+  it('links a decision to its task only when the viewer may open it', () => {
+    const { rerender } = render(
+      <DecisionItem
+        text="بررسی روزانه"
+        keyResult="زمان پاسخ"
+        task={{ title: 'بررسی روزانه صف', assignee: 'علی', href: '/tasks/1' }}
+      />,
+    );
+    expect(screen.getByRole('link').getAttribute('href')).toBe('/tasks/1');
+    expect(screen.getByText('نتیجه کلیدی: زمان پاسخ')).toBeTruthy();
+    rerender(<DecisionItem text="بررسی روزانه" task={{ title: null }} />);
+    expect(screen.queryByRole('link')).toBeNull();
+    expect(screen.getByText('از این مصوبه کار ساخته شده است')).toBeTruthy();
   });
 });
