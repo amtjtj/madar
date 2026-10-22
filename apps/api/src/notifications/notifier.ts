@@ -12,6 +12,7 @@ import { loadMemberInTx } from '../auth/tenant-context.service.js';
 import { visibleConversations } from '../chat/access.js';
 import { visibleGoals } from '../goals/access.js';
 import { visibleLetters } from '../letters/access.js';
+import { visibleMeetings } from '../meetings/access.js';
 import { readsReport, visibleProjects, visibleTasks } from '../work/access.js';
 import { loadWorkCalendar } from './calendar.js';
 
@@ -114,6 +115,13 @@ export class Notifier {
             visibleLetters(actor.memberId),
           ),
         );
+      return Boolean(row);
+    }
+    if (subjectType === 'meeting') {
+      const [row] = await tx
+        .select({ id: s.meetings.id })
+        .from(s.meetings)
+        .where(and(eq(s.meetings.id, subjectId), visibleMeetings(actor)));
       return Boolean(row);
     }
     if (subjectType === 'goal') {

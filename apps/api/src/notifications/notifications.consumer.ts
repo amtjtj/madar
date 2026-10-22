@@ -16,6 +16,10 @@ const HANDLED = [
   'task.evidence_pinned',
   'message.created',
   'message.updated',
+  'meeting.scheduled',
+  'meeting.updated',
+  'meeting.canceled',
+  'meeting.minutes_recorded',
 ];
 
 /** Turns domain events into in-app notifications. */
@@ -224,6 +228,48 @@ export class NotificationsConsumer implements EventConsumer {
             payload: letter.confidential
               ? { title: '', data: { confidential: 1, urgency: letter.urgency } }
               : { title: letter.subject, data: { urgency: letter.urgency } },
+            dedupeKey: `event:${event.id}`,
+          });
+        }
+        return;
+      }
+      case 'meeting.scheduled':
+      case 'meeting.updated':
+      case 'meeting.canceled':
+      case 'meeting.minutes_recorded': {
+        // Only real news: a new invitation, a new time or place, a cancelation, the first minutes.
+        if (event.type === 'meeting.updated' && !p.notify) return;
+        if (event.type === 'meeting.minutes_recorded' && !p.first) return;
+        const [meeting] = await tx
+          .select({ id: s.meetings.id, title: s.meetings.title, startsAt: s.meetings.startsAt })
+          .from(s.meetings)
+          .where(eq(s.meetings.id, String(p.meetingId)));
+        if (!meeting) return;
+        const recipients =
+          event.type === 'meeting.scheduled'
+            ? ((p.memberIds as string[] | undefined) ?? [])
+            : (
+                await tx
+                  .select({ memberId: s.meetingParticipants.memberId })
+                  .from(s.meetingParticipants)
+                  .where(eq(s.meetingParticipants.meetingId, meeting.id))
+              ).map((r) => r.memberId);
+        const kind = (
+          {
+            'meeting.scheduled': 'meeting_invited',
+            'meeting.updated': 'meeting_changed',
+            'meeting.canceled': 'meeting_canceled',
+            'meeting.minutes_recorded': 'meeting_minutes',
+          } as const
+        )[event.type];
+        for (const recipientId of recipients) {
+          await this.notifier.notify(tx, {
+            ...base,
+            recipientId,
+            kind,
+            subjectType: 'meeting',
+            subjectId: meeting.id,
+            payload: { title: meeting.title, data: { startsAt: meeting.startsAt.toISOString() } },
             dedupeKey: `event:${event.id}`,
           });
         }

@@ -31,6 +31,11 @@ const HANDLED = [
   'letter.sent',
   'letter.referred',
   'letter.read',
+  'meeting.scheduled',
+  'meeting.updated',
+  'meeting.canceled',
+  'meeting.minutes_recorded',
+  'meeting.decision_converted',
 ];
 
 /**
@@ -101,6 +106,22 @@ export class RealtimeConsumer implements EventConsumer {
         );
         emits.push(() => this.emitter.to(members).emit(REALTIME_EVENTS.workChanged));
         emits.push(() => this.emitter.to(members).emit(REALTIME_EVENTS.chatChanged));
+      }
+      return;
+    }
+    if (event.type.startsWith('meeting.') && p.meetingId) {
+      // The people taking part, and anyone just removed (their list changes too; ADR 0023).
+      const rows = await tx
+        .select({ memberId: s.meetingParticipants.memberId })
+        .from(s.meetingParticipants)
+        .where(eq(s.meetingParticipants.meetingId, String(p.meetingId)));
+      const people = new Set([
+        ...rows.map((r) => r.memberId),
+        ...((p.removedIds as string[] | undefined) ?? []),
+      ]);
+      const rooms = [...people].map((m) => memberRoom(t, m));
+      if (rooms.length) {
+        emits.push(() => this.emitter.to(rooms).emit(REALTIME_EVENTS.meetingsChanged));
       }
       return;
     }

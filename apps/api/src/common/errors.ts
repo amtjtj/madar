@@ -40,6 +40,13 @@ export type ErrorCode =
   | 'chat_read_only'
   | 'message_empty'
   | 'group_owner_only'
+  | 'meeting_canceled'
+  | 'meeting_started'
+  | 'one_on_one_needs_one'
+  | 'meeting_time_invalid'
+  | 'meeting_link_invalid'
+  | 'minutes_version_conflict'
+  | 'decision_has_task'
   | 'conflict';
 
 export class ApiError extends HttpException {

@@ -20,6 +20,7 @@ import { FilesModule } from './files/files.module.js';
 import { ChatModule } from './chat/chat.module.js';
 import { EvidenceModule } from './evidence/evidence.module.js';
 import { LettersModule } from './letters/letters.module.js';
+import { MeetingsModule } from './meetings/meetings.module.js';
 import { WorkModule } from './work/work.module.js';
 
 @Module({
@@ -37,6 +38,7 @@ import { WorkModule } from './work/work.module.js';
     LettersModule,
     EvidenceModule,
     ChatModule,
+    MeetingsModule,
     GoalsModule,
     DashboardModule,
     ReportsModule,

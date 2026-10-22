@@ -26,6 +26,7 @@ import { ApiError, forbidden, notFound } from '../common/errors.js';
 import { TenantDb } from '../database/tenant-db.service.js';
 import { visibleConversations } from '../chat/access.js';
 import { visibleLetters } from '../letters/access.js';
+import { takesPart, visibleMeetings } from '../meetings/access.js';
 import { pinnedToVisibleTask } from '../evidence/letter-provider.js';
 import { messagePinnedToVisibleTask } from '../evidence/message-provider.js';
 import { canEditTask, visibleTasks } from '../work/access.js';
@@ -317,13 +318,18 @@ export class AttachmentsService implements OnModuleInit {
       const row = await this.visible(tx, ctx, id);
       // A message's files go with the message (deleting the message removes them).
       if (row.subjectType === 'message') throw forbidden();
+      if (row.subjectType === 'minutes') {
+        // Anyone who may write the minutes, while the meeting is not canceled (ADR 0023).
+        const meeting = await this.minutesMeeting(tx, ctx, row);
+        if (!meeting?.writes || meeting.canceledAt) throw forbidden();
+      }
       if (row.subjectType === 'letter') {
         // A sent letter is permanent, files included; a draft's files are its sender's.
         const letter = await this.letterOf(tx, ctx, row, true);
         if (!letter || letter.sentAt || row.uploadedBy !== ctx.memberId) throw forbidden();
       }
       const taskId = await this.taskOf(tx, row);
-      if (row.uploadedBy !== ctx.memberId) {
+      if (row.uploadedBy !== ctx.memberId && row.subjectType !== 'minutes') {
         const task = taskId ? await this.tasks.requireVisible(tx, ctx, taskId) : null;
         if (!task || !(await this.editsTask(tx, ctx, task))) throw forbidden();
       }
@@ -368,6 +374,10 @@ export class AttachmentsService implements OnModuleInit {
       }
       return row;
     }
+    if (row.subjectType === 'minutes') {
+      if (!(await this.minutesMeeting(tx, ctx, row))) throw notFound('Attachment');
+      return row;
+    }
     if (row.subjectType === 'message') {
       // Whoever reads the conversation now, or anyone who sees a task it is pinned to (plan 15c);
       // a deleted message's files are gone (ADR 0022).
@@ -383,6 +393,21 @@ export class AttachmentsService implements OnModuleInit {
     if (!taskId) throw notFound('Attachment');
     await this.tasks.requireVisible(tx, ctx, taskId);
     return row;
+  }
+
+  /** The meeting of a minutes file, when the person sees it (ADR 0023); `writes` if they take part. */
+  private async minutesMeeting(tx: Tx, ctx: TenantContext, row: AttachmentRow) {
+    if (row.subjectType !== 'minutes' || !row.subjectId) return null;
+    const [meeting] = await tx
+      .select({
+        id: s.meetings.id,
+        canceledAt: s.meetings.canceledAt,
+        writes: sql<boolean>`${takesPart(ctx.memberId)}`,
+      })
+      .from(s.meetingMinutes)
+      .innerJoin(s.meetings, eq(s.meetings.id, s.meetingMinutes.meetingId))
+      .where(and(eq(s.meetingMinutes.id, row.subjectId), visibleMeetings(ctx.actor)));
+    return meeting ?? null;
   }
 
   private async messagePinnedForViewer(tx: Tx, ctx: TenantContext, row: AttachmentRow) {

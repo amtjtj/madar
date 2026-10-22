@@ -29,6 +29,7 @@ import { ApiError, forbidden, notFound } from '../common/errors.js';
 import { overdueTask, stuckTask } from '../dashboard/conditions.js';
 import { TenantDb } from '../database/tenant-db.service.js';
 import { keyResultRefs, requireLinkableKeyResult } from '../goals/links.js';
+import { visibleMeetings } from '../meetings/access.js';
 import {
   canCreateIn,
   canDeleteTask,
@@ -175,8 +176,17 @@ export class TasksService {
     return this.db.run(ctx, (tx) => this.createIn(tx, ctx, input));
   }
 
-  /** Creating a task inside a caller's transaction (a task made from a chat message, plan 15c). */
-  async createIn(tx: Tx, ctx: TenantContext, input: CreateTaskRequest): Promise<Task> {
+  /**
+   * Creating a task inside a caller's transaction (a task made from a chat message, plan 15c, or
+   * from a meeting decision, ADR 0023). `origin.meeting` makes the source «meeting» from the start,
+   * even without an assignee; `origin.keyResultId` links it to a key result the actor may use.
+   */
+  async createIn(
+    tx: Tx,
+    ctx: TenantContext,
+    input: CreateTaskRequest,
+    origin: { meeting?: boolean; keyResultId?: string | null } = {},
+  ): Promise<Task> {
     const departmentId = input.departmentId ?? (await this.primaryDepartment(tx, ctx));
     if (!departmentId) {
       throw new ApiError(
@@ -206,6 +216,7 @@ export class TasksService {
     const projectId = parent ? parent.projectId : (input.projectId ?? null);
     if (projectId) await this.requireUsableProject(tx, ctx, projectId);
     if (input.assigneeId) await requireActiveMember(tx, input.assigneeId);
+    if (origin.keyResultId) await requireLinkableKeyResult(tx, ctx.actor, origin.keyResultId);
 
     const status = statusFields(input.statusKey ?? 'todo');
     const [last] = await tx
@@ -217,9 +228,16 @@ export class TasksService {
 
     const assigneeId = input.assigneeId === undefined ? ctx.memberId : input.assigneeId;
     // Where it came from is decided now, once (ADR 0017).
-    const source = assigneeId
+    const derived = assigneeId
       ? await sourceFor(tx, { actorId: ctx.memberId, assigneeId, departmentId })
       : null;
+    const source = origin.meeting
+      ? {
+          source: 'meeting' as const,
+          sourceMemberId: ctx.memberId,
+          sourceCeo: derived?.sourceCeo ?? false,
+        }
+      : derived;
     const [row] = await tx
       .insert(s.tasks)
       .values({
@@ -234,6 +252,7 @@ export class TasksService {
         dueOn: input.dueOn ?? null,
         priority: input.priority ?? 'normal',
         weight: input.weight ?? 1,
+        keyResultId: origin.keyResultId ?? null,
         sortKey: generateKeyBetween(last?.sortKey ?? null, null),
         ...status,
       })
@@ -764,7 +783,7 @@ export class TasksService {
     if (!row) throw notFound('Department');
   }
 
-  private async primaryDepartment(tx: Tx, ctx: TenantContext): Promise<string | null> {
+  async primaryDepartment(tx: Tx, ctx: TenantContext): Promise<string | null> {
     const [row] = await tx
       .select({ id: s.departmentMemberships.departmentId })
       .from(s.departmentMemberships)
@@ -886,6 +905,17 @@ export class TasksService {
       ctx.actor,
       rows.map((r) => r.task.keyResultId),
     );
+    // The meeting a task came from (ADR 0023): its title, and whether the viewer may open it.
+    const meetingLinks = await tx
+      .select({
+        taskId: s.meetingDecisions.taskId,
+        id: s.meetings.id,
+        title: s.meetings.title,
+        visible: sql<boolean>`${visibleMeetings(ctx.actor)}`,
+      })
+      .from(s.meetingDecisions)
+      .innerJoin(s.meetings, eq(s.meetings.id, s.meetingDecisions.meetingId))
+      .where(inArray(s.meetingDecisions.taskId, ids));
 
     const byId = new Map(
       rows.map((r) => {
@@ -931,6 +961,10 @@ export class TasksService {
           attachmentCount: r.attachmentCount,
           evidenceCount: r.evidenceCount,
           keyResult: (r.task.keyResultId && keyResults.get(r.task.keyResultId)) || null,
+          meeting: (() => {
+            const link = meetingLinks.find((m) => m.taskId === r.task.id);
+            return link ? { id: link.id, title: link.title, visible: link.visible } : null;
+          })(),
           source: r.task.source
             ? {
                 kind: r.task.source,
