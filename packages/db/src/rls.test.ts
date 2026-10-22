@@ -54,6 +54,8 @@ const DATA_PLANE = [
   'conversations',
   'conversation_members',
   'messages',
+  'message_mentions',
+  'message_reactions',
   'goal_periods',
   'goals',
   'key_results',
@@ -330,6 +332,36 @@ describe.skipIf(!hasDatabase)('tenant isolation (RLS)', () => {
         body: 'fine',
         replyToId: original?.id ?? null,
       });
+    });
+  });
+
+  it('reactions take only the fixed emoji set and never point into another company', async () => {
+    const [theirs] = await withTenant(app.db, { tenantId: b.tenantId }, (tx) =>
+      tx.select({ id: s.messages.id }).from(s.messages).limit(1),
+    );
+    await withTenant(app.db, { tenantId: a.tenantId }, async (tx) => {
+      const [mine] = await tx.select({ id: s.messages.id }).from(s.messages).limit(1);
+      await expect(
+        tx.transaction((inner) =>
+          inner
+            .insert(s.messageReactions)
+            .values({ messageId: mine?.id ?? '', memberId: a.memberId, emoji: '💩' }),
+        ),
+      ).rejects.toThrow();
+      await expect(
+        tx.transaction((inner) =>
+          inner
+            .insert(s.messageReactions)
+            .values({ messageId: theirs?.id ?? '', memberId: a.memberId, emoji: '👍' }),
+        ),
+      ).rejects.toThrow();
+      await expect(
+        tx.transaction((inner) =>
+          inner
+            .insert(s.messageMentions)
+            .values({ messageId: theirs?.id ?? '', memberId: a.memberId }),
+        ),
+      ).rejects.toThrow();
     });
   });
 

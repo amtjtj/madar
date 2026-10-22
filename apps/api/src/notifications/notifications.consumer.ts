@@ -15,6 +15,7 @@ const HANDLED = [
   'letter.referred',
   'task.evidence_pinned',
   'message.created',
+  'message.updated',
 ];
 
 /** Turns domain events into in-app notifications. */
@@ -69,15 +70,30 @@ export class NotificationsConsumer implements EventConsumer {
         });
         return;
       }
-      case 'message.created': {
-        // Direct and group only, one notification per conversation until it is read (ADR 0022);
-        // channels show an unread count instead.
-        if (p.kind !== 'direct' && p.kind !== 'group') return;
-        const [conversation] = await tx
-          .select({ id: s.conversations.id, title: s.conversations.title })
-          .from(s.conversations)
-          .where(eq(s.conversations.id, String(p.conversationId)));
+      case 'message.created':
+      case 'message.updated': {
+        const conversation = await this.conversationOf(tx, String(p.conversationId));
         if (!conversation) return;
+        const direct = conversation.kind === 'direct';
+        // Mentions reach people in every kind of conversation, muted or not (plan 15b).
+        const mentioned = ((p.mentionIds as string[] | undefined) ?? []).filter(
+          (id) => id !== event.actorId,
+        );
+        for (const recipientId of mentioned) {
+          await this.notifier.notify(tx, {
+            ...base,
+            recipientId,
+            kind: 'chat_mention',
+            subjectType: 'conversation',
+            subjectId: conversation.id,
+            payload: direct ? { title: '', data: { direct: 1 } } : { title: conversation.title },
+            dedupeKey: `mention:${String(p.messageId)}:${recipientId}`,
+          });
+        }
+        // Direct and group only, one notification per conversation until it is read (ADR 0022);
+        // channels show an unread count instead. Someone mentioned has been told already.
+        if (event.type !== 'message.created') return;
+        if (conversation.kind !== 'direct' && conversation.kind !== 'group') return;
         const people = await tx
           .select({
             memberId: s.conversationMembers.memberId,
@@ -93,7 +109,7 @@ export class NotificationsConsumer implements EventConsumer {
             ),
           );
         for (const person of people) {
-          if (person.muted) continue;
+          if (person.muted || mentioned.includes(person.memberId)) continue;
           // Already read up to (or past) this message: nothing to tell.
           if (person.lastRead && person.lastRead >= String(p.messageId)) continue;
           await this.notifier.notify(tx, {
@@ -102,10 +118,7 @@ export class NotificationsConsumer implements EventConsumer {
             kind: 'chat_message',
             subjectType: 'conversation',
             subjectId: conversation.id,
-            payload:
-              p.kind === 'direct'
-                ? { title: '', data: { direct: 1 } }
-                : { title: conversation.title ?? '' },
+            payload: direct ? { title: '', data: { direct: 1 } } : { title: conversation.title },
             // One per read mark; a re-added member (new joinedAt, no read mark) is told again.
             dedupeKey: `chat:${conversation.id}:${person.lastRead ?? `joined-${person.joinedAt.getTime()}`}`,
           });
@@ -246,5 +259,23 @@ export class NotificationsConsumer implements EventConsumer {
       .from(s.tasks)
       .where(eq(s.tasks.id, id));
     return task && !task.deletedAt ? task : null;
+  }
+
+  /** A conversation's kind and the title people know it by (project, department or group). */
+  private async conversationOf(tx: Tx, id: string) {
+    const [row] = await tx
+      .select({
+        id: s.conversations.id,
+        kind: s.conversations.kind,
+        title: s.conversations.title,
+        project: s.projects.name,
+        department: s.departments.name,
+      })
+      .from(s.conversations)
+      .leftJoin(s.projects, eq(s.projects.id, s.conversations.projectId))
+      .leftJoin(s.departments, eq(s.departments.id, s.conversations.departmentId))
+      .where(eq(s.conversations.id, id));
+    if (!row) return null;
+    return { id: row.id, kind: row.kind, title: row.title ?? row.project ?? row.department ?? '' };
   }
 }

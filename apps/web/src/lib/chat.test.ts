@@ -12,6 +12,9 @@ const msg = (id: string, author: string, createdAt: string, body = id): Message 
   createdAt,
   editedAt: null,
   deleted: false,
+  attachments: [],
+  mentions: [],
+  reactions: [],
 });
 
 describe('chat helpers', () => {

@@ -511,7 +511,11 @@ async function main(): Promise<void> {
     // Chat (ADR 0022): the support channel, a project channel, a direct conversation, a group.
     const chat = app.get(ChatService);
     const post = async (by: string, conversationId: string, body: string, replyToId?: string) =>
-      chat.send(await as(by), conversationId, { body, replyToId: replyToId ?? null });
+      chat.send(await as(by), conversationId, {
+        body,
+        replyToId: replyToId ?? null,
+        uploadIds: [],
+      });
     const supportChannel = await chat.forSource(
       await as('maryam.ahmadi'),
       'department',

@@ -24,6 +24,7 @@ import type { Request } from 'express';
 import type { TenantContext } from '../common/context.js';
 import { ApiError, forbidden, notFound } from '../common/errors.js';
 import { TenantDb } from '../database/tenant-db.service.js';
+import { visibleConversations } from '../chat/access.js';
 import { visibleLetters } from '../letters/access.js';
 import { pinnedToVisibleTask } from '../evidence/letter-provider.js';
 import { canEditTask, visibleTasks } from '../work/access.js';
@@ -313,6 +314,8 @@ export class AttachmentsService implements OnModuleInit {
   remove(ctx: TenantContext, id: string): Promise<void> {
     return this.db.run(ctx, async (tx) => {
       const row = await this.visible(tx, ctx, id);
+      // A message's files go with the message (deleting the message removes them).
+      if (row.subjectType === 'message') throw forbidden();
       if (row.subjectType === 'letter') {
         // A sent letter is permanent, files included; a draft's files are its sender's.
         const letter = await this.letterOf(tx, ctx, row, true);
@@ -364,10 +367,31 @@ export class AttachmentsService implements OnModuleInit {
       }
       return row;
     }
+    if (row.subjectType === 'message') {
+      // Whoever reads the conversation now; a deleted message's files are gone (ADR 0022).
+      if (!(await this.messageVisible(tx, ctx, row))) throw notFound('Attachment');
+      return row;
+    }
     const taskId = await this.taskOf(tx, row);
     if (!taskId) throw notFound('Attachment');
     await this.tasks.requireVisible(tx, ctx, taskId);
     return row;
+  }
+
+  private async messageVisible(tx: Tx, ctx: TenantContext, row: AttachmentRow) {
+    if (!row.subjectId) return false;
+    const [message] = await tx
+      .select({ id: s.messages.id })
+      .from(s.messages)
+      .innerJoin(s.conversations, eq(s.conversations.id, s.messages.conversationId))
+      .where(
+        and(
+          eq(s.messages.id, row.subjectId),
+          isNull(s.messages.deletedAt),
+          visibleConversations(ctx.memberId),
+        ),
+      );
+    return Boolean(message);
   }
 
   /** The letter a file belongs to, when the person may open it (ADR 0020). */

@@ -19,7 +19,12 @@ import { createdAt, id, tenantId } from './columns.js';
 import { tenants } from './control.js';
 import { members } from './org.js';
 
-export const attachmentSubject = pgEnum('attachment_subject', ['task', 'comment', 'letter']);
+export const attachmentSubject = pgEnum('attachment_subject', [
+  'task',
+  'comment',
+  'letter',
+  'message',
+]);
 export const attachmentStatus = pgEnum('attachment_status', ['pending', 'ready']);
 
 export const attachments = pgTable(

@@ -38,6 +38,7 @@ export type ErrorCode =
   | 'already_pinned'
   | 'message_edit_window'
   | 'chat_read_only'
+  | 'message_empty'
   | 'group_owner_only'
   | 'conflict';
 

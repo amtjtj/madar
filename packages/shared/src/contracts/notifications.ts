@@ -24,6 +24,7 @@ export const NOTIFICATION_KINDS = [
   'letter_received',
   'letter_referred',
   'chat_message',
+  'chat_mention',
   'key_result_checkin_due',
   'weekly_report_ready',
 ] as const;

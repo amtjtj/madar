@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import { canStillEdit, directKey, messageSegments } from './chat-text.js';
+import {
+  canStillEdit,
+  directKey,
+  mentionIdsIn,
+  mentionToken,
+  mentionsAsText,
+  messageSegments,
+} from './chat-text.js';
+
+const MARYAM = '0190a1b2-0000-7000-8000-000000000001';
+const ALI = '0190a1b2-0000-7000-8000-000000000002';
 
 describe('chat text', () => {
   it('finds http and https links and leaves the rest as text', () => {
@@ -18,6 +28,29 @@ describe('chat text', () => {
     const [, link, rest] = messageSegments('سایت http://a.ir.');
     expect(link).toMatchObject({ href: 'http://a.ir' });
     expect(rest).toEqual({ type: 'text', text: '.' });
+  });
+
+  it('reads mention tokens as mentions, next to links and text', () => {
+    const body = `${mentionToken(MARYAM)} ببین https://a.ir و ${mentionToken(ALI)}`;
+    expect(messageSegments(body)).toEqual([
+      { type: 'mention', id: MARYAM },
+      { type: 'text', text: ' ببین ' },
+      { type: 'link', text: 'https://a.ir', href: 'https://a.ir' },
+      { type: 'text', text: ' و ' },
+      { type: 'mention', id: ALI },
+    ]);
+    // Not a token: stays text.
+    expect(messageSegments('<@nope>')).toEqual([{ type: 'text', text: '<@nope>' }]);
+    expect(
+      mentionIdsIn(`${mentionToken(ALI)} ${mentionToken(ALI)} ${mentionToken(MARYAM)}`),
+    ).toEqual([ALI, MARYAM]);
+  });
+
+  it('writes mentions as names for previews, never the raw id', () => {
+    const names = new Map([[MARYAM, 'مریم احمدی']]);
+    expect(mentionsAsText(`سلام ${mentionToken(MARYAM)} و ${mentionToken(ALI)}`, names)).toBe(
+      'سلام @مریم احمدی و @…',
+    );
   });
 
   it('gives a two-person conversation one key', () => {

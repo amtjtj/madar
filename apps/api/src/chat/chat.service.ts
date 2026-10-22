@@ -5,6 +5,11 @@ import {
   REALTIME_EVENTS,
   canStillEdit,
   directKey,
+  mentionIdsIn,
+  mentionToken,
+  mentionsAsText,
+  type ReactionEmoji,
+  type ReactionRequest,
   type Conversation,
   type ConversationMember,
   type ConversationSummary,
@@ -20,6 +25,7 @@ import { alias } from 'drizzle-orm/pg-core';
 import type { TenantContext } from '../common/context.js';
 import { ApiError, badRequest, notFound } from '../common/errors.js';
 import { TenantDb } from '../database/tenant-db.service.js';
+import { attachmentRows, bindUploads, toAttachment } from '../files/attachments-db.js';
 import { RealtimePublisher } from '../realtime/realtime.publisher.js';
 import {
   audienceOf,
@@ -42,7 +48,26 @@ const editWindow = () =>
     'Messages can be changed for 15 minutes only',
   );
 
+const emptyMessage = () =>
+  new ApiError(HttpStatus.BAD_REQUEST, 'message_empty', 'A message needs text or a file');
+
 const MAX_GROUP = 50;
+
+/** Reactions in the order each emoji was first used, people in the order they reacted. */
+function groupReactions(
+  rows: Array<{ emoji: string; id: string; displayName: string }>,
+): Message['reactions'] {
+  const byEmoji = new Map<string, Message['reactions'][number]>();
+  for (const r of rows) {
+    const entry = byEmoji.get(r.emoji) ?? {
+      emoji: r.emoji as ReactionEmoji,
+      members: [],
+    };
+    entry.members.push({ id: r.id, displayName: r.displayName });
+    byEmoji.set(r.emoji, entry);
+  }
+  return [...byEmoji.values()];
+}
 
 /** «Read» means: author is someone else, not deleted, newer than my last read (or my joining). */
 function unreadCondition(memberId: string) {
@@ -72,18 +97,16 @@ export class ChatService {
   list(ctx: TenantContext): Promise<ConversationSummary[]> {
     return this.db.run(ctx, async (tx) => {
       const me = ctx.memberId;
-      const result = await tx.execute<{
-        id: string;
-        unread: number;
-      }>(sql`
-        select c.id, (select count(*)::int from messages m where m.conversation_id = c.id and ${unreadCondition(me)}) as unread
-        from conversations c
-        left join conversation_members mine on mine.conversation_id = c.id and mine.member_id = ${me}
+      const result = await tx.execute<{ id: string }>(sql`
+        select c.id from conversations c
         where ${visibleConversationsRaw(me)}
         order by c.last_message_at desc nulls last, c.created_at desc
         limit 300`);
-      const unread = new Map(result.rows.map((r) => [r.id, r.unread]));
-      return this.summaries(tx, ctx, [...unread.keys()], unread);
+      return this.summaries(
+        tx,
+        ctx,
+        result.rows.map((r) => r.id),
+      );
     });
   }
 
@@ -350,6 +373,9 @@ export class ChatService {
     const { message, audience } = await this.db.run(ctx, async (tx) => {
       const conversation = await this.requireVisible(tx, ctx, id);
       await this.requirePostable(tx, ctx, id);
+      if (!body.body && body.uploadIds.length === 0) throw emptyMessage();
+      const audience = await this.audience(tx, id);
+      const { text, mentionIds } = await this.resolveMentions(tx, body.body, audience);
       if (body.replyToId) {
         const [parent] = await tx
           .select({ id: s.messages.id })
@@ -363,11 +389,17 @@ export class ChatService {
           id: uuidv7(),
           conversationId: id,
           authorId: ctx.memberId,
-          body: body.body,
+          body: text,
           replyToId: body.replyToId ?? null,
         })
         .returning();
       if (!row) throw notFound('Message');
+      await bindUploads(tx, ctx, body.uploadIds, { type: 'message', id: row.id });
+      if (mentionIds.length) {
+        await tx
+          .insert(s.messageMentions)
+          .values(mentionIds.map((memberId) => ({ messageId: row.id, memberId })));
+      }
       await tx
         .update(s.conversations)
         .set({ lastMessageAt: row.createdAt })
@@ -386,11 +418,11 @@ export class ChatService {
       await emitEvent(
         tx,
         'message.created',
-        { conversationId: id, messageId: row.id, kind: conversation.kind },
+        { conversationId: id, messageId: row.id, kind: conversation.kind, mentionIds },
         ctx.memberId,
       );
       const [message] = await this.present(tx, [row]);
-      return { message: message as Message, audience: await this.audience(tx, id) };
+      return { message: message as Message, audience };
     });
     await this.deliver(ctx.tenantId, audience, message);
     return message;
@@ -399,14 +431,55 @@ export class ChatService {
   async edit(ctx: TenantContext, messageId: string, body: string): Promise<Message> {
     const { message, audience } = await this.db.run(ctx, async (tx) => {
       const row = await this.requireOwnMessage(tx, ctx, messageId);
+      const audience = await this.audience(tx, row.conversationId);
+      const { text, mentionIds } = await this.resolveMentions(tx, body, audience);
       const [updated] = await tx
         .update(s.messages)
-        .set({ body, editedAt: new Date() })
+        .set({ body: text, editedAt: new Date() })
         .where(and(eq(s.messages.id, messageId), isNull(s.messages.deletedAt)))
         .returning();
       if (!updated) throw notFound('Message');
+      // Mentions follow the new text; only people newly mentioned are told.
+      const before = (
+        await tx
+          .select({ memberId: s.messageMentions.memberId })
+          .from(s.messageMentions)
+          .where(eq(s.messageMentions.messageId, messageId))
+      ).map((r) => r.memberId);
+      const dropped = before.filter((m) => !mentionIds.includes(m));
+      const added = mentionIds.filter((m) => !before.includes(m));
+      if (dropped.length) {
+        await tx
+          .delete(s.messageMentions)
+          .where(
+            and(
+              eq(s.messageMentions.messageId, messageId),
+              inArray(s.messageMentions.memberId, dropped),
+            ),
+          );
+      }
+      if (added.length) {
+        await tx
+          .insert(s.messageMentions)
+          .values(added.map((memberId) => ({ messageId, memberId })));
+        const [conversation] = await tx
+          .select({ kind: s.conversations.kind })
+          .from(s.conversations)
+          .where(eq(s.conversations.id, row.conversationId));
+        await emitEvent(
+          tx,
+          'message.updated',
+          {
+            conversationId: row.conversationId,
+            messageId,
+            kind: conversation?.kind,
+            mentionIds: added,
+          },
+          ctx.memberId,
+        );
+      }
       const [message] = await this.present(tx, [updated]);
-      return { message: message as Message, audience: await this.audience(tx, row.conversationId) };
+      return { message: message as Message, audience };
     });
     await this.deliver(ctx.tenantId, audience, message);
     return message;
@@ -422,13 +495,92 @@ export class ChatService {
         .where(and(eq(s.messages.id, messageId), isNull(s.messages.deletedAt)))
         .returning();
       if (!updated) throw notFound('Message');
+      // Its files stop opening at once; the daily cleanup removes the bytes (ADR 0019).
+      await tx
+        .update(s.attachments)
+        .set({ deletedAt: new Date() })
+        .where(
+          and(
+            eq(s.attachments.subjectType, 'message'),
+            eq(s.attachments.subjectId, messageId),
+            isNull(s.attachments.deletedAt),
+          ),
+        );
+      await tx.delete(s.messageReactions).where(eq(s.messageReactions.messageId, messageId));
       const [message] = await this.present(tx, [updated]);
       return { message: message as Message, audience: await this.audience(tx, row.conversationId) };
     });
     await this.deliver(ctx.tenantId, audience, message);
   }
 
+  /** Turns one reaction on or off; repeating either is harmless. Readers get the message live. */
+  async react(ctx: TenantContext, messageId: string, body: ReactionRequest): Promise<Message> {
+    const { message, audience } = await this.db.run(ctx, async (tx) => {
+      const [found] = await tx
+        .select({ message: s.messages })
+        .from(s.messages)
+        .innerJoin(s.conversations, eq(s.conversations.id, s.messages.conversationId))
+        .where(
+          and(
+            eq(s.messages.id, messageId),
+            isNull(s.messages.deletedAt),
+            visibleConversations(ctx.memberId),
+          ),
+        );
+      if (!found) throw notFound('Message');
+      const row = found.message;
+      await this.requirePostable(tx, ctx, row.conversationId);
+      if (body.active) {
+        await tx
+          .insert(s.messageReactions)
+          .values({ messageId, memberId: ctx.memberId, emoji: body.emoji })
+          .onConflictDoNothing();
+      } else {
+        await tx
+          .delete(s.messageReactions)
+          .where(
+            and(
+              eq(s.messageReactions.messageId, messageId),
+              eq(s.messageReactions.memberId, ctx.memberId),
+              eq(s.messageReactions.emoji, body.emoji),
+            ),
+          );
+      }
+      const [message] = await this.present(tx, [row]);
+      return { message: message as Message, audience: await this.audience(tx, row.conversationId) };
+    });
+    await this.deliver(ctx.tenantId, audience, message);
+    return message;
+  }
+
   // ---------------------------------------------------------------------------------------------
+
+  /**
+   * Keeps mention tokens only for people who read the conversation now (plan 15b). Anyone else
+   * becomes plain «@name» text, so a mention never brings someone into a conversation.
+   */
+  private async resolveMentions(
+    tx: Tx,
+    body: string,
+    audience: string[],
+  ): Promise<{ text: string; mentionIds: string[] }> {
+    const ids = mentionIdsIn(body);
+    if (!ids.length) return { text: body, mentionIds: [] };
+    const allowed = ids.filter((id) => audience.includes(id));
+    const others = ids.filter((id) => !audience.includes(id));
+    let text = body;
+    if (others.length) {
+      const people = await tx
+        .select({ id: s.members.id, displayName: s.members.displayName })
+        .from(s.members)
+        .where(inArray(s.members.id, others));
+      const names = new Map(people.map((p) => [p.id, p.displayName]));
+      for (const id of others) {
+        text = text.split(mentionToken(id)).join(names.has(id) ? `@${names.get(id)}` : '');
+      }
+    }
+    return { text, mentionIds: allowed };
+  }
 
   private async deliver(tenantId: string, audience: string[], message: Message): Promise<void> {
     // The message itself tells clients to refresh lists and counts; no extra hint is needed.
@@ -570,13 +722,40 @@ export class ChatService {
     const replies = replyIds.length
       ? await tx.select().from(s.messages).where(inArray(s.messages.id, replyIds))
       : [];
-    const authorIds = [...new Set([...rows, ...replies].map((r) => r.authorId))];
+    // Quotes are plain text: their mention tokens become names (people quoted may be anyone).
+    const quotedIds = replies.flatMap((r) => mentionIdsIn(r.body));
+    const authorIds = [...new Set([...rows, ...replies].map((r) => r.authorId).concat(quotedIds))];
     const people = await tx
       .select({ id: s.members.id, displayName: s.members.displayName })
       .from(s.members)
       .where(inArray(s.members.id, authorIds));
     const name = new Map(people.map((p) => [p.id, p.displayName]));
     const replyMap = new Map(replies.map((r) => [r.id, r]));
+    const ids = rows.map((r) => r.id);
+    const files = await attachmentRows(
+      tx,
+      and(eq(s.attachments.subjectType, 'message'), inArray(s.attachments.subjectId, ids)),
+    );
+    const mentions = await tx
+      .select({
+        messageId: s.messageMentions.messageId,
+        id: s.members.id,
+        displayName: s.members.displayName,
+      })
+      .from(s.messageMentions)
+      .innerJoin(s.members, eq(s.members.id, s.messageMentions.memberId))
+      .where(inArray(s.messageMentions.messageId, ids));
+    const reactions = await tx
+      .select({
+        messageId: s.messageReactions.messageId,
+        emoji: s.messageReactions.emoji,
+        id: s.members.id,
+        displayName: s.members.displayName,
+      })
+      .from(s.messageReactions)
+      .innerJoin(s.members, eq(s.members.id, s.messageReactions.memberId))
+      .where(inArray(s.messageReactions.messageId, ids))
+      .orderBy(s.messageReactions.createdAt);
     return rows.map((r) => {
       // A quote is only ever shown from the same conversation (the schema enforces it too).
       const found = r.replyToId ? replyMap.get(r.replyToId) : undefined;
@@ -590,13 +769,24 @@ export class ChatService {
           ? {
               id: reply.id,
               author: { id: reply.authorId, displayName: name.get(reply.authorId) ?? '' },
-              body: reply.deletedAt ? '' : reply.body.slice(0, 200),
+              body: reply.deletedAt ? '' : mentionsAsText(reply.body, name).slice(0, 200),
               deleted: Boolean(reply.deletedAt),
             }
           : null,
         createdAt: r.createdAt.toISOString(),
         editedAt: r.editedAt?.toISOString() ?? null,
         deleted: Boolean(r.deletedAt),
+        attachments: r.deletedAt
+          ? []
+          : files
+              .filter((f) => f.row.subjectId === r.id)
+              .map((f) => toAttachment(f.row, f.uploaderName, false)),
+        mentions: r.deletedAt
+          ? []
+          : mentions
+              .filter((m) => m.messageId === r.id)
+              .map((m) => ({ id: m.id, displayName: m.displayName })),
+        reactions: r.deletedAt ? [] : groupReactions(reactions.filter((x) => x.messageId === r.id)),
       };
     });
   }
@@ -605,7 +795,6 @@ export class ChatService {
     tx: Tx,
     ctx: TenantContext,
     ids: string[],
-    unread?: Map<string, number>,
   ): Promise<ConversationSummary[]> {
     if (!ids.length) return [];
     const me = ctx.memberId;
@@ -640,6 +829,7 @@ export class ChatService {
           )
       : [];
     const lastRows = await tx.execute<{
+      id: string;
       conversation_id: string;
       author_id: string;
       author_name: string;
@@ -647,7 +837,7 @@ export class ChatService {
       created_at: Date;
       deleted_at: Date | null;
     }>(sql`
-      select distinct on (m.conversation_id) m.conversation_id, m.author_id, a.display_name as author_name,
+      select distinct on (m.conversation_id) m.id, m.conversation_id, m.author_id, a.display_name as author_name,
         m.body, m.created_at, m.deleted_at
       from messages m join members a on a.id = m.author_id
       where m.conversation_id in (${sql.join(
@@ -656,18 +846,38 @@ export class ChatService {
       )})
       order by m.conversation_id, m.id desc`);
     const last = new Map(lastRows.rows.map((r) => [r.conversation_id, r]));
-    let counts = unread;
-    if (!counts) {
-      const result = await tx.execute<{ id: string; unread: number }>(sql`
-        select c.id, (select count(*)::int from messages m where m.conversation_id = c.id and ${unreadCondition(me)}) as unread
-        from conversations c
-        left join conversation_members mine on mine.conversation_id = c.id and mine.member_id = ${me}
-        where c.id in (${sql.join(
-          ids.map((id) => sql`${id}::uuid`),
-          sql`, `,
-        )})`);
-      counts = new Map(result.rows.map((r) => [r.id, r.unread]));
-    }
+    // Previews: names for mention tokens, and the first file's name for a message without text.
+    const lastIds = lastRows.rows.map((r) => r.id);
+    const lastMentions = lastIds.length
+      ? await tx
+          .select({
+            messageId: s.messageMentions.messageId,
+            id: s.members.id,
+            displayName: s.members.displayName,
+          })
+          .from(s.messageMentions)
+          .innerJoin(s.members, eq(s.members.id, s.messageMentions.memberId))
+          .where(inArray(s.messageMentions.messageId, lastIds))
+      : [];
+    const lastFiles = lastIds.length
+      ? await attachmentRows(
+          tx,
+          and(eq(s.attachments.subjectType, 'message'), inArray(s.attachments.subjectId, lastIds)),
+        )
+      : [];
+    const result = await tx.execute<{ id: string; unread: number; mentions: number }>(sql`
+      select c.id,
+        (select count(*)::int from messages m where m.conversation_id = c.id and ${unreadCondition(me)}) as unread,
+        (select count(*)::int from messages m
+          join message_mentions mm on mm.message_id = m.id and mm.member_id = ${me}
+          where m.conversation_id = c.id and ${unreadCondition(me)}) as mentions
+      from conversations c
+      left join conversation_members mine on mine.conversation_id = c.id and mine.member_id = ${me}
+      where c.id in (${sql.join(
+        ids.map((id) => sql`${id}::uuid`),
+        sql`, `,
+      )})`);
+    const counts = new Map(result.rows.map((r) => [r.id, r]));
     const byId = new Map(rows.map((r) => [r.c.id, r]));
     return ids.flatMap((id) => {
       const r = byId.get(id);
@@ -693,12 +903,20 @@ export class ChatService {
           lastMessage: lm
             ? {
                 author: { id: lm.author_id, displayName: lm.author_name },
-                body: lm.deleted_at ? '' : lm.body.slice(0, 140),
+                // Cut without leaving half a mention token behind.
+                body: lm.deleted_at ? '' : lm.body.slice(0, 200).replace(/<@[^>]*$/, ''),
                 createdAt: new Date(lm.created_at).toISOString(),
                 deleted: Boolean(lm.deleted_at),
+                mentions: lastMentions
+                  .filter((m) => m.messageId === lm.id)
+                  .map((m) => ({ id: m.id, displayName: m.displayName })),
+                fileName: lm.deleted_at
+                  ? null
+                  : (lastFiles.find((f) => f.row.subjectId === lm.id)?.row.fileName ?? null),
               }
             : null,
-          unreadCount: counts.get(id) ?? 0,
+          unreadCount: counts.get(id)?.unread ?? 0,
+          unreadMentions: counts.get(id)?.mentions ?? 0,
           muted: Boolean(r.muted),
         },
       ];

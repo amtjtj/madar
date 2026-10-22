@@ -7,12 +7,43 @@ import { cn } from '../lib/cn.js';
 import { Avatar } from './avatar.js';
 import type { LinkComponent } from './navigation.js';
 
-/** Message text: plain text with http(s) links as elements; never HTML (ADR 0022). */
-export function MessageText({ body, className }: { body: string; className?: string }) {
+export interface MentionRef {
+  id: string;
+  displayName: string;
+}
+
+/**
+ * Message text: plain text with http(s) links and `<@id>` mentions as elements; never HTML
+ * (ADR 0022). Mentions show the person's current name; a token without a known person reads as
+ * «@کسی».
+ */
+export function MessageText({
+  body,
+  mentions = [],
+  meId,
+  className,
+}: {
+  body: string;
+  mentions?: readonly MentionRef[];
+  /** Mentions of this person stand out a little more. */
+  meId?: string;
+  className?: string;
+}) {
+  const names = new Map(mentions.map((m) => [m.id, m.displayName]));
   return (
     <span className={cn('break-words whitespace-pre-wrap', className)}>
       {messageSegments(body).map((part, i) =>
-        part.type === 'link' ? (
+        part.type === 'mention' ? (
+          <span
+            key={i}
+            className={cn(
+              'font-bold',
+              part.id === meId ? 'rounded bg-primary-soft px-1 text-primary-ink' : 'text-current',
+            )}
+          >
+            @{names.get(part.id) ?? t('ui.chat.someone')}
+          </span>
+        ) : part.type === 'link' ? (
           <a
             key={i}
             href={part.href}

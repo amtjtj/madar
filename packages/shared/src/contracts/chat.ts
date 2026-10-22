@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
-import { MESSAGE_MAX } from '../chat-text.js';
+import { MESSAGE_FILES_MAX, MESSAGE_MAX, REACTION_EMOJIS } from '../chat-text.js';
+import { attachment } from '../files.js';
 
 /** Internal chat (plan phase-2-step-15a, ADR 0022). */
 export const CONVERSATION_KINDS = ['project', 'department', 'direct', 'group'] as const;
@@ -20,6 +21,15 @@ export const message = z.object({
   createdAt: z.iso.datetime(),
   editedAt: z.iso.datetime().nullable(),
   deleted: z.boolean(),
+  /** Empty once deleted. */
+  attachments: z.array(attachment),
+  /** People mentioned with `<@id>` tokens in the body, with their current names. */
+  mentions: z.array(personRef),
+  /**
+   * Who reacted with what. Everyone reading the conversation sees the same list; the web derives
+   * «mine» from it, because the same message goes live to every reader.
+   */
+  reactions: z.array(z.object({ emoji: z.enum(REACTION_EMOJIS), members: z.array(personRef) })),
 });
 export type Message = z.infer<typeof message>;
 
@@ -38,9 +48,14 @@ export const conversationSummary = z.object({
       body: z.string(),
       createdAt: z.iso.datetime(),
       deleted: z.boolean(),
+      mentions: z.array(personRef),
+      /** The first file's name, for a message without text. */
+      fileName: z.string().nullable(),
     })
     .nullable(),
   unreadCount: z.number().int(),
+  /** Unread messages that mention the person (shown as «@» in the list). */
+  unreadMentions: z.number().int(),
   muted: z.boolean(),
 });
 export type ConversationSummary = z.infer<typeof conversationSummary>;
@@ -82,14 +97,19 @@ export const listMessagesQuery = z.object({
 });
 export type ListMessagesQuery = z.infer<typeof listMessagesQuery>;
 
+/** Text, files or both (`message_empty` when neither). Mentions are read from the body's tokens. */
 export const sendMessageRequest = z.object({
-  body: z.string().trim().min(1).max(MESSAGE_MAX),
+  body: z.string().trim().max(MESSAGE_MAX).default(''),
   replyToId: z.uuid().nullable().optional(),
+  uploadIds: z.array(z.uuid()).max(MESSAGE_FILES_MAX).default([]),
 });
 export type SendMessageRequest = z.infer<typeof sendMessageRequest>;
 
 export const editMessageRequest = z.object({ body: z.string().trim().min(1).max(MESSAGE_MAX) });
 export type EditMessageRequest = z.infer<typeof editMessageRequest>;
+
+export const reactionRequest = z.object({ emoji: z.enum(REACTION_EMOJIS), active: z.boolean() });
+export type ReactionRequest = z.infer<typeof reactionRequest>;
 
 export const directConversationRequest = z.object({ memberId: z.uuid() });
 export const createGroupRequest = z.object({

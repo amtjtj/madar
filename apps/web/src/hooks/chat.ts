@@ -102,6 +102,9 @@ export function useSendMessage(id: string, me: { id: string; displayName: string
         createdAt: new Date().toISOString(),
         editedAt: null,
         deleted: false,
+        attachments: [],
+        mentions: [],
+        reactions: [],
       });
     },
     onSuccess: (message, { tempId }) => {

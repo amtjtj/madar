@@ -194,7 +194,12 @@ export async function createTenantFixture(handle: DbHandle, label = 't'): Promis
     await tx
       .insert(s.conversationMembers)
       .values({ conversationId, memberId: member.id, role: 'owner' });
-    await tx.insert(s.messages).values({ conversationId, authorId: member.id, body: 'سلام' });
+    const messageId = uuidv7();
+    await tx
+      .insert(s.messages)
+      .values({ id: messageId, conversationId, authorId: member.id, body: 'سلام' });
+    await tx.insert(s.messageMentions).values({ messageId, memberId: member.id });
+    await tx.insert(s.messageReactions).values({ messageId, memberId: member.id, emoji: '👍' });
     await tx
       .insert(s.taskEvidence)
       .values({ taskId: task.id, kind: 'letter', subjectId: letterId, pinnedBy: member.id });

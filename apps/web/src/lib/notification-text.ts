@@ -19,6 +19,9 @@ export function notificationText(n: Notification): string {
   if (n.kind === 'chat_message' && n.data.direct) {
     return t('notifications.kinds.chat_message_direct', { actor });
   }
+  if (n.kind === 'chat_mention' && n.data.direct) {
+    return t('notifications.kinds.chat_mention_direct', { actor });
+  }
   if ((n.kind === 'letter_received' || n.kind === 'letter_referred') && n.data.confidential) {
     return t(`notifications.kinds.${n.kind}_confidential`, { actor });
   }

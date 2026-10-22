@@ -20,6 +20,7 @@ import {
   listMessagesQuery,
   markReadRequest,
   muteRequest,
+  reactionRequest,
   renameGroupRequest,
   sendMessageRequest,
   type Conversation,
@@ -27,6 +28,7 @@ import {
   type CreateGroupRequest,
   type EditMessageRequest,
   type ListMessagesQuery,
+  type ReactionRequest,
   type Message,
   type MessagePage,
   type SendMessageRequest,
@@ -184,5 +186,14 @@ export class MessagesController {
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Tenant() ctx: TenantContext, @Param('id', ParseUUIDPipe) id: string): Promise<void> {
     return this.chat.remove(ctx, id);
+  }
+  @Put(':id/reactions')
+  @RateLimit({ max: 60, windowMs: 60_000 })
+  react(
+    @Tenant() ctx: TenantContext,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodPipe(reactionRequest)) body: ReactionRequest,
+  ): Promise<Message> {
+    return this.chat.react(ctx, id, body);
   }
 }

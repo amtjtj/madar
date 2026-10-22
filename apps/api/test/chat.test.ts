@@ -6,6 +6,8 @@ import {
   type ConversationSummary,
   type Message,
   type MessagePage,
+  type Upload,
+  mentionToken,
 } from '@madar/shared';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test, type TestingModule } from '@nestjs/testing';
@@ -29,6 +31,8 @@ import {
   unique,
   type Client,
 } from './helpers.js';
+
+const PDF = Buffer.from('%PDF-1.7\n1 0 obj\n<<>>\nendobj\ntrailer\n%%EOF\n');
 
 interface Person {
   c: Client;
@@ -506,6 +510,147 @@ describe.skipIf(!hasDatabase)('chat', () => {
       await setStatus('active');
       await ownerDb.pool.end();
     }
+  });
+
+  it('files: readers download them, others and people who left cannot, deleting closes them', async () => {
+    const group: Conversation = (
+      await ali.c.post('/api/conversations/group', {
+        title: 'فایل‌ها',
+        memberIds: [maryam.memberId, lead.memberId],
+      })
+    ).body;
+    const empty = await ali.c.post(`/api/conversations/${group.id}/messages`, { body: '  ' });
+    expect(empty.status).toBe(400);
+    expect(empty.body.error.code).toBe('message_empty');
+
+    const up: Upload = (await ali.c.upload('/api/uploads', PDF, 'گزارش.pdf')).body;
+    const sent = await ali.c.post(`/api/conversations/${group.id}/messages`, {
+      uploadIds: [up.id],
+    });
+    expect(sent.status).toBe(201);
+    const message: Message = sent.body;
+    expect(message.body).toBe('');
+    expect(message.attachments.map((a) => a.fileName)).toEqual(['گزارش.pdf']);
+    const file = `/api/attachments/${up.id}/file`;
+    expect((await maryam.c.download(file)).status).toBe(200);
+    expect((await marketer.c.download(file)).status).toBe(404);
+    expect((await other.download(file)).status).toBe(404);
+    // Someone else's upload, or one already attached, cannot be sent again.
+    expect(
+      (await maryam.c.post(`/api/conversations/${group.id}/messages`, { uploadIds: [up.id] }))
+        .status,
+    ).toBe(404);
+    // The list preview names the file.
+    const row = (await list(maryam)).find((c) => c.id === group.id);
+    expect(row?.lastMessage?.fileName).toBe('گزارش.pdf');
+    // A file goes with its message, not on its own.
+    expect((await ali.c.delete(`/api/attachments/${up.id}`)).status).toBe(403);
+
+    await ali.c.delete(`/api/conversations/${group.id}/members/${lead.memberId}`);
+    expect((await lead.c.download(file)).status).toBe(404);
+
+    expect((await ali.c.delete(`/api/messages/${message.id}`)).status).toBe(204);
+    expect((await maryam.c.download(file)).status).toBe(404);
+  });
+
+  it('mentions: only readers are kept, they are told even in a muted channel, once', async () => {
+    const channel: ConversationSummary = (
+      await ali.c.get(`/api/conversations/by-department/${support.id}`)
+    ).body;
+    await maryam.c.put(`/api/conversations/${channel.id}/mute`, { muted: true });
+    const body = `${mentionToken(maryam.memberId)} و ${mentionToken(marketer.memberId)} ببینید`;
+    const sent: Message = (await send(ali, channel.id, body)).body;
+    // The marketer is not in the support channel: plain text, no mention.
+    expect(sent.mentions.map((m) => m.id)).toEqual([maryam.memberId]);
+    expect(sent.body).not.toContain(marketer.memberId);
+    expect(sent.body).toContain(mentionToken(maryam.memberId));
+    await settle();
+    const mentionsOf = (memberId: string) =>
+      withTenant(handle.db, { tenantId }, (tx) =>
+        tx
+          .select()
+          .from(s.notifications)
+          .where(
+            and(
+              eq(s.notifications.recipientId, memberId),
+              eq(s.notifications.kind, 'chat_mention'),
+              eq(s.notifications.subjectId, channel.id),
+            ),
+          ),
+      );
+    expect(await mentionsOf(maryam.memberId)).toHaveLength(1);
+    expect(await mentionsOf(marketer.memberId)).toHaveLength(0);
+    expect(await mentionsOf(ali.memberId)).toHaveLength(0);
+    const row = (await list(maryam)).find((c) => c.id === channel.id);
+    expect(row?.unreadMentions).toBe(1);
+
+    // Editing adds a mention: only the new person is told.
+    const edited = await ali.c.patch(`/api/messages/${sent.id}`, {
+      body: `${body} ${mentionToken(lead.memberId)}`,
+    });
+    expect(edited.status).toBe(200);
+    await settle();
+    expect(await mentionsOf(maryam.memberId)).toHaveLength(1);
+    expect(await mentionsOf(lead.memberId)).toHaveLength(1);
+
+    // Reading the channel clears the mention and its notification.
+    await maryam.c.post(`/api/conversations/${channel.id}/read`, { messageId: sent.id });
+    expect((await list(maryam)).find((c) => c.id === channel.id)?.unreadMentions).toBe(0);
+    expect((await mentionsOf(maryam.memberId)).every((n) => n.readAt)).toBe(true);
+  });
+
+  it('in a direct conversation a mention replaces the message notification', async () => {
+    const dm: Conversation = (
+      await lead.c.post('/api/conversations/direct', { memberId: viewer.memberId })
+    ).body;
+    await send(lead, dm.id, `${mentionToken(viewer.memberId)} یک لحظه`);
+    await settle();
+    const kinds = await withTenant(handle.db, { tenantId }, (tx) =>
+      tx
+        .select({ kind: s.notifications.kind })
+        .from(s.notifications)
+        .where(
+          and(
+            eq(s.notifications.recipientId, viewer.memberId),
+            eq(s.notifications.subjectId, dm.id),
+          ),
+        ),
+    );
+    expect(kinds.map((k) => k.kind)).toEqual(['chat_mention']);
+  });
+
+  it('reactions: on, off, harmless repeats, readers only, delivered live', async () => {
+    const channel: ConversationSummary = (
+      await ali.c.get(`/api/conversations/by-department/${support.id}`)
+    ).body;
+    const sent: Message = (await send(ali, channel.id, 'واکنش بدهید')).body;
+    const forAli = await live(ali);
+    const react = (p: Person, emoji: string, active: boolean) =>
+      p.c.put(`/api/messages/${sent.id}/reactions`, { emoji, active });
+    expect((await react(maryam, '👍', true)).status).toBe(200);
+    const twice: Message = (await react(maryam, '👍', true)).body;
+    expect(twice.reactions).toEqual([
+      { emoji: '👍', members: [{ id: maryam.memberId, displayName: expect.any(String) }] },
+    ]);
+    const end = Date.now() + 5000;
+    while (!forAli.some((m) => m.id === sent.id && m.reactions.length) && Date.now() < end) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    expect(forAli.find((m) => m.id === sent.id)?.reactions[0]?.emoji).toBe('👍');
+    const off: Message = (await react(maryam, '👍', false)).body;
+    expect(off.reactions).toEqual([]);
+    expect((await react(maryam, '💩', true)).status).toBe(400);
+    // The department viewer reads only.
+    const denied = await react(viewer, '👍', true);
+    expect(denied.status).toBe(403);
+    expect(denied.body.error.code).toBe('chat_read_only');
+    expect((await react(marketer, '👍', true)).status).toBe(404);
+    expect(
+      (await other.put(`/api/messages/${sent.id}/reactions`, { emoji: '👍', active: true })).status,
+    ).toBe(404);
+    // A deleted message takes no reactions.
+    await ali.c.delete(`/api/messages/${sent.id}`);
+    expect((await react(maryam, '🎉', true)).status).toBe(404);
   });
 
   it('keeps other companies out', async () => {

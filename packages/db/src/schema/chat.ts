@@ -142,3 +142,54 @@ export const messages = pgTable(
     }).onDelete('restrict'),
   ],
 );
+
+/** Who a message mentions (plan phase-2-step-15b): for notifications and the «@» count. */
+export const messageMentions = pgTable(
+  'message_mentions',
+  {
+    tenantId: tenantId().references(() => tenants.id, { onDelete: 'cascade' }),
+    messageId: uuid('message_id').notNull(),
+    memberId: uuid('member_id').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.messageId, t.memberId] }),
+    index('message_mentions_member_idx').on(t.tenantId, t.memberId, t.messageId),
+    foreignKey({
+      name: 'message_mentions_message_fk',
+      columns: [t.tenantId, t.messageId],
+      foreignColumns: [messages.tenantId, messages.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'message_mentions_member_fk',
+      columns: [t.tenantId, t.memberId],
+      foreignColumns: [members.tenantId, members.id],
+    }).onDelete('restrict'),
+  ],
+);
+
+/** One row per person, message and emoji; the set is fixed (`REACTION_EMOJIS` in shared). */
+export const messageReactions = pgTable(
+  'message_reactions',
+  {
+    tenantId: tenantId().references(() => tenants.id, { onDelete: 'cascade' }),
+    messageId: uuid('message_id').notNull(),
+    memberId: uuid('member_id').notNull(),
+    emoji: text('emoji').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.messageId, t.memberId, t.emoji] }),
+    check('message_reactions_emoji_check', sql`${t.emoji} in ('👍', '❤️', '😂', '🎉', '🙏', '👀')`),
+    foreignKey({
+      name: 'message_reactions_message_fk',
+      columns: [t.tenantId, t.messageId],
+      foreignColumns: [messages.tenantId, messages.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'message_reactions_member_fk',
+      columns: [t.tenantId, t.memberId],
+      foreignColumns: [members.tenantId, members.id],
+    }).onDelete('restrict'),
+  ],
+);
