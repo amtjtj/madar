@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { ok, setUpCompany, signIn } from './company';
+import { ok, setUpCompany, signIn, signInOwner } from './company';
 
 /** The chat link in the nav (sidebar on desktop, header on phones) carries the unread count. */
 const chatLink = (page: Page) =>
@@ -283,4 +283,89 @@ test('files, a mention in a muted channel, and a reaction that goes live', async
   await managerView.getByRole('button', { name: '👍 ۱: مریم احمدی' }).click();
   await expect(chip).toHaveCount(0, { timeout: 15_000 });
   await managerPage.context().close();
+});
+
+test('a task from a message, search that jumps to it, and the owner exports the channel', async ({
+  page,
+  browser,
+  baseURL,
+}) => {
+  test.slow();
+  const { manager, employee, ownerLogin } = await setUpCompany(baseURL ?? '');
+  const project = await ok<{ id: string }>(
+    await manager.client.post('/api/projects', {
+      data: { name: 'درگاه پرداخت', memberIds: [employee.person.memberId] },
+    }),
+  );
+  const channel = await ok<{ id: string }>(
+    await manager.client.get(`/api/conversations/by-project/${project.id}`),
+  );
+  await ok(
+    await manager.client.post(`/api/conversations/${channel.id}/messages`, {
+      data: { body: 'صفحه خطای پرداخت را کسی درست کند\nلاگ‌ها روی سرور تست ۴۰۲۱ است' },
+    }),
+  );
+  for (let i = 0; i < 3; i++) {
+    await ok(
+      await manager.client.post(`/api/conversations/${channel.id}/messages`, {
+        data: { body: `پیام بعدی ${i}` },
+      }),
+    );
+  }
+
+  // Ali makes a task from the message; the title comes from its first line.
+  await signIn(page, employee.person.username, 'علی');
+  await page.goto(`/chat/${channel.id}`);
+  const view = page.getByRole('region', { name: 'درگاه پرداخت' });
+  const bubble = view.locator('[id^="message-"]').filter({ hasText: 'صفحه خطای پرداخت' });
+  await bubble.getByRole('button', { name: 'کارهای پیام' }).click();
+  await page.getByRole('menuitem', { name: 'ساختن کار' }).click();
+  const dialog = page.getByRole('dialog', { name: 'ساختن کار' });
+  await expect(dialog.getByLabel('عنوان')).toHaveValue('صفحه خطای پرداخت را کسی درست کند');
+  await dialog.getByRole('button', { name: 'ساختن کار' }).click();
+  await expect(
+    page.getByText('کار «صفحه خطای پرداخت را کسی درست کند» ساخته شد').first(),
+  ).toBeVisible();
+  await bubble.getByRole('button', { name: 'کار شد' }).click();
+  await page
+    .getByRole('dialog', { name: 'کارهای این پیام' })
+    .getByRole('link', { name: 'صفحه خطای پرداخت را کسی درست کند' })
+    .click();
+  const evidence = page.getByRole('region', { name: 'شاهدهای کار' });
+  await evidence.getByRole('button', { name: 'دیدن پیام سنجاق‌شده از درگاه پرداخت' }).click();
+  const viewer = page.getByRole('dialog', { name: 'پیام مریم احمدی در درگاه پرداخت' });
+  await expect(viewer.getByText(/لاگ‌ها روی سرور تست/)).toBeVisible();
+  await page.keyboard.press('Escape');
+
+  // Search finds it with Latin digits and opens the conversation at that message.
+  await page.goto('/chat');
+  await page.getByLabel('جست‌وجو در گفت‌وگوها').fill('4021');
+  const results = page.getByRole('region', { name: 'پیام‌ها' });
+  await results.getByRole('link', { name: /سرور تست/ }).click();
+  await expect(page).toHaveURL(/\?m=/);
+  await expect(page.getByLabel('پیام پیدا شده')).toContainText('سرور تست');
+  await page.getByRole('button', { name: 'رفتن به آخرین پیام‌ها' }).click();
+  await expect(page).not.toHaveURL(/\?m=/);
+
+  // The owner exports the channel; the file has the message, and the export is in the log.
+  const ownerPage = await (await browser.newContext({ baseURL })).newPage();
+  await signInOwner(ownerPage, ownerLogin);
+  await ownerPage.goto('/org/chat-export');
+  await expect(
+    ownerPage.getByText('گفت‌وگوهای خصوصی و گروه هیچ‌وقت خروجی ندارند', { exact: false }),
+  ).toBeVisible();
+  const download = ownerPage.waitForEvent('download');
+  await ownerPage.getByRole('button', { name: 'دریافت فایل درگاه پرداخت' }).click();
+  const file = await download;
+  // The Persian file name is not checked: headless Chromium in a non-UTF-8 container reports
+  // non-ASCII download names as «download»; real browsers keep them.
+  const stream = await file.createReadStream();
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) chunks.push(chunk as Buffer);
+  const csv = Buffer.concat(chunks).toString('utf8');
+  expect(csv).toContain('صفحه خطای پرداخت');
+  expect(csv).toContain('مریم احمدی');
+  await ownerPage.goto('/audit');
+  await expect(ownerPage.getByText('خروجی گرفتن از کانال گفت‌وگو').first()).toBeVisible();
+  await ownerPage.context().close();
 });

@@ -558,6 +558,15 @@ async function main(): Promise<void> {
     await reactAs('maryam.ahmadi', tryIt.id, '👍');
     await reactAs('amir.hosseini', tryIt.id, '🎉');
     await reactAs('maryam.ahmadi', shot.id, '👀');
+    // A task made from that message, with the message pinned as evidence (plan 15c).
+    await app
+      .get(EvidenceService)
+      .createFromMessage(await as('maryam.ahmadi'), shot.id, {
+        title: 'رفع خطای بارگذاری مدرک روی گوشی',
+        assigneeId: idOf('amir.hosseini'),
+        projectId: projectIds.get('kyc') ?? null,
+      })
+      .catch((error: unknown) => logger.warn(`task from message: ${String(error)}`));
     await reactAs('ali.rezaei', shift.id, '👍');
     await reactAs('zahra.mohammadi', shift.id, '👍');
     const dm = await chat.direct(await as('maryam.ahmadi'), idOf('ali.rezaei'));

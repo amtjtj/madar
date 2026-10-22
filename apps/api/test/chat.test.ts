@@ -840,6 +840,10 @@ describe.skipIf(!hasDatabase)('chat', () => {
       await ali.c.get(`/api/chat/search?q=${encodeURIComponent('۴۰۲۱')}`)
     ).body;
     expect(digits.items.map((r) => r.message.id)).toEqual([target.id]);
+    // And the other way: Latin digits typed, Persian digits written.
+    const persian: Message = (await send(maryam, group.id, 'کد پیگیری ۷۷۳۱')).body;
+    const latin: ChatSearchPage = (await ali.c.get('/api/chat/search?q=7731')).body;
+    expect(latin.items.map((r) => r.message.id)).toEqual([persian.id]);
     const outside: ChatSearchPage = (
       await marketer.c.get(`/api/chat/search?q=${encodeURIComponent('سرور تست')}`)
     ).body;

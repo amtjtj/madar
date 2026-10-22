@@ -44,8 +44,11 @@ export default function ChatExportPage() {
           const link = document.createElement('a');
           link.href = url;
           link.download = t('chatExport.fileName', { name: data.channel.title });
+          // In the page, and the URL kept until the download has started, or the name is lost.
+          document.body.append(link);
           link.click();
-          URL.revokeObjectURL(url);
+          link.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 10_000);
           toast({ tone: 'success', title: t('chatExport.done', { name: data.channel.title }) });
         },
         onError: (error) => toast({ tone: 'error', title: errorMessage(error) }),

@@ -89,7 +89,16 @@ export async function setUpCompany(baseURL: string) {
   const manager = await createMember('مریم احمدی', support.id, 'manager');
   const employee = await createMember('علی رضایی', support.id, 'member');
   const outsider = await createMember('شیوا کاظمی', marketing.id, 'member');
-  return { owner, support, marketing, manager, employee, outsider, createMember };
+  return {
+    owner,
+    ownerLogin: { username: `owner.${id}`, secret },
+    support,
+    marketing,
+    manager,
+    employee,
+    outsider,
+    createMember,
+  };
 }
 
 export async function signIn(page: Page, username: string, firstName: string) {
@@ -98,4 +107,15 @@ export async function signIn(page: Page, username: string, firstName: string) {
   await page.getByLabel(/^رمز عبور/).fill(PASSWORD);
   await page.getByRole('button', { name: 'ورود' }).click();
   await expect(page.getByRole('heading', { name: `سلام ${firstName}` })).toBeVisible();
+}
+
+/** The owner signs in through the screens: password, then the authenticator code. */
+export async function signInOwner(page: Page, login: { username: string; secret: string }) {
+  await page.goto('/login');
+  await page.getByLabel('نام کاربری').fill(login.username);
+  await page.getByLabel(/^رمز عبور/).fill(PASSWORD);
+  await page.getByRole('button', { name: 'ورود' }).click();
+  await page.getByLabel('کد شش‌رقمی').fill(totp(login.secret));
+  await page.getByRole('button', { name: 'تایید و ورود' }).click();
+  await expect(page.getByRole('heading', { name: 'سلام رضا' })).toBeVisible();
 }

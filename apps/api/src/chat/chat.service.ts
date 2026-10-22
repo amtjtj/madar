@@ -11,6 +11,7 @@ import {
   mentionsAsText,
   searchExcerpt,
   toLatinDigits,
+  toPersianDigits,
   type ChatSearchPage,
   type ChatSearchQuery,
   type ReactionEmoji,
@@ -425,7 +426,8 @@ export class ChatService {
         join conversations c on c.id = m.conversation_id
         join members a on a.id = m.author_id
         where ${visibleConversationsRaw(me)} and m.deleted_at is null
-          and (m.body ilike ${like(q)} or m.body ilike ${like(toLatinDigits(q))})
+          and (m.body ilike ${like(q)} or m.body ilike ${like(toLatinDigits(q))}
+            or m.body ilike ${like(toPersianDigits(q))})
           ${query.conversationId ? sql`and m.conversation_id = ${query.conversationId}` : sql``}
           ${query.before ? sql`and m.id < ${query.before}` : sql``}
         order by m.id desc
