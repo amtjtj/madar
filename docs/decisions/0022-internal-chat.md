@@ -86,6 +86,9 @@ Plan: `docs/plans/phase-2-step-15b.md`. The product owner accepted all three pro
   - **Direct and group conversations** are "not found" there, like anywhere one may not reach.
   - **Audit:** every export writes `chat.exported` with the channel, the range and the message count, never the text.
   - **Format:** the API returns JSON. The web writes the CSV with a byte order mark and the Persian headings from the i18n file, so the API keeps no user-facing text.
+  - **Formula cells:** a cell that starts with «=», «+», «-», «@», a tab or a carriage return gets a leading «'», so a message can never run as a formula in Excel (`safeCell`).
+  - **Size:** one export holds at most 20,000 messages. Beyond that it is never cut silently: the response says `truncated`, the audit entry records it, and the page asks for a narrower range.
+- **Search ignores mention tokens** (the ids inside `<@…>` are not text) and folds Arabic ي/ك into Persian ی/ک on both sides.
 
 ## Alternatives considered
 - **Copying channel members into `conversation_members`:** two sources of truth that drift whenever a project or department changes from any of its code paths. Reading the source tables keeps the channel exactly in step.

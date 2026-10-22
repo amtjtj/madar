@@ -135,6 +135,9 @@ export class NotificationsConsumer implements EventConsumer {
         return;
       }
       case 'task.evidence_pinned': {
+        // To the assignee and whoever assigned or asked for it (ADR 0021); a task just made from
+        // a message has told them already.
+        if (p.notify === false) return;
         // To the assignee and whoever assigned or asked for it (ADR 0021).
         const task = await this.task(tx, String(p.taskId));
         if (!task) return;

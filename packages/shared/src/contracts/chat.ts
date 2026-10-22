@@ -208,6 +208,8 @@ export type ChatExportQuery = z.infer<typeof chatExportQuery>;
 /** One channel's messages for an export (the web writes the CSV with Persian headings). */
 export const chatExport = z.object({
   channel: exportableChannel.pick({ id: true, kind: true, title: true }),
+  /** More messages than one export holds: a narrower date range gets the rest. */
+  truncated: z.boolean(),
   rows: z.array(
     z.object({
       createdAt: z.iso.datetime(),

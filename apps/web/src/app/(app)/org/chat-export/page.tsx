@@ -49,7 +49,11 @@ export default function ChatExportPage() {
           link.click();
           link.remove();
           setTimeout(() => URL.revokeObjectURL(url), 10_000);
-          toast({ tone: 'success', title: t('chatExport.done', { name: data.channel.title }) });
+          toast(
+            data.truncated
+              ? { tone: 'error', title: t('chatExport.truncated', { name: data.channel.title }) }
+              : { tone: 'success', title: t('chatExport.done', { name: data.channel.title }) },
+          );
         },
         onError: (error) => toast({ tone: 'error', title: errorMessage(error) }),
         onSettled: () => setBusy(null),

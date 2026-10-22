@@ -49,6 +49,9 @@ Plan: `docs/plans/phase-2-step-15c.md`. The product owner accepted pinning direc
   - The message text is never copied into the task: the pin is the only link.
 - **The pin count on a message:** a message carries `pinnedCount` only, because the same payload goes live to every reader. `GET /api/messages/:id/tasks` lists the tasks that reader sees and counts the rest.
 - **History and notifications** name a message by its kind only («یک پیام گفت‌وگو»), never its text.
+- **One notification for a task made from a message:** its assignee gets the assignment, not also a pin notification.
+- **Which department:** a task made in a project channel goes to that project. Otherwise it goes to the maker's own department, like any new task, and is not taken from the channel's department.
+- **Known limit:** the page opened around a search result does not take live messages or pin counts; «رفتن به آخرین پیام‌ها» returns to the live view.
 
 ## Alternatives considered
 - **Copying the letter into the task (a snapshot):** a second copy of sensitive text that the letter's own rules no longer govern. A live, read-only view through one checked path is safer.

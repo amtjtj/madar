@@ -904,6 +904,77 @@ describe.skipIf(!hasDatabase)('chat', () => {
     expect(JSON.stringify(logged[0])).not.toContain('برای خروجی');
   });
 
+  it('message evidence: deleted messages refused, direct talks unnamed, others kept out, one notification', async () => {
+    const dm: Conversation = (
+      await ali.c.post('/api/conversations/direct', { memberId: maryam.memberId })
+    ).body;
+    const said: Message = (await send(maryam, dm.id, 'گزارش روزانه را بفرست')).body;
+    const task: Task = (
+      await ali.c.post(`/api/messages/${said.id}/task`, {
+        title: 'فرستادن گزارش روزانه',
+        assigneeId: lead.memberId,
+      })
+    ).body;
+    expect(task.evidenceCount).toBe(1);
+    const pins: Evidence[] = (await lead.c.get(`/api/tasks/${task.id}/evidence`)).body;
+    expect(pins[0]?.message?.conversation).toEqual({ kind: 'direct', title: null });
+    await settle();
+    const kinds = await withTenant(handle.db, { tenantId }, (tx) =>
+      tx
+        .select({ kind: s.notifications.kind })
+        .from(s.notifications)
+        .where(
+          and(
+            eq(s.notifications.recipientId, lead.memberId),
+            eq(s.notifications.subjectId, task.id),
+          ),
+        ),
+    );
+    expect(kinds.map((k) => k.kind)).toEqual(['task_assigned']);
+
+    // Another company reaches none of it.
+    expect((await other.post(`/api/messages/${said.id}/task`, { title: 'x' })).status).toBe(404);
+    expect((await other.get(`/api/messages/${said.id}/tasks`)).status).toBe(404);
+    const otherSearch: ChatSearchPage = (
+      await other.get(`/api/chat/search?q=${encodeURIComponent('گزارش روزانه')}`)
+    ).body;
+    expect(otherSearch.items).toEqual([]);
+    expect(
+      (await other.post(`/api/tasks/${task.id}/evidence`, { kind: 'message', subjectId: said.id }))
+        .status,
+    ).toBe(404);
+
+    // A deleted message is neither made into a task nor pinned.
+    const gone: Message = (await send(maryam, dm.id, 'اشتباه')).body;
+    await maryam.c.delete(`/api/messages/${gone.id}`);
+    expect((await ali.c.post(`/api/messages/${gone.id}/task`, { title: 'x' })).status).toBe(404);
+    expect(
+      (await ali.c.post(`/api/tasks/${task.id}/evidence`, { kind: 'message', subjectId: gone.id }))
+        .status,
+    ).toBe(404);
+  });
+
+  it('search ignores the ids inside mentions; exports refuse groups and backward ranges', async () => {
+    const group: Conversation = (
+      await ali.c.post('/api/conversations/group', { title: 'شناسه', memberIds: [maryam.memberId] })
+    ).body;
+    await send(ali, group.id, `${mentionToken(maryam.memberId)} سلام`);
+    const noisy: ChatSearchPage = (
+      await ali.c.get(`/api/chat/search?q=019&conversationId=${group.id}`)
+    ).body;
+    expect(noisy.items).toEqual([]);
+    expect((await owner.get(`/api/chat/exports/${group.id}`)).status).toBe(404);
+    const channel: ConversationSummary = (
+      await ali.c.get(`/api/conversations/by-department/${support.id}`)
+    ).body;
+    expect(
+      (await owner.get(`/api/chat/exports/${channel.id}?from=2026-10-10&to=2026-10-01`)).status,
+    ).toBe(400);
+    const exported: ChatExport = (await owner.get(`/api/chat/exports/${channel.id}`)).body;
+    expect(exported.truncated).toBe(false);
+    expect((await owner.get('/api/me')).body.member.permissions['chat.export']).toBe('tenant');
+  });
+
   it('keeps other companies out', async () => {
     const dm: Conversation = (
       await ali.c.post('/api/conversations/direct', { memberId: maryam.memberId })

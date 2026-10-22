@@ -228,6 +228,14 @@ export function highlightParts(text: string, query: string): { text: string; mat
  * A channel export as CSV text: a BOM so Excel reads the Persian, Jalali dates in the company's
  * time zone, files listed by name.
  */
+/**
+ * A cell Excel would run as a formula («=», «+», «-», «@», tab or carriage return first) gets a
+ * leading «'», so a message can never become a formula in the admin's spreadsheet.
+ */
+export function safeCell(value: string): string {
+  return /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+}
+
 export function chatExportCsv(data: ChatExport, timeZone?: string): string {
   const header = csvLine([
     t('chatExport.columns.date'),
@@ -238,13 +246,15 @@ export function chatExportCsv(data: ChatExport, timeZone?: string): string {
   ]);
   const lines = data.rows.map((r) => {
     const at = new Date(r.createdAt);
-    return csvLine([
-      formatJalaliDate(at, 'short', timeZone),
-      formatTime(at, timeZone),
-      r.author,
-      r.edited ? `${r.text} (${t('ui.chat.edited')})` : r.text,
-      r.files.join(t('ui.listSeparator')),
-    ]);
+    return csvLine(
+      [
+        formatJalaliDate(at, 'short', timeZone),
+        formatTime(at, timeZone),
+        r.author,
+        r.edited ? `${r.text} (${t('ui.chat.edited')})` : r.text,
+        r.files.join(t('ui.listSeparator')),
+      ].map(safeCell),
+    );
   });
   return `\uFEFF${[header, ...lines].join('\r\n')}\r\n`;
 }

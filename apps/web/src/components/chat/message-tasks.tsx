@@ -137,7 +137,7 @@ export function PinnedTasks({ message, mine }: { message: Message; mine: boolean
         >
           <Stamp aria-hidden />
           {message.pinnedCount === 1
-            ? t('chat.pinnedOnce')
+            ? t('chat.pinnedOne')
             : t('chat.pinnedMany', { count: formatNumber(message.pinnedCount) })}
         </button>
       }

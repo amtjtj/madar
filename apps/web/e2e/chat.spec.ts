@@ -326,7 +326,7 @@ test('a task from a message, search that jumps to it, and the owner exports the 
   await expect(
     page.getByText('کار «صفحه خطای پرداخت را کسی درست کند» ساخته شد').first(),
   ).toBeVisible();
-  await bubble.getByRole('button', { name: 'کار شد' }).click();
+  await bubble.getByRole('button', { name: 'سنجاق‌شده به کار' }).click();
   await page
     .getByRole('dialog', { name: 'کارهای این پیام' })
     .getByRole('link', { name: 'صفحه خطای پرداخت را کسی درست کند' })

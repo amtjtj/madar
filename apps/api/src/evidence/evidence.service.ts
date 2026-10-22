@@ -169,6 +169,8 @@ export class EvidenceService {
     ctx: TenantContext,
     taskId: string,
     body: PinEvidenceRequest,
+    /** A task made from the message: its assignee is told about the task, not twice. */
+    options: { notify?: boolean } = {},
   ): Promise<Evidence> {
     const task = await this.tasks.requireEditable(tx, ctx, taskId);
     const check =
@@ -203,7 +205,7 @@ export class EvidenceService {
     await emitEvent(
       tx,
       'task.evidence_pinned',
-      { taskId, evidenceId: row.id, kind: row.kind },
+      { taskId, evidenceId: row.id, kind: row.kind, notify: options.notify ?? true },
       ctx.memberId,
     );
     const [presented] = await this.present(tx, ctx, task, [row]);
@@ -244,8 +246,14 @@ export class EvidenceService {
         dueOn: body.dueOn ?? null,
         projectId: body.projectId ?? null,
       });
-      await this.pinIn(tx, ctx, task.id, { kind: 'message', subjectId: messageId });
-      return task;
+      await this.pinIn(
+        tx,
+        ctx,
+        task.id,
+        { kind: 'message', subjectId: messageId },
+        { notify: false },
+      );
+      return { ...task, evidenceCount: task.evidenceCount + 1 };
     });
   }
 

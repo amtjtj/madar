@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   chatExportCsv,
+  safeCell,
   conversationPreview,
   highlightParts,
   decodeMentions,
@@ -145,6 +146,7 @@ describe('chat helpers', () => {
     const csv = chatExportCsv(
       {
         channel: { id: 'c', kind: 'department', title: 'پشتیبانی' },
+        truncated: false,
         rows: [
           {
             createdAt: '2026-10-20T08:00:00Z',
@@ -163,5 +165,12 @@ describe('chat helpers', () => {
     expect(row).toContain('علی رضایی');
     expect(row).toContain('"سلام، ""تیم"""');
     expect(row).toContain('الف.pdf');
+  });
+
+  it('never lets a message become a spreadsheet formula', () => {
+    expect(safeCell('=HYPERLINK("http://x")')).toBe(`'=HYPERLINK("http://x")`);
+    expect(safeCell('+98 912')).toBe("'+98 912");
+    expect(safeCell('@همه')).toBe("'@همه");
+    expect(safeCell('سلام')).toBe('سلام');
   });
 });

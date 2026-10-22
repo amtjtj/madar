@@ -46,6 +46,7 @@ import {
   useMessages,
   useAroundMessages,
   useCountPin,
+  useMessageTasks,
   useReact,
   useSendMessage,
 } from '@/hooks/chat';
@@ -84,6 +85,11 @@ export function ConversationView({ id, focusId = null }: { id: string; focusId?:
   const [making, setMaking] = useState<Message | null>(null);
   const [pinning, setPinning] = useState<Message | null>(null);
   const countPin = useCountPin();
+  // Tasks this message is already on are left out of the pin dialog.
+  const pinnedHere = useMessageTasks(
+    pinning?.id ?? '',
+    pinning !== null && pinning.pinnedCount > 0,
+  );
   const router = useRouter();
   // Opened from a search result: the page around that message instead of the newest ones.
   const around = useAroundMessages(id, focusId);
@@ -489,6 +495,7 @@ export function ConversationView({ id, focusId = null }: { id: string; focusId?:
         <PinToTaskDialog
           kind="message"
           subjectId={pinning.id}
+          excludeTaskIds={pinnedHere.data?.visible.map((task) => task.id)}
           open
           onOpenChange={(open) => !open && setPinning(null)}
           onPinned={() => countPin(pinning)}

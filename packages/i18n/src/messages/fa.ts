@@ -654,7 +654,7 @@ export const fa = {
     taskAssigneeHint: 'اگر کسی را انتخاب نکنی، خودت مسئولی.',
     pinToTask: 'سنجاق به کار',
     pinnedTasksTitle: 'کارهای این پیام',
-    pinnedOnce: 'کار شد',
+    pinnedOne: 'سنجاق‌شده به کار',
     pinnedMany: 'سنجاق‌شده به {count} کار',
     pinnedHidden: 'و {count} کار دیگر که شما نمی‌بینید.',
     searchMessages: 'پیام‌ها',
@@ -717,6 +717,8 @@ export const fa = {
     empty: 'کانالی برای خروجی نیست',
     emptyHint: 'با ساختن پروژه یا دپارتمان، کانالش اینجا می‌آید.',
     done: 'فایل {name} آماده شد',
+    truncated:
+      'فایل {name} فقط بیست هزار پیام اول را دارد؛ برای بقیه، بازه تاریخ کوتاه‌تری انتخاب کن.',
     columns: { date: 'تاریخ', time: 'ساعت', author: 'نویسنده', text: 'متن', files: 'فایل‌ها' },
     fileName: 'گفت‌وگوی {name}.csv',
   },

@@ -13,7 +13,7 @@ import {
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 
 import type { TenantContext } from '../common/context.js';
-import { forbidden, notFound } from '../common/errors.js';
+import { badRequest, forbidden, notFound } from '../common/errors.js';
 import { TenantDb } from '../database/tenant-db.service.js';
 
 /** The most messages one export returns (a narrower date range gets the rest). */
@@ -56,6 +56,7 @@ export class ChatExportService {
 
   export(ctx: TenantContext, id: string, query: ChatExportQuery): Promise<ChatExport> {
     this.requirePermission(ctx);
+    if (query.from && query.to && query.from > query.to) throw badRequest('from is after to');
     return this.db.run(ctx, async (tx) => {
       const [channel] = await tx
         .select({
@@ -77,7 +78,7 @@ export class ChatExportService {
         .from(s.tenants)
         .where(eq(s.tenants.id, ctx.tenantId));
       const tz = tenant?.timezone ?? 'Asia/Tehran';
-      const rows = await tx
+      const fetched = await tx
         .select({ message: s.messages, author: s.members.displayName })
         .from(s.messages)
         .innerJoin(s.members, eq(s.members.id, s.messages.authorId))
@@ -94,7 +95,10 @@ export class ChatExportService {
           ),
         )
         .orderBy(asc(s.messages.id))
-        .limit(EXPORT_MAX);
+        .limit(EXPORT_MAX + 1);
+      // Never cut silently: the file and the audit entry say so, and a narrower range gets the rest.
+      const truncated = fetched.length > EXPORT_MAX;
+      const rows = fetched.slice(0, EXPORT_MAX);
       const ids = rows.map((r) => r.message.id);
       const files = ids.length
         ? await tx
@@ -118,11 +122,16 @@ export class ChatExportService {
             .where(inArray(s.members.id, tokenIds))
         : [];
       const names = new Map(people.map((p) => [p.id, p.displayName]));
+      const filesOf = new Map<string, string[]>();
+      for (const f of files) {
+        if (!f.subjectId) continue;
+        filesOf.set(f.subjectId, [...(filesOf.get(f.subjectId) ?? []), f.fileName]);
+      }
       await this.db.audit(tx, ctx, {
         action: 'chat.exported',
         subjectType: 'conversation',
         subjectId: id,
-        after: { from: query.from ?? null, to: query.to ?? null, messages: rows.length },
+        after: { from: query.from ?? null, to: query.to ?? null, messages: rows.length, truncated },
       });
       return {
         channel: {
@@ -130,11 +139,12 @@ export class ChatExportService {
           kind: channel.kind as 'project' | 'department',
           title: channel.project ?? channel.department ?? '',
         },
+        truncated,
         rows: rows.map(({ message, author }) => ({
           createdAt: message.createdAt.toISOString(),
           author,
           text: mentionsAsText(message.body, names),
-          files: files.filter((f) => f.subjectId === message.id).map((f) => f.fileName),
+          files: filesOf.get(message.id) ?? [],
           edited: Boolean(message.editedAt),
         })),
       };
