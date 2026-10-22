@@ -123,7 +123,12 @@ export function DecisionItem({
   className,
 }: DecisionItemProps) {
   return (
-    <div className={cn('flex items-start gap-3 rounded-xl border border-line p-3', className)}>
+    <div
+      className={cn(
+        'flex flex-wrap items-start gap-3 rounded-xl border border-line p-3',
+        className,
+      )}
+    >
       <span
         className={cn(
           'mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg [&_svg]:size-4',
@@ -161,7 +166,11 @@ export function DecisionItem({
           </div>
         )}
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
+      {actions && (
+        <div className="flex basis-full items-center justify-end gap-1 sm:basis-auto sm:shrink-0">
+          {actions}
+        </div>
+      )}
     </div>
   );
 }

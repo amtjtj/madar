@@ -9,6 +9,7 @@ import {
   MEETING_TITLE_MAX,
   MEETING_TYPES,
   calendarDateIn,
+  toPersianDigits,
   type Meeting,
   type MeetingType,
 } from '@madar/shared';
@@ -45,6 +46,16 @@ export function MeetingFormPage() {
       timeZone={me.tenant?.timezone}
     />
   );
+}
+
+/** Every quarter hour, in Persian digits; an odd saved time stays selectable. */
+function timeOptions(current: string) {
+  const times = Array.from({ length: 96 }, (_, i) => {
+    const h = String(Math.floor(i / 4)).padStart(2, '0');
+    return `${h}:${String((i % 4) * 15).padStart(2, '0')}`;
+  });
+  if (!times.includes(current)) times.push(current);
+  return times.sort().map((value) => ({ value, label: toPersianDigits(value) }));
 }
 
 function MeetingForm({
@@ -148,19 +159,17 @@ function MeetingForm({
                 onChange={(next) => next && setDate(next)}
                 today={today}
               />
-              <TextField
+              <SelectField
                 label={t('meetings.form.start')}
-                type="time"
-                dir="ltr"
                 value={start}
                 onChange={(e) => setStart(e.target.value)}
+                options={timeOptions(start)}
               />
-              <TextField
+              <SelectField
                 label={t('meetings.form.end')}
-                type="time"
-                dir="ltr"
                 value={end}
                 onChange={(e) => setEnd(e.target.value)}
+                options={timeOptions(end)}
               />
             </div>
             <RecipientPicker
