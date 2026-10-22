@@ -321,6 +321,14 @@ describe.skipIf(!hasDatabase)('meetings', () => {
     // A participant may remove it; oversight may not.
     expect((await director.c.delete(`/api/attachments/${up.id}`)).status).toBe(403);
     expect((await zahra.c.delete(`/api/attachments/${up.id}`)).status).toBe(204);
+    const [audit] = await withTenant(handle.db, { tenantId }, (tx) =>
+      tx
+        .select({ before: s.auditLogs.before })
+        .from(s.auditLogs)
+        .where(and(eq(s.auditLogs.subjectId, up.id), eq(s.auditLogs.action, 'attachment.deleted'))),
+    );
+    // A one-on-one's minutes can be private: the log keeps no file name.
+    expect(JSON.stringify(audit?.before)).not.toContain('صورت‌جلسه.pdf');
 
     await settle();
     const told = (await notificationsOf(maryam.memberId, 'meeting_minutes')).filter(
@@ -427,7 +435,7 @@ describe.skipIf(!hasDatabase)('meetings', () => {
     expect(after.decisions[0]?.keyResult).toMatchObject({ id: keyResultId });
   });
 
-  it('shows only the title of a meeting the task viewer cannot open', async () => {
+  it('never shows a one-on-one title to a task viewer outside it', async () => {
     const oneOnOne = await schedule(maryam, {
       type: 'one_on_one',
       title: 'گفت‌وگوی ماهانه',
@@ -443,7 +451,7 @@ describe.skipIf(!hasDatabase)('meetings', () => {
       )
     ).body;
     const forZahra: Task = (await zahra.c.get(`/api/tasks/${task.id}`)).body;
-    expect(forZahra.meeting).toEqual({ id: oneOnOne.id, title: 'گفت‌وگوی ماهانه', visible: false });
+    expect(forZahra.meeting).toEqual({ id: oneOnOne.id, title: null, visible: false });
   });
 
   it('keeps past meetings in pages, newest first', async () => {
@@ -453,13 +461,34 @@ describe.skipIf(!hasDatabase)('meetings', () => {
     }
     const first: MeetingList = (await ali.c.get('/api/meetings?range=past&limit=2')).body;
     expect(first.items.map((m) => m.id)).toEqual([ids[2], ids[1]]);
-    expect(first.nextBefore).not.toBeNull();
+    expect(first.next).not.toBeNull();
     const next: MeetingList = (
       await ali.c.get(
-        `/api/meetings?range=past&limit=2&before=${encodeURIComponent(first.nextBefore ?? '')}`,
+        `/api/meetings?range=past&limit=2&cursor=${encodeURIComponent(first.next ?? '')}`,
       )
     ).body;
     expect(next.items.map((m) => m.id)).toContain(ids[0]);
+  });
+
+  it('pages upcoming meetings nearest first and refuses a malformed cursor', async () => {
+    const ids: string[] = [];
+    for (const h of [200, 201, 202]) {
+      ids.push((await schedule(maryam, { startsAt: at(h), endsAt: at(h + 0.5) })).id);
+    }
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    do {
+      const query = cursor ? `&cursor=${encodeURIComponent(cursor)}` : '';
+      const page: MeetingList = (await maryam.c.get(`/api/meetings?range=upcoming&limit=2${query}`))
+        .body;
+      seen.push(...page.items.map((m) => m.id));
+      cursor = page.next;
+    } while (cursor);
+    expect(seen.filter((id) => ids.includes(id))).toEqual(ids);
+    const bad = await maryam.c.get(
+      `/api/meetings?cursor=${encodeURIComponent('2026-01-01T00:00:00.000000Z_' + '-'.repeat(36))}`,
+    );
+    expect(bad.status).toBe(400);
   });
 
   it('a read-only company opens meetings but changes nothing', async () => {

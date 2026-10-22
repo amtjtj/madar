@@ -74,17 +74,19 @@ export type Meeting = z.infer<typeof meeting>;
 
 export const meetingList = z.object({
   items: z.array(meetingSummary),
-  /** Pass as `before` for the next page of past meetings; null on the last page. */
-  nextBefore: z.string().nullable(),
+  /** Pass as `cursor` for the next page (later upcoming, older past); null on the last page. */
+  next: z.string().nullable(),
 });
 export type MeetingList = z.infer<typeof meetingList>;
 
 export const listMeetingsQuery = z.object({
   range: z.enum(MEETING_RANGES).default('upcoming'),
-  /** `nextBefore` of the previous page: the last row's start (UTC, microseconds) and id. */
-  before: z
+  /** `next` of the previous page: the last row's start (UTC, microseconds) and id. */
+  cursor: z
     .string()
-    .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z_[0-9a-f-]{36}$/)
+    .regex(
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    )
     .optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });

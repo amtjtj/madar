@@ -984,7 +984,6 @@ export const fa = {
       add: 'افزودن مصوبه',
       placeholder: 'مثلاً: صف برداشت هر روز ساعت ۹ بررسی شود',
       save: 'افزودن',
-      edit: 'ویرایش',
       delete: 'حذف مصوبه',
       deleted: 'مصوبه حذف شد',
       convert: 'تبدیل به کار',
@@ -1007,6 +1006,7 @@ export const fa = {
       cancel: 'انصراف',
     },
     fromMeeting: 'از جلسه: {title}',
+    fromOneOnOne: 'از یک جلسه یک‌به‌یک',
   },
   notifications: {
     title: 'اعلان‌ها',

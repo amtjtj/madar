@@ -18,6 +18,7 @@ import {
   Card,
   CardContent,
   DatePicker,
+  EmptyState,
   SelectField,
   Skeleton,
   TextField,
@@ -36,9 +37,13 @@ import { LiteField } from './lite-field';
 /** «جلسه تازه», or «ویرایش جلسه» with `?edit=<id>` (the organizer only). */
 export function MeetingFormPage() {
   const editId = useSearchParams().get('edit') ?? undefined;
-  const { data: meeting, isPending } = useMeeting(editId);
+  const { data: meeting, isPending, isError } = useMeeting(editId);
   const { data: me } = useMe();
   if (!me || (editId && isPending)) return <Skeleton className="h-96 rounded-2xl" />;
+  // Editing never falls back to a new meeting: a missing or someone else's meeting stops here.
+  if (editId && (isError || !meeting?.can.edit)) {
+    return <EmptyState title={t('meetings.notFound')} />;
+  }
   return (
     <MeetingForm
       meeting={editId ? meeting : undefined}

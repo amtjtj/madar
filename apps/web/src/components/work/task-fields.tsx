@@ -126,11 +126,13 @@ export function TaskFields({ task }: { task: Task }) {
                   href={`/meetings/${task.meeting.id}`}
                   className="text-primary-ink hover:underline"
                 >
-                  {t('meetings.fromMeeting', { title: task.meeting.title })}
+                  {t('meetings.fromMeeting', { title: task.meeting.title ?? '' })}
                 </Link>
               ) : (
                 <span className="text-ink">
-                  {t('meetings.fromMeeting', { title: task.meeting.title })}
+                  {task.meeting.title
+                    ? t('meetings.fromMeeting', { title: task.meeting.title })
+                    : t('meetings.fromOneOnOne')}
                 </span>
               )}
             </dd>

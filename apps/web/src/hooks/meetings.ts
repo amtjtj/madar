@@ -23,10 +23,10 @@ export function useMeetings(range: MeetingRange) {
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) => {
       const params = new URLSearchParams({ range });
-      if (pageParam) params.set('before', pageParam);
+      if (pageParam) params.set('cursor', pageParam);
       return api<MeetingList>(`/api/meetings?${params.toString()}`);
     },
-    getNextPageParam: (last) => last.nextBefore ?? undefined,
+    getNextPageParam: (last) => last.next ?? undefined,
   });
 }
 
@@ -80,15 +80,6 @@ export function useSaveMinutes(id: string) {
 export function useAddDecision(id: string) {
   return useMeetingMutation((text: string) =>
     api<Meeting>(`/api/meetings/${id}/decisions`, { method: 'POST', body: { text } }),
-  );
-}
-
-export function useUpdateDecision(id: string) {
-  return useMeetingMutation(({ decisionId, text }: { decisionId: string; text: string }) =>
-    api<Meeting>(`/api/meetings/${id}/decisions/${decisionId}`, {
-      method: 'PATCH',
-      body: { text },
-    }),
   );
 }
 

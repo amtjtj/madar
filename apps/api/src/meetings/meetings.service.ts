@@ -73,41 +73,38 @@ export class MeetingsService {
     private readonly tasks: TasksService,
   ) {}
 
+  /** Upcoming (under way or to come) nearest first, or past newest first; both in pages. */
   list(ctx: TenantContext, query: ListMeetingsQuery): Promise<MeetingList> {
     return this.db.run(ctx, async (tx) => {
       const now = new Date();
-      if (query.range === 'upcoming') {
-        // Under way or still to come, nearest first.
-        const rows = await this.summaryQuery(tx)
-          .where(and(visibleMeetings(ctx.actor), gt(s.meetings.endsAt, now)))
-          .orderBy(asc(s.meetings.startsAt), asc(s.meetings.id))
-          .limit(query.limit);
-        return { items: rows.map(toSummary), nextBefore: null };
-      }
-      const cursor = query.before
+      const upcoming = query.range === 'upcoming';
+      const cursor = query.cursor
         ? {
-            at: query.before.slice(0, query.before.lastIndexOf('_')),
-            id: query.before.slice(query.before.lastIndexOf('_') + 1),
+            at: query.cursor.slice(0, query.cursor.lastIndexOf('_')),
+            id: query.cursor.slice(query.cursor.lastIndexOf('_') + 1),
           }
         : null;
+      const key = sql`(${s.meetings.startsAt}, ${s.meetings.id})`;
+      const after = cursor ? sql`(${cursor.at}::timestamptz, ${cursor.id}::uuid)` : null;
       const rows = await this.summaryQuery(tx)
         .where(
           and(
             visibleMeetings(ctx.actor),
-            lte(s.meetings.endsAt, now),
-            cursor
-              ? sql`(${s.meetings.startsAt}, ${s.meetings.id}) < (${cursor.at}::timestamptz, ${cursor.id}::uuid)`
-              : undefined,
+            upcoming ? gt(s.meetings.endsAt, now) : lte(s.meetings.endsAt, now),
+            after ? (upcoming ? sql`${key} > ${after}` : sql`${key} < ${after}`) : undefined,
           ),
         )
-        .orderBy(desc(s.meetings.startsAt), desc(s.meetings.id))
+        .orderBy(
+          ...(upcoming
+            ? [asc(s.meetings.startsAt), asc(s.meetings.id)]
+            : [desc(s.meetings.startsAt), desc(s.meetings.id)]),
+        )
         .limit(query.limit + 1);
       const page = rows.slice(0, query.limit);
       const last = page.at(-1);
       return {
         items: page.map(toSummary),
-        nextBefore:
-          rows.length > query.limit && last ? `${last.cursorAt}_${last.meeting.id}` : null,
+        next: rows.length > query.limit && last ? `${last.cursorAt}_${last.meeting.id}` : null,
       };
     });
   }

@@ -69,6 +69,7 @@ export class MeetingsController {
   }
 
   @Patch(':id')
+  @RateLimit({ max: 60, windowMs: 3_600_000 })
   update(
     @Tenant() ctx: TenantContext,
     @Param('id', ParseUUIDPipe) id: string,

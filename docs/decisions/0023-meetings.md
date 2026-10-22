@@ -26,21 +26,22 @@ Phase 2, step 13a (`docs/plans/phase-2-step-13a.md`), from the team review (`doc
   - The people taking part write the minutes and decisions (answer 1). Oversight readers only read.
   - A canceled meeting is read-only (`meeting_canceled`).
   - Links are http(s) only (`meeting_link_invalid`); the page opens them with `rel="noopener noreferrer"`.
-- **Minutes.** One shared lite text (ADR 0020), never HTML. A save carries the version it started from; a stale one gets `minutes_version_conflict`, and the page offers to reload. The first save also races safely (`insert … on conflict do nothing`). Files: up to 10, bound with `bindUploads`; a file is removed with the attachment endpoint by anyone who may write the minutes.
+- **Minutes.** One shared lite text (ADR 0020), never HTML. Removing a minutes file audits only its size (like a draft letter's) and refreshes the meeting live. A save carries the version it started from; a stale one gets `minutes_version_conflict`, and the page offers to reload. The first save also races safely (`insert … on conflict do nothing`). Files: up to 10, bound with `bindUploads`; a file is removed with the attachment endpoint by anyone who may write the minutes.
 - **Decision to task.**
   - `MeetingsService.convertDecision` calls `TasksService.createIn` in the same transaction, in the meeting's department, so the converter needs the usual right to create tasks there (`canCreateIn`).
   - `createIn` takes an `origin`: `{ meeting: true }` sets the source to `meeting` at creation (ADR 0017), even without an assignee, so a later assignment keeps it; `keyResultId` links the key result (checked with `requireLinkableKeyResult`, OKR reviews only).
   - One task per decision (`decision_has_task`). The decision then becomes fixed: no edit, no delete.
-  - The task keeps its own access rules. A meeting page shows a decision's task title and assignee only to viewers who may see the task; others read only that a task exists. A task shows «از جلسه: …» with a link only when the viewer sees the meeting; otherwise the title alone.
+  - The task keeps its own access rules. A meeting page shows a decision's task title and assignee only to viewers who may see the task; others read only that a task exists. A task shows «از جلسه: …» with a link only when the viewer sees the meeting; otherwise the title alone, and for a one-on-one not even that (only «از یک جلسه یک‌به‌یک»).
 - **Events, notifications and realtime.**
   - Events: `meeting.scheduled` (with the invited people), `meeting.updated` (`notify` when the time, place or link changed; `removedIds`), `meeting.canceled`, `meeting.minutes_recorded` (`first`), `meeting.decision_converted`.
-  - Notification kinds: `meeting_invited`, `meeting_changed`, `meeting_canceled`, `meeting_minutes` (first save only). Payload: the title and `startsAt`; the web words the date and time. Push stays content-free.
+  - Notification kinds: `meeting_invited` (deduplicated per meeting and person, so removing and adding someone again never invites twice), `meeting_changed`, `meeting_canceled`, `meeting_minutes` (first save only). Editing a meeting is rate-limited (60 an hour). Payload: the title and `startsAt`; the web words the date and time. Push stays content-free.
   - The decision's task notifies its assignee through the normal `task.assigned`.
   - Realtime hint `meetings.changed` to the personal rooms of the participants and anyone just removed.
-- **Screens.** `/meetings` (upcoming grouped today / tomorrow / this week / later, past newest first with paging), `/meetings/new` (also `?edit=<id>`), `/meetings/[id]` (people, agenda, minutes, decisions, convert dialog), a «جلسه‌های امروز» card on the today screen (meetings the person takes part in, not oversight), and the task back-link. Desktop: «جلسه‌ها» in the sidebar. Phones: the today card and the «سازمان» hub, which is now always in the tab bar (answer 3). Times are picked from quarter-hour lists in Persian digits and stored as UTC instants built in the company's time zone (`zonedInstant`).
+- **Screens.** `/meetings` (upcoming grouped today / tomorrow / this week / later, past newest first; both paged with a `(starts_at, id)` cursor), `/meetings/new` (also `?edit=<id>`), `/meetings/[id]` (people, agenda, minutes, decisions, convert dialog), a «جلسه‌های امروز» card on the today screen (meetings the person takes part in, not oversight), and the task back-link. Desktop: «جلسه‌ها» in the sidebar. Phones: the today card and the «سازمان» hub, which is now always in the tab bar (answer 3). Times are picked from quarter-hour lists in Persian digits and stored as UTC instants built in the company's time zone (`zonedInstant`).
 
 ## Consequences
-- Meeting titles of tasks are shown to task viewers who cannot open the meeting. A one-on-one's title is therefore visible to whoever sees a task made from it; organizers should title one-on-ones neutrally.
+- A regular meeting's title is shown to task viewers who cannot open the meeting (the decision's context); a one-on-one's title never is.
+- Minutes overwrites and deleting a decision without a task are not audited (only `updated_by` is kept); 13b may add minutes history.
 - Oversight readers get no live refresh (hints go to participants only); their pages refresh on the next load.
 - Decisions are ordered by creation, not by hand (the plan's manual order was left out).
 - 13b builds on these tables: a `meeting_series` table, `meeting_participants.response`, a worker reminder, and an `evidence_kind` value `minutes` with its provider.

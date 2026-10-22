@@ -911,6 +911,7 @@ export class TasksService {
         taskId: s.meetingDecisions.taskId,
         id: s.meetings.id,
         title: s.meetings.title,
+        type: s.meetings.type,
         visible: sql<boolean>`${visibleMeetings(ctx.actor)}`,
       })
       .from(s.meetingDecisions)
@@ -963,7 +964,9 @@ export class TasksService {
           keyResult: (r.task.keyResultId && keyResults.get(r.task.keyResultId)) || null,
           meeting: (() => {
             const link = meetingLinks.find((m) => m.taskId === r.task.id);
-            return link ? { id: link.id, title: link.title, visible: link.visible } : null;
+            if (!link) return null;
+            const hidden = !link.visible && link.type === 'one_on_one';
+            return { id: link.id, title: hidden ? null : link.title, visible: link.visible };
           })(),
           source: r.task.source
             ? {

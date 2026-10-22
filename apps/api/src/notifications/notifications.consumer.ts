@@ -270,7 +270,11 @@ export class NotificationsConsumer implements EventConsumer {
             subjectType: 'meeting',
             subjectId: meeting.id,
             payload: { title: meeting.title, data: { startsAt: meeting.startsAt.toISOString() } },
-            dedupeKey: `event:${event.id}`,
+            // Removing and adding someone again never invites them twice.
+            dedupeKey:
+              kind === 'meeting_invited'
+                ? `invite:${meeting.id}:${recipientId}`
+                : `event:${event.id}`,
           });
         }
         return;

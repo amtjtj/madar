@@ -71,8 +71,13 @@ export const task = z.object({
       ceo: z.boolean(),
     })
     .nullable(),
-  /** The meeting whose decision this task came from (ADR 0023); its title links only if visible. */
-  meeting: z.object({ id: z.uuid(), title: z.string(), visible: z.boolean() }).nullable(),
+  /**
+   * The meeting whose decision this task came from (ADR 0023): a link only if visible; a
+   * one-on-one the viewer cannot open has no title (only its two people know it).
+   */
+  meeting: z
+    .object({ id: z.uuid(), title: z.string().nullable(), visible: z.boolean() })
+    .nullable(),
   /** Automatic priority (company weights) and why, strongest reason first. */
   rank: z.object({ score: z.number(), reasons: z.array(z.enum(RANK_REASONS)) }),
   createdAt: z.iso.datetime(),

@@ -620,14 +620,12 @@ async function main(): Promise<void> {
     });
     const firstDecision = reviewMeeting.decisions[0];
     if (firstDecision) {
-      await meetings
-        .convertDecision(await as('maryam.ahmadi'), review.id, firstDecision.id, {
-          title: 'به‌روزرسانی پاسخ‌های آماده پرتکرار',
-          assigneeId: idOf('ali.rezaei'),
-          dueOn: addDays(today, 5),
-          keyResultId: krIds.get('response') ?? null,
-        })
-        .catch((error: unknown) => logger.warn(`decision task: ${String(error)}`));
+      await meetings.convertDecision(await as('maryam.ahmadi'), review.id, firstDecision.id, {
+        title: 'به‌روزرسانی پاسخ‌های آماده پرتکرار',
+        assigneeId: idOf('ali.rezaei'),
+        dueOn: addDays(today, 5),
+        keyResultId: krIds.get('response') ?? null,
+      });
     }
     const sync = await meetings.create(await as('maryam.ahmadi'), {
       type: 'regular',

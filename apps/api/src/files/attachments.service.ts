@@ -318,10 +318,12 @@ export class AttachmentsService implements OnModuleInit {
       const row = await this.visible(tx, ctx, id);
       // A message's files go with the message (deleting the message removes them).
       if (row.subjectType === 'message') throw forbidden();
+      let meetingId: string | null = null;
       if (row.subjectType === 'minutes') {
         // Anyone who may write the minutes, while the meeting is not canceled (ADR 0023).
         const meeting = await this.minutesMeeting(tx, ctx, row);
         if (!meeting?.writes || meeting.canceledAt) throw forbidden();
+        meetingId = meeting.id;
       }
       if (row.subjectType === 'letter') {
         // A sent letter is permanent, files included; a draft's files are its sender's.
@@ -338,12 +340,22 @@ export class AttachmentsService implements OnModuleInit {
         action: 'attachment.deleted',
         subjectType: 'attachment',
         subjectId: id,
-        // A draft letter's file names can be confidential; the log keeps only the size.
+        // Draft letter and minutes file names can be confidential (a one-on-one's minutes, ADR
+        // 0023); the log keeps only the size.
         before:
-          row.subjectType === 'letter'
+          row.subjectType === 'letter' || row.subjectType === 'minutes'
             ? { size: row.size, subject: row.subjectType }
             : { fileName: row.fileName, size: row.size, subject: row.subjectType, taskId },
       });
+      if (meetingId) {
+        // The other people on the meeting refresh its page.
+        await emitEvent(
+          tx,
+          'meeting.updated',
+          { meetingId, notify: false, removedIds: [] },
+          ctx.memberId,
+        );
+      }
       if (taskId) {
         await recordActivity(tx, {
           subjectType: 'task',
