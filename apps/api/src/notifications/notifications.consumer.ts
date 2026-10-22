@@ -150,7 +150,10 @@ export class NotificationsConsumer implements EventConsumer {
             kind: 'task_evidence_pinned',
             subjectType: 'task',
             subjectId: task.id,
-            payload: { title: task.title },
+            payload:
+              p.kind === 'message'
+                ? { title: task.title, data: { message: 1 } }
+                : { title: task.title },
             dedupeKey: `event:${event.id}`,
           });
         }

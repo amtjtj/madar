@@ -148,6 +148,13 @@
       "when": 1792662069856,
       "tag": "0020_chat_extras",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792706889145,
+      "tag": "0021_message_evidence",
+      "breakpoints": true
     }
   ]
 }

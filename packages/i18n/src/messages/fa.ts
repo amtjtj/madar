@@ -414,6 +414,8 @@ export const fa = {
       attachment_removed: '{actor} فایل {files} را حذف کرد',
       evidence_pinned: '{actor} نامه {number} را به‌عنوان شاهد سنجاق کرد',
       evidence_unpinned: '{actor} شاهد نامه {number} را برداشت',
+      message_pinned: '{actor} یک پیام گفت‌وگو را به‌عنوان شاهد سنجاق کرد',
+      message_unpinned: '{actor} شاهد پیام گفت‌وگو را برداشت',
     },
     fields: {
       title: 'عنوان',
@@ -853,6 +855,8 @@ export const fa = {
       project_member_added: '{actor} تو را به پروژه «{title}» اضافه کرد',
       task_progress: '{actor} پیشرفت «{title}» را به‌روز کرد',
       task_evidence_pinned: '{actor} برای «{title}» یک نامه به‌عنوان شاهد سنجاق کرد',
+      task_evidence_pinned_message:
+        '{actor} برای «{title}» یک پیام گفت‌وگو به‌عنوان شاهد سنجاق کرد',
       project_observer_added: '{actor} تو را به‌عنوان ناظر به پروژه «{title}» اضافه کرد',
       letter_received: '{actor} نامه «{title}» را برایت فرستاد',
       letter_received_confidential: 'نامه محرمانه‌ای از {actor} رسید',
@@ -1259,6 +1263,7 @@ export const fa = {
       letter_referred: 'ارجاع نامه',
       letter_confidential_opened: 'باز کردن نامه محرمانه',
       task_evidence_pinned: 'سنجاق شاهد به کار',
+      chat_exported: 'خروجی گرفتن از کانال گفت‌وگو',
       task_evidence_unpinned: 'برداشتن شاهد از کار',
       file_settings_updated: 'تغییر سقف حجم فایل',
       tenant_created: 'ثبت شرکت',

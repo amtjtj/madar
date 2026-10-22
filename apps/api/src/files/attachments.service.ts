@@ -27,6 +27,7 @@ import { TenantDb } from '../database/tenant-db.service.js';
 import { visibleConversations } from '../chat/access.js';
 import { visibleLetters } from '../letters/access.js';
 import { pinnedToVisibleTask } from '../evidence/letter-provider.js';
+import { messagePinnedToVisibleTask } from '../evidence/message-provider.js';
 import { canEditTask, visibleTasks } from '../work/access.js';
 import { TasksService } from '../work/tasks.service.js';
 import { attachmentRows, bindUploads, toAttachment, type AttachmentRow } from './attachments-db.js';
@@ -368,14 +369,28 @@ export class AttachmentsService implements OnModuleInit {
       return row;
     }
     if (row.subjectType === 'message') {
-      // Whoever reads the conversation now; a deleted message's files are gone (ADR 0022).
-      if (!(await this.messageVisible(tx, ctx, row))) throw notFound('Attachment');
+      // Whoever reads the conversation now, or anyone who sees a task it is pinned to (plan 15c);
+      // a deleted message's files are gone (ADR 0022).
+      if (
+        !(await this.messageVisible(tx, ctx, row)) &&
+        !(await this.messagePinnedForViewer(tx, ctx, row))
+      ) {
+        throw notFound('Attachment');
+      }
       return row;
     }
     const taskId = await this.taskOf(tx, row);
     if (!taskId) throw notFound('Attachment');
     await this.tasks.requireVisible(tx, ctx, taskId);
     return row;
+  }
+
+  private async messagePinnedForViewer(tx: Tx, ctx: TenantContext, row: AttachmentRow) {
+    if (!row.subjectId) return false;
+    const result = await tx.execute<{ ok: boolean }>(
+      sql`select ${messagePinnedToVisibleTask(row.subjectId, visibleTasks(ctx.actor))} as ok`,
+    );
+    return Boolean(result.rows[0]?.ok);
   }
 
   private async messageVisible(tx: Tx, ctx: TenantContext, row: AttachmentRow) {

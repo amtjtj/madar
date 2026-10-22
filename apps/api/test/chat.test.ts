@@ -5,7 +5,14 @@ import {
   type Conversation,
   type ConversationSummary,
   type Message,
+  type ChatExport,
+  type ChatSearchPage,
+  type EvidenceDetail,
+  type Evidence,
+  type ExportableChannel,
   type MessagePage,
+  type MessageTasks,
+  type Task,
   type Upload,
   mentionToken,
 } from '@madar/shared';
@@ -741,6 +748,156 @@ describe.skipIf(!hasDatabase)('chat', () => {
 
     await lead.c.post(`/api/projects/${project.id}/archive`);
     expect((await react(ali)).status).toBe(403);
+  });
+
+  it('a task made from a message: pinned, read through the task only, unpinning closes it', async () => {
+    const channel: ConversationSummary = (
+      await ali.c.get(`/api/conversations/by-department/${support.id}`)
+    ).body;
+    const up: Upload = (await ali.c.upload('/api/uploads', PDF, 'لاگ.pdf')).body;
+    const sent: Message = (
+      await ali.c.post(`/api/conversations/${channel.id}/messages`, {
+        body: `صفحه خطای پرداخت را ${mentionToken(maryam.memberId)} ببیند\nجزئیات در فایل`,
+        uploadIds: [up.id],
+      })
+    ).body;
+    // The marketer is not in the channel; she gets the task.
+    const made = await ali.c.post(`/api/messages/${sent.id}/task`, {
+      title: 'درست کردن صفحه خطای پرداخت',
+      assigneeId: marketer.memberId,
+    });
+    expect(made.status).toBe(201);
+    const task: Task = made.body;
+    const pins: Evidence[] = (await marketer.c.get(`/api/tasks/${task.id}/evidence`)).body;
+    expect(pins).toHaveLength(1);
+    expect(pins[0]?.kind).toBe('message');
+    expect(pins[0]?.message).toMatchObject({
+      conversation: { kind: 'department', title: 'پشتیبانی' },
+      attachmentCount: 1,
+    });
+    expect(pins[0]?.message?.excerpt).toContain('@');
+    expect(pins[0]?.message?.excerpt).not.toContain(maryam.memberId);
+    const detail: EvidenceDetail = (
+      await marketer.c.get(`/api/tasks/${task.id}/evidence/${pins[0]?.id}`)
+    ).body;
+    expect(detail.messageText).toContain('جزئیات در فایل');
+    expect(detail.body).toBeNull();
+    const file = `/api/attachments/${up.id}/file`;
+    expect((await marketer.c.download(file)).status).toBe(200);
+    // Only that message: the conversation stays closed to her.
+    expect((await marketer.c.get(`/api/conversations/${channel.id}`)).status).toBe(404);
+    expect((await marketer.c.get(`/api/messages/${sent.id}/tasks`)).status).toBe(404);
+    const where: MessageTasks = (await ali.c.get(`/api/messages/${sent.id}/tasks`)).body;
+    expect(where.visible.map((t) => t.title)).toEqual(['درست کردن صفحه خطای پرداخت']);
+    const page: MessagePage = (await ali.c.get(`/api/conversations/${channel.id}/messages`)).body;
+    expect(page.items.find((m) => m.id === sent.id)?.pinnedCount).toBe(1);
+
+    // Someone who cannot read the message cannot make a task from it.
+    expect((await marketer.c.post(`/api/messages/${sent.id}/task`, { title: 'x' })).status).toBe(
+      404,
+    );
+    // A pin on a task the reader does not see is only counted.
+    const secret = (await lead.c.post('/api/projects', { name: 'محرمانه', visibility: 'private' }))
+      .body;
+    const hiddenTask: Task = (
+      await lead.c.post('/api/tasks', { title: 'کار پنهان', projectId: secret.id })
+    ).body;
+    expect(
+      (
+        await lead.c.post(`/api/tasks/${hiddenTask.id}/evidence`, {
+          kind: 'message',
+          subjectId: sent.id,
+        })
+      ).status,
+    ).toBe(201);
+    const counted: MessageTasks = (await ali.c.get(`/api/messages/${sent.id}/tasks`)).body;
+    expect(counted.hidden).toBe(1);
+    expect(counted.visible).toHaveLength(1);
+
+    await ali.c.delete(`/api/tasks/${task.id}/evidence/${pins[0]?.id}`);
+    expect((await marketer.c.download(file)).status).toBe(404);
+  });
+
+  it('searches only readable conversations, Persian digits too, and opens around a result', async () => {
+    const group: Conversation = (
+      await ali.c.post('/api/conversations/group', {
+        title: 'جست‌وجو',
+        memberIds: [maryam.memberId],
+      })
+    ).body;
+    for (let i = 0; i < 30; i++) await send(ali, group.id, `پیام شماره ${i}`);
+    const target: Message = (await send(maryam, group.id, 'لینک سرور تست 4021 اینجاست')).body;
+    for (let i = 0; i < 30; i++) await send(ali, group.id, `بعدی ${i}`);
+    const gone: Message = (await send(ali, group.id, 'سرور تست قدیمی')).body;
+    await ali.c.delete(`/api/messages/${gone.id}`);
+
+    const found: ChatSearchPage = (
+      await ali.c.get(`/api/chat/search?q=${encodeURIComponent('سرور تست')}`)
+    ).body;
+    expect(found.items.map((r) => r.message.id)).toEqual([target.id]);
+    expect(found.items[0]?.conversation).toMatchObject({ id: group.id, title: 'جست‌وجو' });
+    const digits: ChatSearchPage = (
+      await ali.c.get(`/api/chat/search?q=${encodeURIComponent('۴۰۲۱')}`)
+    ).body;
+    expect(digits.items.map((r) => r.message.id)).toEqual([target.id]);
+    const outside: ChatSearchPage = (
+      await marketer.c.get(`/api/chat/search?q=${encodeURIComponent('سرور تست')}`)
+    ).body;
+    expect(outside.items).toEqual([]);
+    const elsewhere: ChatSearchPage = (
+      await ali.c.get(
+        `/api/chat/search?q=${encodeURIComponent('سرور تست')}&conversationId=${support.id}`,
+      )
+    ).body;
+    expect(elsewhere.items).toEqual([]);
+    expect((await ali.c.get('/api/chat/search?q=a')).status).toBe(400);
+
+    const around: MessagePage = (
+      await ali.c.get(`/api/conversations/${group.id}/messages?around=${target.id}&limit=20`)
+    ).body;
+    const at = around.items.findIndex((m) => m.id === target.id);
+    expect(at).toBe(10);
+    expect(around.hasMore).toBe(true);
+    expect(around.hasNewer).toBe(true);
+  });
+
+  it('exports channels for owners and admins only, never direct or group, and logs it', async () => {
+    const channel: ConversationSummary = (
+      await ali.c.get(`/api/conversations/by-department/${support.id}`)
+    ).body;
+    await send(ali, channel.id, `برای خروجی، ${mentionToken(maryam.memberId)}`);
+    const list: ExportableChannel[] = (await owner.get('/api/chat/exports/channels')).body;
+    expect(list.find((c) => c.id === channel.id)).toMatchObject({
+      kind: 'department',
+      title: 'پشتیبانی',
+    });
+    expect(list.every((c) => c.kind === 'project' || c.kind === 'department')).toBe(true);
+    const exported: ChatExport = (await owner.get(`/api/chat/exports/${channel.id}`)).body;
+    expect(exported.channel.title).toBe('پشتیبانی');
+    const row = exported.rows.find((r) => r.text.startsWith('برای خروجی'));
+    expect(row?.text).toContain('@');
+    expect(row?.text).not.toContain(maryam.memberId);
+    // Nothing from a later day.
+    const empty: ChatExport = (await owner.get(`/api/chat/exports/${channel.id}?from=2099-01-01`))
+      .body;
+    expect(empty.rows).toEqual([]);
+
+    expect((await ali.c.get('/api/chat/exports/channels')).status).toBe(403);
+    expect((await ali.c.get(`/api/chat/exports/${channel.id}`)).status).toBe(403);
+    const dm: Conversation = (
+      await ali.c.post('/api/conversations/direct', { memberId: maryam.memberId })
+    ).body;
+    expect((await owner.get(`/api/chat/exports/${dm.id}`)).status).toBe(404);
+    expect((await other.get(`/api/chat/exports/${channel.id}`)).status).toBe(404);
+
+    const logged = await withTenant(handle.db, { tenantId }, (tx) =>
+      tx
+        .select()
+        .from(s.auditLogs)
+        .where(and(eq(s.auditLogs.action, 'chat.exported'), eq(s.auditLogs.subjectId, channel.id))),
+    );
+    expect(logged.length).toBeGreaterThanOrEqual(2);
+    expect(JSON.stringify(logged[0])).not.toContain('برای خروجی');
   });
 
   it('keeps other companies out', async () => {

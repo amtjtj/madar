@@ -1,13 +1,14 @@
 import { z } from 'zod';
 
 import { attachment } from '../files.js';
+import { CONVERSATION_KINDS } from './chat.js';
 import { letterBody, LETTER_URGENCIES } from './letters.js';
 
 /**
  * «شاهد کار» (plan phase-2-step-12b, ADR 0021): a letter (later minutes or a message) pinned to a
  * task. Everyone who sees the task sees that one item read-only, never its thread.
  */
-export const EVIDENCE_KINDS = ['letter'] as const;
+export const EVIDENCE_KINDS = ['letter', 'message'] as const;
 export type EvidenceKind = (typeof EVIDENCE_KINDS)[number];
 
 const personRef = z.object({ id: z.uuid(), displayName: z.string() });
@@ -26,6 +27,19 @@ export const evidenceSummary = z.object({
 });
 export type EvidenceSummary = z.infer<typeof evidenceSummary>;
 
+/** The card for a pinned chat message (plan phase-2-step-15c): never the rest of the conversation. */
+export const messageEvidenceSummary = z.object({
+  /** Where it was said; a direct conversation shows no names (title null). */
+  conversation: z.object({ kind: z.enum(CONVERSATION_KINDS), title: z.string().nullable() }),
+  author: personRef,
+  date: z.iso.datetime(),
+  /** The start of the text, mentions as names. */
+  excerpt: z.string(),
+  attachmentCount: z.number().int(),
+  edited: z.boolean(),
+});
+export type MessageEvidenceSummary = z.infer<typeof messageEvidenceSummary>;
+
 export const evidence = z.object({
   id: z.uuid(),
   taskId: z.uuid(),
@@ -33,17 +47,22 @@ export const evidence = z.object({
   subjectId: z.uuid(),
   pinnedBy: personRef,
   pinnedAt: z.iso.datetime(),
-  /** Null when the item is no longer available (a source that was removed). */
+  /** A letter's card; null for other kinds or when the letter is no longer available. */
   summary: evidenceSummary.nullable(),
+  /** A message's card; null for other kinds or when the message was deleted. */
+  message: messageEvidenceSummary.nullable(),
   can: z.object({ unpin: z.boolean() }),
 });
 export type Evidence = z.infer<typeof evidence>;
 
 /** The pinned item itself, read-only, for anyone who sees the task. */
 export const evidenceDetail = evidence.extend({
-  body: letterBody,
+  /** A letter's body (null for a message). */
+  body: letterBody.nullable(),
   cc: z.array(personRef),
   attachments: z.array(attachment),
+  /** A message's full text, mentions as names (null for a letter). */
+  messageText: z.string().nullable(),
 });
 export type EvidenceDetail = z.infer<typeof evidenceDetail>;
 

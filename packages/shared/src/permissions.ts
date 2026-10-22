@@ -16,6 +16,8 @@ export const PERMISSIONS = [
   'department.set_oversight',
   'org_chart.read',
   'audit.read',
+  /** Export project and department channels (never direct or group conversations; ADR 0022). */
+  'chat.export',
   // Work content
   'task.read',
   /** Edit, weigh and delete any task or project in scope (beyond what involvement allows). */

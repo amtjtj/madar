@@ -11,8 +11,12 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  createTaskFromMessageRequest,
   evidenceCandidatesQuery,
   pinEvidenceRequest,
+  type CreateTaskFromMessageRequest,
+  type MessageTasks,
+  type Task,
   type Evidence,
   type EvidenceAudience,
   type EvidenceCandidatesQuery,
@@ -81,5 +85,28 @@ export class EvidenceController {
     @Param('evidenceId', ParseUUIDPipe) evidenceId: string,
   ): Promise<void> {
     return this.evidence.unpin(ctx, taskId, evidenceId);
+  }
+}
+
+/** A chat message as evidence (plan phase-2-step-15c): make a task from it, see where it is pinned. */
+@Controller('messages/:messageId')
+export class MessageEvidenceController {
+  constructor(private readonly evidence: EvidenceService) {}
+
+  @Post('task')
+  createTask(
+    @Tenant() ctx: TenantContext,
+    @Param('messageId', ParseUUIDPipe) messageId: string,
+    @Body(new ZodPipe(createTaskFromMessageRequest)) body: CreateTaskFromMessageRequest,
+  ): Promise<Task> {
+    return this.evidence.createFromMessage(ctx, messageId, body);
+  }
+
+  @Get('tasks')
+  tasks(
+    @Tenant() ctx: TenantContext,
+    @Param('messageId', ParseUUIDPipe) messageId: string,
+  ): Promise<MessageTasks> {
+    return this.evidence.messageTasks(ctx, messageId);
   }
 }

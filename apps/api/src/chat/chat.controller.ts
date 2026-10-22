@@ -14,6 +14,8 @@ import {
 } from '@nestjs/common';
 import {
   addMembersRequest,
+  chatExportQuery,
+  chatSearchQuery,
   createGroupRequest,
   directConversationRequest,
   editMessageRequest,
@@ -23,7 +25,12 @@ import {
   reactionRequest,
   renameGroupRequest,
   sendMessageRequest,
+  type ChatExport,
+  type ChatExportQuery,
+  type ChatSearchPage,
+  type ChatSearchQuery,
   type Conversation,
+  type ExportableChannel,
   type ConversationSummary,
   type CreateGroupRequest,
   type EditMessageRequest,
@@ -37,6 +44,7 @@ import {
 import { Tenant, type TenantContext } from '../common/context.js';
 import { RateLimit } from '../common/rate-limit.js';
 import { ZodPipe } from '../common/zod.pipe.js';
+import { ChatExportService } from './chat-export.service.js';
 import { ChatService } from './chat.service.js';
 
 /** Internal chat (ADR 0022). Access is per conversation; see chat/access.ts. */
@@ -195,5 +203,38 @@ export class MessagesController {
     @Body(new ZodPipe(reactionRequest)) body: ReactionRequest,
   ): Promise<Message> {
     return this.chat.react(ctx, id, body);
+  }
+}
+
+/** Search across one's conversations, and the admin export of channels (plan phase-2-step-15c). */
+@Controller('chat')
+export class ChatController {
+  constructor(
+    private readonly chat: ChatService,
+    private readonly exports: ChatExportService,
+  ) {}
+
+  @Get('search')
+  @RateLimit({ max: 30, windowMs: 60_000 })
+  search(
+    @Tenant() ctx: TenantContext,
+    @Query(new ZodPipe(chatSearchQuery)) query: ChatSearchQuery,
+  ): Promise<ChatSearchPage> {
+    return this.chat.search(ctx, query);
+  }
+
+  @Get('exports/channels')
+  channels(@Tenant() ctx: TenantContext): Promise<ExportableChannel[]> {
+    return this.exports.channels(ctx);
+  }
+
+  @Get('exports/:id')
+  @RateLimit({ max: 10, windowMs: 3_600_000 })
+  export(
+    @Tenant() ctx: TenantContext,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query(new ZodPipe(chatExportQuery)) query: ChatExportQuery,
+  ): Promise<ChatExport> {
+    return this.exports.export(ctx, id, query);
   }
 }

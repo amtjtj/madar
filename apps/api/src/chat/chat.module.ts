@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 
-import { ConversationsController, MessagesController } from './chat.controller.js';
+import { ChatExportService } from './chat-export.service.js';
+import { ChatController, ConversationsController, MessagesController } from './chat.controller.js';
 import { ChatService } from './chat.service.js';
 
-/** Internal chat (plan phase-2-step-15a, ADR 0022). */
+/** Internal chat (plans phase-2-step-15a to 15c, ADR 0022). */
 @Module({
-  controllers: [ConversationsController, MessagesController],
-  providers: [ChatService],
+  controllers: [ConversationsController, MessagesController, ChatController],
+  providers: [ChatService, ChatExportService],
 })
 export class ChatModule {}

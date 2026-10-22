@@ -9,6 +9,10 @@ import {
   mentionIdsIn,
   mentionToken,
   mentionsAsText,
+  searchExcerpt,
+  toLatinDigits,
+  type ChatSearchPage,
+  type ChatSearchQuery,
   type ReactionEmoji,
   type ReactionRequest,
   type Conversation,
@@ -353,6 +357,7 @@ export class ChatService {
   messages(ctx: TenantContext, id: string, query: ListMessagesQuery): Promise<MessagePage> {
     return this.db.run(ctx, async (tx) => {
       await this.requireVisible(tx, ctx, id);
+      if (query.around) return this.around(tx, id, query.around, query.limit);
       const where = and(
         eq(s.messages.conversationId, id),
         query.before ? sql`${s.messages.id} < ${query.before}` : undefined,
@@ -367,6 +372,96 @@ export class ChatService {
       const page = rows.slice(0, query.limit);
       const items = await this.present(tx, query.after ? page : page.reverse());
       return { items, hasMore: rows.length > query.limit };
+    });
+  }
+
+  /** A page with one message in the middle (opening a search result, plan 15c). */
+  private async around(tx: Tx, id: string, messageId: string, limit: number): Promise<MessagePage> {
+    const [target] = await tx
+      .select()
+      .from(s.messages)
+      .where(and(eq(s.messages.id, messageId), eq(s.messages.conversationId, id)));
+    if (!target) throw notFound('Message');
+    const half = Math.max(1, Math.floor(limit / 2));
+    const older = await tx
+      .select()
+      .from(s.messages)
+      .where(and(eq(s.messages.conversationId, id), sql`${s.messages.id} < ${messageId}`))
+      .orderBy(desc(s.messages.id))
+      .limit(half + 1);
+    const newer = await tx
+      .select()
+      .from(s.messages)
+      .where(and(eq(s.messages.conversationId, id), sql`${s.messages.id} > ${messageId}`))
+      .orderBy(asc(s.messages.id))
+      .limit(half + 1);
+    const rows = [...older.slice(0, half).reverse(), target, ...newer.slice(0, half)];
+    return {
+      items: await this.present(tx, rows),
+      hasMore: older.length > half,
+      hasNewer: newer.length > half,
+    };
+  }
+
+  /**
+   * Messages whose text contains the words, in the conversations the person reads now (plan 15c);
+   * newest first, 30 at a time. Persian and Latin digits match each other.
+   */
+  search(ctx: TenantContext, query: ChatSearchQuery): Promise<ChatSearchPage> {
+    return this.db.run(ctx, async (tx) => {
+      const me = ctx.memberId;
+      const like = (v: string) => `%${v.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+      const q = query.q;
+      const result = await tx.execute<{
+        id: string;
+        conversation_id: string;
+        author_id: string;
+        author_name: string;
+        body: string;
+        created_at: Date;
+      }>(sql`
+        select m.id, m.conversation_id, m.author_id, a.display_name as author_name, m.body, m.created_at
+        from messages m
+        join conversations c on c.id = m.conversation_id
+        join members a on a.id = m.author_id
+        where ${visibleConversationsRaw(me)} and m.deleted_at is null
+          and (m.body ilike ${like(q)} or m.body ilike ${like(toLatinDigits(q))})
+          ${query.conversationId ? sql`and m.conversation_id = ${query.conversationId}` : sql``}
+          ${query.before ? sql`and m.id < ${query.before}` : sql``}
+        order by m.id desc
+        limit 31`);
+      const rows = result.rows.slice(0, 30);
+      const titles = new Map(
+        (await this.summaries(tx, ctx, [...new Set(rows.map((r) => r.conversation_id))])).map(
+          (c) => [c.id, c],
+        ),
+      );
+      const tokenIds = [...new Set(rows.flatMap((r) => mentionIdsIn(r.body)))];
+      const people = tokenIds.length
+        ? await tx
+            .select({ id: s.members.id, displayName: s.members.displayName })
+            .from(s.members)
+            .where(inArray(s.members.id, tokenIds))
+        : [];
+      const names = new Map(people.map((p) => [p.id, p.displayName]));
+      return {
+        items: rows.flatMap((r) => {
+          const c = titles.get(r.conversation_id);
+          if (!c) return [];
+          return [
+            {
+              message: {
+                id: r.id,
+                author: { id: r.author_id, displayName: r.author_name },
+                excerpt: searchExcerpt(mentionsAsText(r.body, names), q),
+                createdAt: new Date(r.created_at).toISOString(),
+              },
+              conversation: { id: c.id, kind: c.kind, title: c.title },
+            },
+          ];
+        }),
+        nextBefore: result.rows.length > 30 ? (rows.at(-1)?.id ?? null) : null,
+      };
     });
   }
 
@@ -763,6 +858,20 @@ export class ChatService {
       .innerJoin(s.members, eq(s.members.id, s.messageReactions.memberId))
       .where(inArray(s.messageReactions.messageId, ids))
       .orderBy(s.messageReactions.createdAt);
+    const pins = await tx
+      .select({ messageId: s.taskEvidence.subjectId, n: sql<number>`count(*)::int` })
+      .from(s.taskEvidence)
+      .innerJoin(s.tasks, eq(s.tasks.id, s.taskEvidence.taskId))
+      .where(
+        and(
+          eq(s.taskEvidence.kind, 'message'),
+          inArray(s.taskEvidence.subjectId, ids),
+          isNull(s.taskEvidence.unpinnedAt),
+          isNull(s.tasks.deletedAt),
+        ),
+      )
+      .groupBy(s.taskEvidence.subjectId);
+    const pinned = new Map(pins.map((p) => [p.messageId, p.n]));
     return rows.map((r) => {
       // A quote is only ever shown from the same conversation (the schema enforces it too).
       const found = r.replyToId ? replyMap.get(r.replyToId) : undefined;
@@ -794,6 +903,7 @@ export class ChatService {
               .filter((m) => m.messageId === r.id)
               .map((m) => ({ id: m.id, displayName: m.displayName })),
         reactions: r.deletedAt ? [] : groupReactions(reactions.filter((x) => x.messageId === r.id)),
+        pinnedCount: r.deletedAt ? 0 : (pinned.get(r.id) ?? 0),
       };
     });
   }

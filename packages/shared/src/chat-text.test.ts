@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   canStillEdit,
+  csvLine,
+  searchExcerpt,
+  taskTitleFromMessage,
   directKey,
   mentionIdsIn,
   mentionToken,
@@ -61,5 +64,29 @@ describe('chat text', () => {
     const now = new Date('2026-10-20T10:00:00Z');
     expect(canStillEdit('2026-10-20T09:46:00Z', now)).toBe(true);
     expect(canStillEdit('2026-10-20T09:44:00Z', now)).toBe(false);
+  });
+
+  it('makes a task title from the first line, with names, at most 120 characters', () => {
+    const names = new Map([[MARYAM, 'مریم احمدی']]);
+    expect(
+      taskTitleFromMessage(`\n  ${mentionToken(MARYAM)} صفحه خطا را درست کن\nجزئیات`, names),
+    ).toBe('@مریم احمدی صفحه خطا را درست کن');
+    expect(taskTitleFromMessage('الف'.repeat(100), names)).toHaveLength(120);
+    expect(taskTitleFromMessage('   ', names)).toBe('');
+  });
+
+  it('writes CSV lines that survive commas, quotes and line breaks', () => {
+    expect(csvLine(['ساده', 'با، ویرگول فارسی', 'a,b', 'گفت "سلام"', 'دو\nخط'])).toBe(
+      'ساده,با، ویرگول فارسی,"a,b","گفت ""سلام""","دو\nخط"',
+    );
+  });
+
+  it('cuts a search excerpt around the match, Persian digits included', () => {
+    const text = `${'ابتدا '.repeat(20)}سرور تست ۲۰۲ آماده است ${'انتها '.repeat(40)}`;
+    const excerpt = searchExcerpt(text, '202', 10, 20);
+    expect(excerpt.startsWith('…')).toBe(true);
+    expect(excerpt.endsWith('…')).toBe(true);
+    expect(excerpt).toContain('۲۰۲');
+    expect(searchExcerpt('کوتاه', 'هیچ')).toBe('کوتاه');
   });
 });

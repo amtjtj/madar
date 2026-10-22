@@ -166,7 +166,7 @@ function EvidenceViewer({
             )}
           </dl>
           <div className="border-t border-line pt-3">
-            <LiteText text={data.body.text} />
+            <LiteText text={data.body?.text ?? ''} />
           </div>
           {data.attachments.length > 0 && (
             <section aria-label={t('letters.attachments')} className="border-t border-line pt-3">

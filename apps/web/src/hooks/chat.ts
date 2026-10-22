@@ -124,6 +124,7 @@ export function useSendMessage(id: string, me: { id: string; displayName: string
         })),
         mentions,
         reactions: [],
+        pinnedCount: 0,
       });
     },
     onSuccess: (message, { tempId }) => {

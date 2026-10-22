@@ -1,11 +1,14 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { emitEvent, recordActivity, schema as s, type Tx } from '@madar/db';
 import type {
+  CreateTaskFromMessageRequest,
   Evidence,
   EvidenceAudience,
   EvidenceDetail,
   LetterSummary,
+  MessageTasks,
   PinEvidenceRequest,
+  Task,
 } from '@madar/shared';
 import { liteTextPreview } from '@madar/shared';
 import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm';
@@ -14,6 +17,7 @@ import type { TenantContext } from '../common/context.js';
 import { ApiError, forbidden, notFound } from '../common/errors.js';
 import { TenantDb } from '../database/tenant-db.service.js';
 import { visibleLetters } from '../letters/access.js';
+import { visibleTasks } from '../work/access.js';
 import { TasksService } from '../work/tasks.service.js';
 import {
   checkLetterPin,
@@ -21,6 +25,7 @@ import {
   letterSummaries,
   pinnableLetter,
 } from './letter-provider.js';
+import { checkMessagePin, messageBodyOf, messageSummaries } from './message-provider.js';
 
 type EvidenceRow = typeof s.taskEvidence.$inferSelect;
 
@@ -155,45 +160,122 @@ export class EvidenceService {
   }
 
   pin(ctx: TenantContext, taskId: string, body: PinEvidenceRequest): Promise<Evidence> {
+    return this.db.run(ctx, (tx) => this.pinIn(tx, ctx, taskId, body));
+  }
+
+  /** Pinning inside a caller's transaction (also used for a task made from a message). */
+  async pinIn(
+    tx: Tx,
+    ctx: TenantContext,
+    taskId: string,
+    body: PinEvidenceRequest,
+  ): Promise<Evidence> {
+    const task = await this.tasks.requireEditable(tx, ctx, taskId);
+    const check =
+      body.kind === 'message'
+        ? await checkMessagePin(tx, ctx.memberId, body.subjectId)
+        : await checkLetterPin(tx, ctx.memberId, body.subjectId);
+    if (check === 'not_found') throw notFound(body.kind === 'message' ? 'Message' : 'Letter');
+    if (check === 'not_allowed') throw notAllowed();
+    const [row] = await tx
+      .insert(s.taskEvidence)
+      .values({
+        taskId,
+        kind: body.kind,
+        subjectId: body.subjectId,
+        pinnedBy: ctx.memberId,
+      })
+      .onConflictDoNothing()
+      .returning();
+    if (!row) throw alreadyPinned();
+    await recordActivity(tx, {
+      subjectType: 'task',
+      subjectId: taskId,
+      actorId: ctx.memberId,
+      ...(await this.trail(tx, row, 'pinned')),
+    });
+    await this.db.audit(tx, ctx, {
+      action: 'task.evidence_pinned',
+      subjectType: 'task',
+      subjectId: taskId,
+      after: { evidenceId: row.id, kind: row.kind, subjectId: row.subjectId },
+    });
+    await emitEvent(
+      tx,
+      'task.evidence_pinned',
+      { taskId, evidenceId: row.id, kind: row.kind },
+      ctx.memberId,
+    );
+    const [presented] = await this.present(tx, ctx, task, [row]);
+    if (!presented) throw notFound('Evidence');
+    return presented;
+  }
+
+  /** The history line: a letter by its number, a message by its kind only (never its text). */
+  private async trail(tx: Tx, row: EvidenceRow, what: 'pinned' | 'unpinned') {
+    if (row.kind === 'message') {
+      return { verb: `message_${what}` as const };
+    }
+    const number = (await letterSummaries(tx, [row.subjectId])).get(row.subjectId)?.number ?? '';
+    return {
+      verb: `evidence_${what}` as const,
+      changes: {
+        evidence: what === 'pinned' ? { from: null, to: number } : { from: number, to: null },
+      },
+    };
+  }
+
+  /**
+   * «ساختن کار» from a chat message (plan phase-2-step-15c): the task is created and the message
+   * pinned to it in one transaction. The text is never copied into the task.
+   */
+  createFromMessage(
+    ctx: TenantContext,
+    messageId: string,
+    body: CreateTaskFromMessageRequest,
+  ): Promise<Task> {
     return this.db.run(ctx, async (tx) => {
-      const task = await this.tasks.requireEditable(tx, ctx, taskId);
-      const check = await checkLetterPin(tx, ctx.memberId, body.subjectId);
-      if (check === 'not_found') throw notFound('Letter');
-      if (check === 'not_allowed') throw notAllowed();
-      const [row] = await tx
-        .insert(s.taskEvidence)
-        .values({
-          taskId,
-          kind: body.kind,
-          subjectId: body.subjectId,
-          pinnedBy: ctx.memberId,
+      if ((await checkMessagePin(tx, ctx.memberId, messageId)) !== 'ok') {
+        throw notFound('Message');
+      }
+      const task = await this.tasks.createIn(tx, ctx, {
+        title: body.title,
+        assigneeId: body.assigneeId,
+        dueOn: body.dueOn ?? null,
+        projectId: body.projectId ?? null,
+      });
+      await this.pinIn(tx, ctx, task.id, { kind: 'message', subjectId: messageId });
+      return task;
+    });
+  }
+
+  /** The tasks a message is pinned to: those the reader sees by title, the others as a count. */
+  messageTasks(ctx: TenantContext, messageId: string): Promise<MessageTasks> {
+    return this.db.run(ctx, async (tx) => {
+      if ((await checkMessagePin(tx, ctx.memberId, messageId)) !== 'ok') {
+        throw notFound('Message');
+      }
+      const rows = await tx
+        .select({
+          id: s.tasks.id,
+          title: s.tasks.title,
+          visible: sql<boolean>`${visibleTasks(ctx.actor)}`,
         })
-        .onConflictDoNothing()
-        .returning();
-      if (!row) throw alreadyPinned();
-      const number = (await letterSummaries(tx, [body.subjectId])).get(body.subjectId)?.number;
-      await recordActivity(tx, {
-        subjectType: 'task',
-        subjectId: taskId,
-        actorId: ctx.memberId,
-        verb: 'evidence_pinned',
-        changes: { evidence: { from: null, to: number ?? '' } },
-      });
-      await this.db.audit(tx, ctx, {
-        action: 'task.evidence_pinned',
-        subjectType: 'task',
-        subjectId: taskId,
-        after: { evidenceId: row.id, kind: row.kind, subjectId: row.subjectId },
-      });
-      await emitEvent(
-        tx,
-        'task.evidence_pinned',
-        { taskId, evidenceId: row.id, kind: row.kind },
-        ctx.memberId,
-      );
-      const [presented] = await this.present(tx, ctx, task, [row]);
-      if (!presented) throw notFound('Evidence');
-      return presented;
+        .from(s.taskEvidence)
+        .innerJoin(s.tasks, eq(s.tasks.id, s.taskEvidence.taskId))
+        .where(
+          and(
+            eq(s.taskEvidence.kind, 'message'),
+            eq(s.taskEvidence.subjectId, messageId),
+            isNull(s.taskEvidence.unpinnedAt),
+            isNull(s.tasks.deletedAt),
+          ),
+        )
+        .orderBy(asc(s.taskEvidence.createdAt));
+      return {
+        visible: rows.filter((r) => r.visible).map((r) => ({ id: r.id, title: r.title })),
+        hidden: rows.filter((r) => !r.visible).length,
+      };
     });
   }
 
@@ -209,13 +291,11 @@ export class EvidenceService {
         .where(and(eq(s.taskEvidence.id, evidenceId), isNull(s.taskEvidence.unpinnedAt)))
         .returning({ id: s.taskEvidence.id });
       if (!done) throw notFound('Evidence');
-      const number = (await letterSummaries(tx, [row.subjectId])).get(row.subjectId)?.number;
       await recordActivity(tx, {
         subjectType: 'task',
         subjectId: taskId,
         actorId: ctx.memberId,
-        verb: 'evidence_unpinned',
-        changes: { evidence: { from: number ?? '', to: null } },
+        ...(await this.trail(tx, row, 'unpinned')),
       });
       await this.db.audit(tx, ctx, {
         action: 'task.evidence_unpinned',
@@ -233,9 +313,15 @@ export class EvidenceService {
       const task = await this.tasks.requireVisible(tx, ctx, taskId);
       const row = await this.requireActive(tx, taskId, evidenceId);
       const [presented] = await this.present(tx, ctx, task, [row]);
+      if (!presented) throw notFound('Evidence');
+      if (row.kind === 'message') {
+        const content = await messageBodyOf(tx, row.subjectId);
+        if (!content) throw notFound('Evidence');
+        return { ...presented, body: null, cc: [], ...content };
+      }
       const content = await letterBodyOf(tx, row.subjectId);
-      if (!presented || !content) throw notFound('Evidence');
-      return { ...presented, ...content };
+      if (!content) throw notFound('Evidence');
+      return { ...presented, ...content, messageText: null };
     });
   }
 
@@ -267,7 +353,11 @@ export class EvidenceService {
     if (!rows.length) return [];
     const summaries = await letterSummaries(
       tx,
-      rows.map((r) => r.subjectId),
+      rows.filter((r) => r.kind === 'letter').map((r) => r.subjectId),
+    );
+    const messages = await messageSummaries(
+      tx,
+      rows.filter((r) => r.kind === 'message').map((r) => r.subjectId),
     );
     const editsTask = await this.edits(tx, ctx, task);
     const names = new Map<string, string>();
@@ -286,7 +376,8 @@ export class EvidenceService {
       subjectId: r.subjectId,
       pinnedBy: { id: r.pinnedBy, displayName: names.get(r.pinnedBy) ?? '' },
       pinnedAt: r.createdAt.toISOString(),
-      summary: summaries.get(r.subjectId) ?? null,
+      summary: r.kind === 'letter' ? (summaries.get(r.subjectId) ?? null) : null,
+      message: r.kind === 'message' ? (messages.get(r.subjectId) ?? null) : null,
       can: { unpin: editsTask || r.pinnedBy === ctx.memberId },
     }));
   }

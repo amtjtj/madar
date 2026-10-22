@@ -26,6 +26,7 @@ const msg = (id: string, author: string, createdAt: string, body = id): Message 
   attachments: [],
   mentions: [],
   reactions: [],
+  pinnedCount: 0,
 });
 
 describe('chat helpers', () => {

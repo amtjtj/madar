@@ -172,106 +172,109 @@ export class TasksService {
   }
 
   create(ctx: TenantContext, input: CreateTaskRequest): Promise<Task> {
-    return this.db.run(ctx, async (tx) => {
-      const departmentId = input.departmentId ?? (await this.primaryDepartment(tx, ctx));
-      if (!departmentId) {
-        throw new ApiError(
-          HttpStatus.BAD_REQUEST,
-          'no_department',
-          'Join a department to create tasks',
-        );
-      }
-      await this.requireActiveDepartment(tx, departmentId);
-      if (!canCreateIn(ctx.actor, departmentId)) {
-        throw forbidden('You can create tasks in your own departments');
-      }
-      if (
-        input.weight !== undefined &&
-        input.weight !== 1 &&
-        !canSetWeight(ctx.actor, departmentId)
-      ) {
-        throw forbidden('Only department managers set the weight');
-      }
-      // A subtask belongs to its parent's project, so it passes the same check (observers of a
-      // private project add no work to it, not even under an existing task).
-      const parent = input.parentId ? await this.requireVisible(tx, ctx, input.parentId) : null;
-      if (parent?.parentId) throw badRequest('Subtasks have no subtasks of their own');
-      if (parent && input.projectId !== undefined && input.projectId !== parent.projectId) {
-        throw badRequest("A subtask is in its parent's project");
-      }
-      const projectId = parent ? parent.projectId : (input.projectId ?? null);
-      if (projectId) await this.requireUsableProject(tx, ctx, projectId);
-      if (input.assigneeId) await requireActiveMember(tx, input.assigneeId);
+    return this.db.run(ctx, (tx) => this.createIn(tx, ctx, input));
+  }
 
-      const status = statusFields(input.statusKey ?? 'todo');
-      const [last] = await tx
-        .select({ sortKey: s.tasks.sortKey })
-        .from(s.tasks)
-        .where(and(eq(s.tasks.departmentId, departmentId), eq(s.tasks.statusKey, status.statusKey)))
-        .orderBy(desc(s.tasks.sortKey))
-        .limit(1);
+  /** Creating a task inside a caller's transaction (a task made from a chat message, plan 15c). */
+  async createIn(tx: Tx, ctx: TenantContext, input: CreateTaskRequest): Promise<Task> {
+    const departmentId = input.departmentId ?? (await this.primaryDepartment(tx, ctx));
+    if (!departmentId) {
+      throw new ApiError(
+        HttpStatus.BAD_REQUEST,
+        'no_department',
+        'Join a department to create tasks',
+      );
+    }
+    await this.requireActiveDepartment(tx, departmentId);
+    if (!canCreateIn(ctx.actor, departmentId)) {
+      throw forbidden('You can create tasks in your own departments');
+    }
+    if (
+      input.weight !== undefined &&
+      input.weight !== 1 &&
+      !canSetWeight(ctx.actor, departmentId)
+    ) {
+      throw forbidden('Only department managers set the weight');
+    }
+    // A subtask belongs to its parent's project, so it passes the same check (observers of a
+    // private project add no work to it, not even under an existing task).
+    const parent = input.parentId ? await this.requireVisible(tx, ctx, input.parentId) : null;
+    if (parent?.parentId) throw badRequest('Subtasks have no subtasks of their own');
+    if (parent && input.projectId !== undefined && input.projectId !== parent.projectId) {
+      throw badRequest("A subtask is in its parent's project");
+    }
+    const projectId = parent ? parent.projectId : (input.projectId ?? null);
+    if (projectId) await this.requireUsableProject(tx, ctx, projectId);
+    if (input.assigneeId) await requireActiveMember(tx, input.assigneeId);
 
-      const assigneeId = input.assigneeId === undefined ? ctx.memberId : input.assigneeId;
-      // Where it came from is decided now, once (ADR 0017).
-      const source = assigneeId
-        ? await sourceFor(tx, { actorId: ctx.memberId, assigneeId, departmentId })
-        : null;
-      const [row] = await tx
-        .insert(s.tasks)
-        .values({
-          title: input.title,
-          description: input.description ?? null,
-          departmentId,
-          projectId,
-          parentId: input.parentId ?? null,
-          assigneeId,
-          reporterId: ctx.memberId,
-          ...source,
-          dueOn: input.dueOn ?? null,
-          priority: input.priority ?? 'normal',
-          weight: input.weight ?? 1,
-          sortKey: generateKeyBetween(last?.sortKey ?? null, null),
-          ...status,
-        })
-        .returning();
-      if (!row) throw new Error('task insert failed');
+    const status = statusFields(input.statusKey ?? 'todo');
+    const [last] = await tx
+      .select({ sortKey: s.tasks.sortKey })
+      .from(s.tasks)
+      .where(and(eq(s.tasks.departmentId, departmentId), eq(s.tasks.statusKey, status.statusKey)))
+      .orderBy(desc(s.tasks.sortKey))
+      .limit(1);
 
-      await recordActivity(tx, {
-        subjectType: 'task',
-        subjectId: row.id,
-        actorId: ctx.memberId,
-        verb: 'created',
-      });
-      await emitEvent(tx, 'task.created', taskEventPayload(row), ctx.memberId);
-      if (row.assigneeId && row.assigneeId !== ctx.memberId) {
-        await emitEvent(
-          tx,
-          'task.assigned',
-          { taskId: row.id, assigneeId: row.assigneeId, source: row.source },
-          ctx.memberId,
-        );
-      }
-      if (input.addToToday) {
-        const tenant = await tx
-          .select({ timezone: s.tenants.timezone })
-          .from(s.tenants)
-          .where(eq(s.tenants.id, ctx.tenantId));
-        const today = calendarDateIn(new Date(), tenant[0]?.timezone);
-        // No sort key: placed by priority among the member's own order.
-        await tx
-          .insert(s.dailyPlanItems)
-          .values({ memberId: ctx.memberId, planDate: today, taskId: row.id })
-          .onConflictDoNothing();
-        await emitEvent(
-          tx,
-          'daily_plan.updated',
-          { memberId: ctx.memberId, planDate: today },
-          ctx.memberId,
-        );
-      }
-      if (row.parentId) await this.subtaskAdded(tx, row.parentId, row.id, ctx.memberId);
-      return this.one(tx, ctx, row.id);
+    const assigneeId = input.assigneeId === undefined ? ctx.memberId : input.assigneeId;
+    // Where it came from is decided now, once (ADR 0017).
+    const source = assigneeId
+      ? await sourceFor(tx, { actorId: ctx.memberId, assigneeId, departmentId })
+      : null;
+    const [row] = await tx
+      .insert(s.tasks)
+      .values({
+        title: input.title,
+        description: input.description ?? null,
+        departmentId,
+        projectId,
+        parentId: input.parentId ?? null,
+        assigneeId,
+        reporterId: ctx.memberId,
+        ...source,
+        dueOn: input.dueOn ?? null,
+        priority: input.priority ?? 'normal',
+        weight: input.weight ?? 1,
+        sortKey: generateKeyBetween(last?.sortKey ?? null, null),
+        ...status,
+      })
+      .returning();
+    if (!row) throw new Error('task insert failed');
+
+    await recordActivity(tx, {
+      subjectType: 'task',
+      subjectId: row.id,
+      actorId: ctx.memberId,
+      verb: 'created',
     });
+    await emitEvent(tx, 'task.created', taskEventPayload(row), ctx.memberId);
+    if (row.assigneeId && row.assigneeId !== ctx.memberId) {
+      await emitEvent(
+        tx,
+        'task.assigned',
+        { taskId: row.id, assigneeId: row.assigneeId, source: row.source },
+        ctx.memberId,
+      );
+    }
+    if (input.addToToday) {
+      const tenant = await tx
+        .select({ timezone: s.tenants.timezone })
+        .from(s.tenants)
+        .where(eq(s.tenants.id, ctx.tenantId));
+      const today = calendarDateIn(new Date(), tenant[0]?.timezone);
+      // No sort key: placed by priority among the member's own order.
+      await tx
+        .insert(s.dailyPlanItems)
+        .values({ memberId: ctx.memberId, planDate: today, taskId: row.id })
+        .onConflictDoNothing();
+      await emitEvent(
+        tx,
+        'daily_plan.updated',
+        { memberId: ctx.memberId, planDate: today },
+        ctx.memberId,
+      );
+    }
+    if (row.parentId) await this.subtaskAdded(tx, row.parentId, row.id, ctx.memberId);
+    return this.one(tx, ctx, row.id);
   }
 
   /**

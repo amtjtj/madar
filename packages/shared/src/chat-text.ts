@@ -87,3 +87,33 @@ export function directKey(a: string, b: string): string {
 export function canStillEdit(createdAt: Date | string, now: Date = new Date()): boolean {
   return now.getTime() - new Date(createdAt).getTime() <= MESSAGE_EDIT_WINDOW_MS;
 }
+
+/** A task title from a message: its first non-empty line, mentions as names, at most 120 characters. */
+export function taskTitleFromMessage(body: string, names: ReadonlyMap<string, string>): string {
+  const text = mentionsAsText(body, names);
+  const line = text
+    .split('\n')
+    .map((l) => l.trim())
+    .find((l) => l.length > 0);
+  if (!line) return '';
+  return line.length > 120 ? `${line.slice(0, 119).trimEnd()}…` : line;
+}
+
+/** One CSV line (RFC 4180): fields with a comma, quote or line break are quoted. */
+export function csvLine(fields: readonly string[]): string {
+  return fields.map((f) => (/[",\r\n]/.test(f) ? `"${f.replace(/"/g, '""')}"` : f)).join(',');
+}
+
+/**
+ * The part of a message around a search match: some words before, more after, with «…» where it
+ * was cut. Digits are compared in Latin form, so «۲۰۲» finds «202».
+ */
+export function searchExcerpt(text: string, query: string, before = 40, after = 100): string {
+  const flat = text.replace(/\s+/g, ' ').trim();
+  const latin = (v: string) => v.replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)));
+  const at = latin(flat).toLowerCase().indexOf(latin(query.trim()).toLowerCase());
+  if (at < 0) return flat.length > before + after ? `${flat.slice(0, before + after)}…` : flat;
+  const start = Math.max(0, at - before);
+  const end = Math.min(flat.length, at + query.trim().length + after);
+  return `${start > 0 ? '…' : ''}${flat.slice(start, end)}${end < flat.length ? '…' : ''}`;
+}

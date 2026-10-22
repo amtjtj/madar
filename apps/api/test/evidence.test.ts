@@ -144,7 +144,7 @@ describe.skipIf(!hasDatabase)('task evidence', () => {
     const detail: EvidenceDetail = (
       await lead.c.get(`/api/tasks/${task.id}/evidence/${evidenceId}`)
     ).body;
-    expect(detail.body.text).toBe('لطفاً قرارداد پیوست را بررسی کنید.');
+    expect(detail.body?.text).toBe('لطفاً قرارداد پیوست را بررسی کنید.');
     expect(detail.attachments.map((a) => a.id)).toEqual([fileId]);
     expect((await lead.c.get(`/api/letters/${letter.id}`)).status).toBe(404);
     expect((await lead.c.download(`/api/attachments/${fileId}/file`)).status).toBe(200);

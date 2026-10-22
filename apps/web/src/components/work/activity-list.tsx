@@ -16,6 +16,8 @@ const KNOWN_VERBS = [
   'attachment_removed',
   'evidence_pinned',
   'evidence_unpinned',
+  'message_pinned',
+  'message_unpinned',
 ];
 // Fields with a `task.fields.*` name; an unknown field is skipped instead of breaking the page.
 const KNOWN_FIELDS = [

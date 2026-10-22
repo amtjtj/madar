@@ -30,6 +30,11 @@ export const message = z.object({
    * «mine» from it, because the same message goes live to every reader.
    */
   reactions: z.array(z.object({ emoji: z.enum(REACTION_EMOJIS), members: z.array(personRef) })),
+  /**
+   * Active pins on tasks (plan 15c). A count only: the same message goes live to every reader,
+   * and which of those tasks a reader sees is asked separately (`GET /api/messages/:id/tasks`).
+   */
+  pinnedCount: z.number().int(),
 });
 export type Message = z.infer<typeof message>;
 
@@ -85,6 +90,8 @@ export const messagePage = z.object({
   items: z.array(message),
   /** More older messages exist. */
   hasMore: z.boolean(),
+  /** More newer messages exist (only for a page opened `around` a message). */
+  hasNewer: z.boolean().optional(),
 });
 export type MessagePage = z.infer<typeof messagePage>;
 
@@ -93,6 +100,8 @@ export const listMessagesQuery = z.object({
   before: z.uuid().optional(),
   /** Newer than this message (catching up after a reconnect). */
   after: z.uuid().optional(),
+  /** A page with this message in the middle (opening a search result). */
+  around: z.uuid().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 export type ListMessagesQuery = z.infer<typeof listMessagesQuery>;
@@ -127,3 +136,87 @@ export const markReadRequest = z.object({ messageId: z.uuid() });
  * the API after commit to the personal rooms of the people who may read it at that moment.
  */
 export const CHAT_SOCKET = { message: 'chat:message' } as const;
+
+/** «ساختن کار» from a message (plan phase-2-step-15c): the message is pinned to the new task. */
+export const createTaskFromMessageRequest = z.object({
+  title: z.string().trim().min(1).max(200),
+  assigneeId: z.uuid().nullable().optional(),
+  dueOn: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable()
+    .optional(),
+  projectId: z.uuid().nullable().optional(),
+});
+export type CreateTaskFromMessageRequest = z.infer<typeof createTaskFromMessageRequest>;
+
+/** The tasks a message is pinned to: those the reader sees, and how many others. */
+export const messageTasks = z.object({
+  visible: z.array(z.object({ id: z.uuid(), title: z.string() })),
+  hidden: z.number().int(),
+});
+export type MessageTasks = z.infer<typeof messageTasks>;
+
+export const chatSearchQuery = z.object({
+  q: z.string().trim().min(2).max(80),
+  conversationId: z.uuid().optional(),
+  /** Older than this message (the next page). */
+  before: z.uuid().optional(),
+});
+export type ChatSearchQuery = z.infer<typeof chatSearchQuery>;
+
+export const chatSearchResult = z.object({
+  message: z.object({
+    id: z.uuid(),
+    author: personRef,
+    /** The text around the match, mentions as names. */
+    excerpt: z.string(),
+    createdAt: z.iso.datetime(),
+  }),
+  conversation: z.object({ id: z.uuid(), kind: z.enum(CONVERSATION_KINDS), title: z.string() }),
+});
+export type ChatSearchResult = z.infer<typeof chatSearchResult>;
+
+export const chatSearchPage = z.object({
+  items: z.array(chatSearchResult),
+  nextBefore: z.uuid().nullable(),
+});
+export type ChatSearchPage = z.infer<typeof chatSearchPage>;
+
+/** A project or department channel that can be exported (never a direct or group conversation). */
+export const exportableChannel = z.object({
+  id: z.uuid(),
+  kind: z.enum(['project', 'department']),
+  title: z.string(),
+  messageCount: z.number().int(),
+});
+export type ExportableChannel = z.infer<typeof exportableChannel>;
+
+export const chatExportQuery = z.object({
+  /** Calendar days in the company's time zone, inclusive. */
+  from: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  to: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+});
+export type ChatExportQuery = z.infer<typeof chatExportQuery>;
+
+/** One channel's messages for an export (the web writes the CSV with Persian headings). */
+export const chatExport = z.object({
+  channel: exportableChannel.pick({ id: true, kind: true, title: true }),
+  rows: z.array(
+    z.object({
+      createdAt: z.iso.datetime(),
+      author: z.string(),
+      /** Mentions as names; empty for a file-only message. */
+      text: z.string(),
+      files: z.array(z.string()),
+      edited: z.boolean(),
+    }),
+  ),
+});
+export type ChatExport = z.infer<typeof chatExport>;
