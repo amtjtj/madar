@@ -31,6 +31,7 @@ import { AppModule } from '../app.module.js';
 import { AccountsService } from '../auth/accounts.service.js';
 import { AttachmentsService } from '../files/attachments.service.js';
 import { ChatService } from '../chat/chat.service.js';
+import { MeetingsService } from '../meetings/meetings.service.js';
 import { EvidenceService } from '../evidence/evidence.service.js';
 import { LettersService } from '../letters/letters.service.js';
 import { FILE_STORAGE, objectKeyFor, type FileStorage } from '../files/storage.js';
@@ -576,6 +577,65 @@ async function main(): Promise<void> {
       memberIds: [idOf('ali.rezaei'), idOf('zahra.mohammadi'), idOf('hossein.yousefi')],
     });
     await post('hossein.yousefi', group.id, 'من فردا ده دقیقه دیرتر می‌رسم.');
+
+    // Meetings (plan phase-2-step-13a): today's, tomorrow's one-on-one, a past OKR review with
+    // minutes and a decision already turned into a task, and a canceled one.
+    const meetings = app.get(MeetingsService);
+    const slot = (day: string, start: string, end: string) => ({
+      startsAt: zonedInstant(day, start, 'Asia/Tehran').toISOString(),
+      endsAt: zonedInstant(day, end, 'Asia/Tehran').toISOString(),
+    });
+    const supportTeam = ['ali.rezaei', 'zahra.mohammadi', 'hossein.yousefi'].map(idOf);
+    await meetings.create(await as('maryam.ahmadi'), {
+      type: 'regular',
+      title: 'بررسی صف برداشت',
+      ...slot(today, '14:00', '15:00'),
+      location: 'اتاق جلسه طبقه دوم',
+      agenda: '- صف برداشت‌های معطل امروز\n- **تاخیرهای بیش از ۲ ساعت**\n- هماهنگی با مالی',
+      participantIds: supportTeam,
+    });
+    await meetings.create(await as('maryam.ahmadi'), {
+      type: 'one_on_one',
+      title: 'گفت‌وگوی ماهانه',
+      ...slot(addDays(today, 1), '10:00', '10:30'),
+      participantIds: [idOf('ali.rezaei')],
+    });
+    const review = await meetings.create(await as('maryam.ahmadi'), {
+      type: 'okr_review',
+      title: 'بررسی OKR پشتیبانی',
+      ...slot(addDays(today, -2), '10:00', '11:00'),
+      link: 'https://meet.zarrinmadar.ir/support-okr',
+      agenda: '- زمان پاسخ اول\n- تیکت‌های باز قدیمی',
+      participantIds: supportTeam,
+    });
+    await meetings.saveMinutes(await as('zahra.mohammadi'), review.id, {
+      body: 'زمان پاسخ اول این هفته به **۳ ساعت** رسید؛ هدف زیر ۲ ساعت است.\n\n- شیفت عصر یک نفر کم دارد\n- پاسخ‌های آماده برای پرتکرارها به‌روز شود',
+      version: 0,
+    });
+    let reviewMeeting = await meetings.addDecision(await as('maryam.ahmadi'), review.id, {
+      text: 'پاسخ‌های آماده برای ۲۰ سوال پرتکرار به‌روز شود',
+    });
+    reviewMeeting = await meetings.addDecision(await as('maryam.ahmadi'), review.id, {
+      text: 'برای شیفت عصر یک نیروی پاره‌وقت درخواست شود',
+    });
+    const firstDecision = reviewMeeting.decisions[0];
+    if (firstDecision) {
+      await meetings
+        .convertDecision(await as('maryam.ahmadi'), review.id, firstDecision.id, {
+          title: 'به‌روزرسانی پاسخ‌های آماده پرتکرار',
+          assigneeId: idOf('ali.rezaei'),
+          dueOn: addDays(today, 5),
+          keyResultId: krIds.get('response') ?? null,
+        })
+        .catch((error: unknown) => logger.warn(`decision task: ${String(error)}`));
+    }
+    const sync = await meetings.create(await as('maryam.ahmadi'), {
+      type: 'regular',
+      title: 'هماهنگی با فنی درباره خطای KYC',
+      ...slot(addDays(today, 2), '11:00', '11:30'),
+      participantIds: [idOf('amir.hosseini'), idOf('ali.rezaei')],
+    });
+    await meetings.cancel(await as('maryam.ahmadi'), sync.id);
 
     for (const [title, krKey] of Object.entries(SEED_TASK_LINKS)) {
       const task = taskRefs.get(title);
