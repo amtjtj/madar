@@ -90,6 +90,10 @@ describe('chat helpers', () => {
     const body = encodeMentions('@علی رضایی و @علی ببینید', [ali, aliR]);
     expect(body).toBe(`<@${aliR.id}> و <@${ali.id}> ببینید`);
     expect(decodeMentions(body, [ali, aliR])).toBe('@علی رضایی و @علی ببینید');
+    // Picked «علی» does not take the start of a longer word like «@علیرضا».
+    expect(encodeMentions('@علیرضا سلام', [ali])).toBe('@علیرضا سلام');
+    expect(encodeMentions('@علی، سلام', [ali])).toBe(`<@${ali.id}>، سلام`);
+    expect(matchPeople([{ displayName: 'علی رضایی' }], 'رضاي')).toHaveLength(1);
   });
 
   it('toggles my reaction and marks it as mine', () => {

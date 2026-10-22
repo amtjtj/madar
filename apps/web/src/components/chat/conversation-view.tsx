@@ -156,6 +156,8 @@ export function ConversationView({ id }: { id: string }) {
   }
 
   const groups = groupMessages(all, timeZone);
+  // The picker works on the newest copy (live reactions may have arrived since it opened).
+  const reactingNow = reacting ? (all.find((m) => m.id === reacting.id) ?? reacting) : null;
   // The first message from someone else after the read mark the conversation opened with.
   const firstUnreadId = unreadAfter
     ? all.find((m) => m.id > unreadAfter && m.author.id !== me?.member?.id && !isPending(m))?.id
@@ -346,13 +348,20 @@ export function ConversationView({ id }: { id: string }) {
             setReplyTo(null);
             setEditing(null);
           }}
-          onSend={(body, uploads) => {
-            send.mutate(
-              { body, replyTo, uploads, tempId: `${PENDING_PREFIX}${Date.now()}` },
-              { onError },
-            );
+          onSend={(body, uploads, mentions) => {
+            const sent = send.mutateAsync({
+              body,
+              replyTo,
+              uploads,
+              mentions,
+              tempId: `${PENDING_PREFIX}${Date.now()}`,
+            });
             setReplyTo(null);
             nearBottom.current = true;
+            return sent.catch((err: unknown) => {
+              onError(err);
+              throw err;
+            });
           }}
           onEdit={(message, body) => {
             edit.mutate({ id: message.id, body }, { onError });
@@ -371,13 +380,13 @@ export function ConversationView({ id }: { id: string }) {
         onOpenChange={(open) => !open && setReacting(null)}
         title={t('chat.react')}
       >
-        {reacting && (
+        {reactingNow && (
           <ReactionPicker
-            mine={reactionViews(reacting, me?.member?.id)
+            mine={reactionViews(reactingNow, me?.member?.id)
               .filter((r) => r.mine)
               .map((r) => r.emoji)}
             onPick={(emoji, active) => {
-              toggleReaction(reacting, emoji, active);
+              toggleReaction(reactingNow, emoji, active);
               setReacting(null);
             }}
             className="justify-center"

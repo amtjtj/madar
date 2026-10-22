@@ -19,7 +19,7 @@ import type {
 } from '@madar/shared';
 
 import { api } from '@/lib/api';
-import { applyLiveMessage, toggleReaction } from '@/lib/chat';
+import { applyLiveMessage, findMessage, toggleReaction } from '@/lib/chat';
 
 import { chatKeys, notificationKeys } from './keys';
 
@@ -87,6 +87,8 @@ export function useSendMessage(id: string, me: { id: string; displayName: string
       replyTo?: Message | null;
       tempId: string;
       uploads?: Upload[];
+      /** People picked for the body's tokens, so the pending bubble shows their names. */
+      mentions?: { id: string; displayName: string }[];
     }) =>
       api<Message>(`/api/conversations/${id}/messages`, {
         method: 'POST',
@@ -96,7 +98,7 @@ export function useSendMessage(id: string, me: { id: string; displayName: string
           uploadIds: (input.uploads ?? []).map((u) => u.id),
         },
       }),
-    onMutate: ({ body, replyTo, tempId, uploads = [] }) => {
+    onMutate: ({ body, replyTo, tempId, uploads = [], mentions = [] }) => {
       applyLiveMessage(client, {
         id: tempId,
         conversationId: id,
@@ -120,7 +122,7 @@ export function useSendMessage(id: string, me: { id: string; displayName: string
           subject: null,
           can: { delete: false },
         })),
-        mentions: [],
+        mentions,
         reactions: [],
       });
     },
@@ -183,13 +185,15 @@ export function useReact(me: { id: string; displayName: string }) {
         method: 'PUT',
         body: { emoji: input.emoji, active: input.active },
       }),
+    // Always toggle the newest cached copy: a live update may have arrived since it was rendered.
     onMutate: ({ message, emoji, active }) => {
-      applyLiveMessage(client, toggleReaction(message, emoji, active, me));
-      return { message };
+      const current = findMessage(client, message.conversationId, message.id) ?? message;
+      applyLiveMessage(client, toggleReaction(current, emoji, active, me));
     },
     onSuccess: (message) => applyLiveMessage(client, message),
-    onError: (_e, _v, context) => {
-      if (context) applyLiveMessage(client, context.message);
+    onError: (_e, { message, emoji, active }) => {
+      const current = findMessage(client, message.conversationId, message.id);
+      if (current) applyLiveMessage(client, toggleReaction(current, emoji, !active, me));
     },
   });
 }

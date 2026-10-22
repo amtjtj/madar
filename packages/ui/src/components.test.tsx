@@ -350,6 +350,9 @@ describe('Chat', () => {
     render(<ReactionBar reactions={reactions} />);
     expect(screen.queryAllByRole('button')).toHaveLength(0);
     expect(screen.getByRole('img', { name: '🎉 ۱: علی رضایی' })).toBeDefined();
+    // A tap shows the names to people who only read (no hover on phones).
+    fireEvent.click(screen.getByRole('img', { name: '👍 ۲: مریم احمدی، علی رضایی' }));
+    expect(screen.getByText('👍 مریم احمدی، علی رضایی')).toBeDefined();
   });
 
   it('the reaction picker offers the six reactions', () => {

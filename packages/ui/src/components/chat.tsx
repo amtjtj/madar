@@ -1,3 +1,5 @@
+'use client';
+
 import { t } from '@madar/i18n';
 import {
   REACTION_EMOJIS,
@@ -7,7 +9,7 @@ import {
   type ReactionEmoji,
 } from '@madar/shared';
 import { BellOff, Building2, Check, Clock, FolderKanban, Reply, Users } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 
 import { cn } from '../lib/cn.js';
 import { Avatar } from './avatar.js';
@@ -323,59 +325,92 @@ export function ReactionBar({
   onToggle?: (emoji: ReactionEmoji, active: boolean) => void;
   className?: string;
 }) {
+  // Phones have no hover: a long press (or a tap for people who only read) shows the names.
+  const [shown, setShown] = useState<ReactionEmoji | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const longPressed = useRef(false);
+  const press = (emoji: ReactionEmoji) => {
+    longPressed.current = false;
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      longPressed.current = true;
+      setShown(emoji);
+    }, 500);
+  };
+  const release = () => clearTimeout(timer.current);
   if (!reactions.length) return null;
+  const names = reactions.find((r) => r.emoji === shown)?.names;
   return (
-    <ul aria-label={t('ui.chat.reactions')} className={cn('flex flex-wrap gap-1', className)}>
-      {reactions.map((r) => {
-        const label = t('ui.chat.reaction', {
-          emoji: r.emoji,
-          count: formatNumber(r.names.length),
-          names: r.names.join(t('ui.listSeparator')),
-        });
-        const content = (
-          <>
-            <span aria-hidden>{r.emoji}</span>
-            <span aria-hidden className="tabular-nums">
-              {formatNumber(r.names.length)}
-            </span>
-          </>
-        );
-        const chip = cn(
-          'inline-flex h-7 items-center gap-1 rounded-full border px-2 text-xs font-semibold',
-          r.mine
-            ? 'border-primary bg-primary-soft text-primary-ink'
-            : 'border-line bg-surface text-ink-muted',
-        );
-        return (
-          <li key={r.emoji}>
-            {onToggle ? (
-              <button
-                type="button"
-                aria-label={label}
-                aria-pressed={r.mine}
-                title={r.names.join(t('ui.listSeparator'))}
-                onClick={() => onToggle(r.emoji, !r.mine)}
-                className={cn(
-                  chip,
-                  'transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-focus',
-                )}
-              >
-                {content}
-              </button>
-            ) : (
-              <span
-                role="img"
-                aria-label={label}
-                title={r.names.join(t('ui.listSeparator'))}
-                className={chip}
-              >
-                {content}
+    <div className={cn('flex flex-col gap-1', className)}>
+      <ul aria-label={t('ui.chat.reactions')} className="flex flex-wrap gap-1">
+        {reactions.map((r) => {
+          const label = t('ui.chat.reaction', {
+            emoji: r.emoji,
+            count: formatNumber(r.names.length),
+            names: r.names.join(t('ui.listSeparator')),
+          });
+          const content = (
+            <>
+              <span aria-hidden>{r.emoji}</span>
+              <span aria-hidden className="tabular-nums">
+                {formatNumber(r.names.length)}
               </span>
-            )}
-          </li>
-        );
-      })}
-    </ul>
+            </>
+          );
+          const chip = cn(
+            'inline-flex h-7 items-center gap-1 rounded-full border px-2 text-xs font-semibold',
+            r.mine
+              ? 'border-primary bg-primary-soft text-primary-ink'
+              : 'border-line bg-surface text-ink-muted',
+          );
+          return (
+            <li key={r.emoji}>
+              {onToggle ? (
+                <button
+                  type="button"
+                  aria-label={label}
+                  aria-pressed={r.mine}
+                  title={r.names.join(t('ui.listSeparator'))}
+                  onPointerDown={() => press(r.emoji)}
+                  onPointerUp={release}
+                  onPointerLeave={release}
+                  onContextMenu={(e) => e.preventDefault()}
+                  onClick={() => {
+                    if (longPressed.current) {
+                      longPressed.current = false;
+                      return;
+                    }
+                    setShown(null);
+                    onToggle(r.emoji, !r.mine);
+                  }}
+                  className={cn(
+                    chip,
+                    'transition-colors hover:border-primary focus-visible:outline-2 focus-visible:outline-focus',
+                  )}
+                >
+                  {content}
+                </button>
+              ) : (
+                <span
+                  role="img"
+                  aria-label={label}
+                  title={r.names.join(t('ui.listSeparator'))}
+                  onClick={() => setShown((now) => (now === r.emoji ? null : r.emoji))}
+                  className={cn(chip, 'cursor-pointer')}
+                >
+                  {content}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {names && (
+        <p aria-hidden className="max-w-64 text-xs text-ink-muted">
+          {shown} {names.join(t('ui.listSeparator'))}
+        </p>
+      )}
+    </div>
   );
 }
 

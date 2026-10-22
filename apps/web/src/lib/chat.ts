@@ -56,6 +56,18 @@ export function upsertMessage<T extends Pages>(data: T, message: Message): T {
   return { ...data, pages: [{ hasMore: first?.hasMore ?? false, items }, ...rest] };
 }
 
+/** The cached copy of a message (the newest one, live updates included). */
+export function findMessage(
+  client: QueryClient,
+  conversationId: string,
+  messageId: string,
+): Message | undefined {
+  const data = client.getQueryData<InfiniteData<MessagePage, string | undefined>>(
+    chatKeys.messages(conversationId),
+  );
+  return data?.pages.flatMap((p) => p.items).find((m) => m.id === messageId);
+}
+
 /** Merges a live (or just confirmed) message into its conversation's cache, if loaded. */
 export function applyLiveMessage(client: QueryClient, message: Message): boolean {
   const key = chatKeys.messages(message.conversationId);
@@ -155,11 +167,20 @@ export function mentionQuery(text: string, caret: number): { start: number; quer
   return { start: at, query };
 }
 
+/** Arabic ي and ك (some keyboards) read as Persian ی and ک. */
+function normalizeLetters(text: string): string {
+  return text.replace(/ي/g, 'ی').replace(/ك/g, 'ک');
+}
+
 /** People whose name matches what was typed after «@» (any word may match). */
 export function matchPeople<T extends { displayName: string }>(people: T[], query: string): T[] {
-  const q = query.trim();
+  const q = normalizeLetters(query.trim());
   if (!q) return people.slice(0, 8);
-  return people.filter((p) => p.displayName.includes(q)).slice(0, 8);
+  return people.filter((p) => normalizeLetters(p.displayName).includes(q)).slice(0, 8);
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /** The composer shows «@name»; the server gets `<@id>` for the people picked from the list. */
@@ -170,7 +191,9 @@ export function encodeMentions(
   let out = text;
   // Longer names first, so «علی رضایی» is not taken by a picked «علی».
   for (const p of [...picked].sort((a, b) => b.displayName.length - a.displayName.length)) {
-    out = out.split(`@${p.displayName}`).join(mentionToken(p.id));
+    // Only the whole name: «@علی» must not take the start of a typed «@علی رضایی».
+    const name = new RegExp(`@${escapeRegExp(p.displayName)}(?=$|[\\s.,!?؟،؛:)])`, 'g');
+    out = out.replace(name, mentionToken(p.id));
   }
   return out;
 }

@@ -3,6 +3,7 @@ import { emitEvent, schema as s, uuidv7, type Tx } from '@madar/db';
 import {
   CHAT_SOCKET,
   REALTIME_EVENTS,
+  MESSAGE_MAX,
   canStillEdit,
   directKey,
   mentionIdsIn,
@@ -373,9 +374,10 @@ export class ChatService {
     const { message, audience } = await this.db.run(ctx, async (tx) => {
       const conversation = await this.requireVisible(tx, ctx, id);
       await this.requirePostable(tx, ctx, id);
-      if (!body.body && body.uploadIds.length === 0) throw emptyMessage();
       const audience = await this.audience(tx, id);
       const { text, mentionIds } = await this.resolveMentions(tx, body.body, audience);
+      // Checked after resolving: a token for no one may leave nothing behind.
+      if (!text && body.uploadIds.length === 0) throw emptyMessage();
       if (body.replyToId) {
         const [parent] = await tx
           .select({ id: s.messages.id })
@@ -433,6 +435,7 @@ export class ChatService {
       const row = await this.requireOwnMessage(tx, ctx, messageId);
       const audience = await this.audience(tx, row.conversationId);
       const { text, mentionIds } = await this.resolveMentions(tx, body, audience);
+      if (!text) throw emptyMessage();
       const [updated] = await tx
         .update(s.messages)
         .set({ body: text, editedAt: new Date() })
@@ -573,11 +576,15 @@ export class ChatService {
       const people = await tx
         .select({ id: s.members.id, displayName: s.members.displayName })
         .from(s.members)
-        .where(inArray(s.members.id, others));
+        .where(and(inArray(s.members.id, others), eq(s.members.status, 'active')));
       const names = new Map(people.map((p) => [p.id, p.displayName]));
       for (const id of others) {
         text = text.split(mentionToken(id)).join(names.has(id) ? `@${names.get(id)}` : '');
       }
+      text = text
+        .replace(/[ \t]{2,}/g, ' ')
+        .trim()
+        .slice(0, MESSAGE_MAX);
     }
     return { text, mentionIds: allowed };
   }
@@ -904,7 +911,16 @@ export class ChatService {
             ? {
                 author: { id: lm.author_id, displayName: lm.author_name },
                 // Cut without leaving half a mention token behind.
-                body: lm.deleted_at ? '' : lm.body.slice(0, 200).replace(/<@[^>]*$/, ''),
+                body: lm.deleted_at
+                  ? ''
+                  : mentionsAsText(
+                      lm.body,
+                      new Map(
+                        lastMentions
+                          .filter((m) => m.messageId === lm.id)
+                          .map((m) => [m.id, m.displayName]),
+                      ),
+                    ).slice(0, 200),
                 createdAt: new Date(lm.created_at).toISOString(),
                 deleted: Boolean(lm.deleted_at),
                 mentions: lastMentions

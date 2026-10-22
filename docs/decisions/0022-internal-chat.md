@@ -63,10 +63,12 @@ Plan: `docs/plans/phase-2-step-15b.md`. The product owner accepted all three pro
   - A token is kept only for someone in the conversation's audience at send time. Anyone else becomes plain «@name» text, so a mention never brings a person into a conversation.
   - `message_mentions` holds the kept ones, for notifications and the unread «@» count. Editing re-reads them; only people newly mentioned are told (`message.updated`).
   - `chat_mention` notifies in every kind of conversation, including channels and muted conversations, once per message and person. Quiet hours and the kind switch still apply. In a direct conversation or group, someone mentioned gets the mention notification instead of the message one.
-  - Previews and reply quotes turn tokens into names on the server; raw ids never reach a notification or a push.
+  - Previews (`lastMessage.body`) and reply quotes turn tokens into names on the server; raw ids never reach a list, a notification or a push. Only message bodies keep tokens, with their `mentions`.
+  - The empty check runs on the resolved text, and a token for someone outside the company or inactive simply disappears.
+  - Someone who turned mention notifications off still gets the ordinary message notification in a direct conversation or group. A message deleted before the worker runs notifies no one.
 - **Reactions:** `message_reactions` with a check on the six emoji (👍 ❤️ 😂 🎉 🙏 👀).
   - Who may react follows `postableConversations()`. Reactions never notify.
-  - Every reader sees who reacted. The updated message goes live with `chat:message` to the current audience, and the web works out «mine» from the list, because the same payload goes to everyone.
+  - Every reader sees who reacted (a long press on a chip shows the names on phones). The updated message goes live with `chat:message` to the current audience, and the web works out «mine» from the list, because the same payload goes to everyone.
 - **Data:** both new tables have forced RLS and composite FKs. The app role may DELETE their rows (a reaction taken back, a mention edited away); messages still have no DELETE.
 
 ## Alternatives considered

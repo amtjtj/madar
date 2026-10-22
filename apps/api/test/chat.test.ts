@@ -653,6 +653,96 @@ describe.skipIf(!hasDatabase)('chat', () => {
     expect((await react(maryam, '🎉', true)).status).toBe(404);
   });
 
+  it('mentions of another company are stripped; a body left empty is refused', async () => {
+    const group: Conversation = (
+      await ali.c.post('/api/conversations/group', {
+        title: 'بیرونی',
+        memberIds: [maryam.memberId],
+      })
+    ).body;
+    const only = await send(ali, group.id, mentionToken(otherMemberId));
+    expect(only.status).toBe(400);
+    expect(only.body.error.code).toBe('message_empty');
+    const sent: Message = (await send(ali, group.id, `سلام ${mentionToken(otherMemberId)}`)).body;
+    expect(sent.mentions).toEqual([]);
+    expect(sent.body).toBe('سلام');
+    await settle();
+    const notes = await withTenant(handle.db, { tenantId }, (tx) =>
+      tx
+        .select({ kind: s.notifications.kind })
+        .from(s.notifications)
+        .where(
+          and(eq(s.notifications.subjectId, group.id), eq(s.notifications.kind, 'chat_mention')),
+        ),
+    );
+    expect(notes).toHaveLength(0);
+  });
+
+  it('someone who turned mention notifications off still hears about the message', async () => {
+    const group: Conversation = (
+      await lead.c.post('/api/conversations/group', { title: 'بی‌منشن', memberIds: [ali.memberId] })
+    ).body;
+    await ali.c.put('/api/me/notification-preferences', {
+      mutedKinds: ['chat_mention'],
+      offHours: true,
+    });
+    try {
+      await send(lead, group.id, `${mentionToken(ali.memberId)} فوری`);
+      await settle();
+      const kinds = await withTenant(handle.db, { tenantId }, (tx) =>
+        tx
+          .select({ kind: s.notifications.kind })
+          .from(s.notifications)
+          .where(
+            and(
+              eq(s.notifications.recipientId, ali.memberId),
+              eq(s.notifications.subjectId, group.id),
+            ),
+          ),
+      );
+      expect(kinds.map((k) => k.kind)).toEqual(['chat_message']);
+    } finally {
+      await ali.c.put('/api/me/notification-preferences', { mutedKinds: [], offHours: false });
+    }
+  });
+
+  it('observers and archived channels take no reactions; a read-only company neither', async () => {
+    const project = (
+      await lead.c.post('/api/projects', { name: 'واکنش‌ها', memberIds: [ali.memberId] })
+    ).body;
+    await lead.c.put(`/api/projects/${project.id}/members`, {
+      members: [
+        { memberId: lead.memberId, role: 'owner' },
+        { memberId: ali.memberId, role: 'member' },
+        { memberId: maryam.memberId, role: 'observer' },
+      ],
+    });
+    const channel: ConversationSummary = (
+      await ali.c.get(`/api/conversations/by-project/${project.id}`)
+    ).body;
+    const sent: Message = (await send(ali, channel.id, 'نظر بدهید')).body;
+    const react = (p: Person) =>
+      p.c.put(`/api/messages/${sent.id}/reactions`, { emoji: '👍', active: true });
+    expect((await react(maryam)).status).toBe(403);
+    expect((await react(lead)).status).toBe(200);
+
+    loadEnv();
+    const ownerDb = createDb(process.env.DATABASE_URL ?? '');
+    const setStatus = (status: 'active' | 'read_only') =>
+      ownerDb.db.update(s.tenants).set({ status }).where(eq(s.tenants.id, tenantId));
+    try {
+      await setStatus('read_only');
+      expect((await react(ali)).status).toBe(423);
+      expect((await ali.c.upload('/api/uploads', PDF, 'x.pdf')).status).toBe(423);
+    } finally {
+      await setStatus('active');
+      await ownerDb.pool.end();
+    }
+
+    await lead.c.post(`/api/projects/${project.id}/archive`);
+    expect((await react(ali)).status).toBe(403);
+  });
+
   it('keeps other companies out', async () => {
     const dm: Conversation = (
       await ali.c.post('/api/conversations/direct', { memberId: maryam.memberId })

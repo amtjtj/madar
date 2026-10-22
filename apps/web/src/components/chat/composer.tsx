@@ -32,7 +32,8 @@ export function Composer({
   replyTo: Message | null;
   editing: Message | null;
   onCancel: () => void;
-  onSend: (body: string, uploads: Upload[]) => void;
+  /** Rejects when sending failed: the text and files come back to the box. */
+  onSend: (body: string, uploads: Upload[], mentions: MentionRef[]) => Promise<unknown>;
   onEdit: (message: Message, body: string) => void;
   inputRef: RefObject<HTMLTextAreaElement | null>;
 }) {
@@ -60,9 +61,10 @@ export function Composer({
   const canSend = !uploading && (text.trim().length > 0 || (!editing && uploads.length > 0));
 
   const add = async (picked: File[]) => {
-    const room = MESSAGE_FILES_MAX - uploads.length;
+    // Uploads still running count too, so two quick picks cannot pass the limit.
+    const room = MESSAGE_FILES_MAX - uploads.length - files.pending.length;
     const done = await files.upload(picked.slice(0, Math.max(room, 0)));
-    setUploads((list) => [...list, ...done]);
+    setUploads((list) => [...list, ...done].slice(0, MESSAGE_FILES_MAX));
   };
 
   const reset = () => {
@@ -75,8 +77,17 @@ export function Composer({
   const submit = () => {
     if (!canSend) return;
     const body = encodeMentions(text.trim(), picked);
-    if (editing) onEdit(editing, body);
-    else onSend(body, uploads);
+    if (editing) {
+      onEdit(editing, body);
+    } else {
+      const kept = { text, picked, uploads };
+      onSend(body, uploads, picked).catch(() => {
+        // Nothing is lost on a failed send: put it back, unless something new was typed.
+        setText((now) => now || kept.text);
+        setPicked((now) => (now.length ? now : kept.picked));
+        setUploads((now) => (now.length ? now : kept.uploads));
+      });
+    }
     reset();
     inputRef.current?.focus();
   };
@@ -220,7 +231,8 @@ export function Composer({
           maxLength={MESSAGE_MAX}
           value={text}
           role={query ? 'combobox' : undefined}
-          aria-expanded={query ? true : undefined}
+          aria-autocomplete={query ? 'list' : undefined}
+          aria-expanded={query ? matches.length > 0 : undefined}
           aria-controls={query && matches.length ? listId : undefined}
           aria-activedescendant={
             query && matches[active] ? `${listId}-${matches[active]?.id}` : undefined

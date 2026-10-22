@@ -75,12 +75,19 @@ export class NotificationsConsumer implements EventConsumer {
         const conversation = await this.conversationOf(tx, String(p.conversationId));
         if (!conversation) return;
         const direct = conversation.kind === 'direct';
+        // A message deleted before the worker ran tells no one.
+        const [message] = await tx
+          .select({ deletedAt: s.messages.deletedAt })
+          .from(s.messages)
+          .where(eq(s.messages.id, String(p.messageId)));
+        if (!message || message.deletedAt) return;
         // Mentions reach people in every kind of conversation, muted or not (plan 15b).
         const mentioned = ((p.mentionIds as string[] | undefined) ?? []).filter(
           (id) => id !== event.actorId,
         );
+        const told = new Set<string>();
         for (const recipientId of mentioned) {
-          await this.notifier.notify(tx, {
+          const sent = await this.notifier.notify(tx, {
             ...base,
             recipientId,
             kind: 'chat_mention',
@@ -89,9 +96,11 @@ export class NotificationsConsumer implements EventConsumer {
             payload: direct ? { title: '', data: { direct: 1 } } : { title: conversation.title },
             dedupeKey: `mention:${String(p.messageId)}:${recipientId}`,
           });
+          if (sent) told.add(recipientId);
         }
         // Direct and group only, one notification per conversation until it is read (ADR 0022);
-        // channels show an unread count instead. Someone mentioned has been told already.
+        // channels show an unread count instead. Someone told about a mention is not told twice;
+        // someone who turned mention notifications off still gets the message one.
         if (event.type !== 'message.created') return;
         if (conversation.kind !== 'direct' && conversation.kind !== 'group') return;
         const people = await tx
@@ -109,7 +118,7 @@ export class NotificationsConsumer implements EventConsumer {
             ),
           );
         for (const person of people) {
-          if (person.muted || mentioned.includes(person.memberId)) continue;
+          if (person.muted || told.has(person.memberId)) continue;
           // Already read up to (or past) this message: nothing to tell.
           if (person.lastRead && person.lastRead >= String(p.messageId)) continue;
           await this.notifier.notify(tx, {
