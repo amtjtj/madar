@@ -18,6 +18,7 @@ import {
   calendarDateOfJalali,
   DEFAULT_WORK_CALENDAR,
   fileTypeFor,
+  mentionToken,
   weekStartOf,
   weeklyReport,
   zonedInstant,
@@ -538,7 +539,27 @@ async function main(): Promise<void> {
       kycChannel.id,
       'نسخه آزمایشی مسیر جدید احراز هویت روی سرور تست است: https://staging.example.ir/kyc',
     );
-    await post('maryam.ahmadi', kycChannel.id, 'عالی. امروز با دو کاربر واقعی امتحانش می‌کنیم.');
+    const tryIt = await post(
+      'maryam.ahmadi',
+      kycChannel.id,
+      'عالی. امروز با دو کاربر واقعی امتحانش می‌کنیم.',
+    );
+    // Files, a mention and reactions (plan phase-2-step-15b).
+    const shot = await chat.send(await as('amir.hosseini'), kycChannel.id, {
+      body: `${mentionToken(idOf('maryam.ahmadi'))} خطای صفحه بارگذاری مدرک روی گوشی؛ گزارش آزمون هم پیوست است.`,
+      replyToId: null,
+      uploadIds: [
+        await stage('amir.hosseini', 'خطای بارگذاری مدرک.png', samplePng(360, 640)),
+        await stage('amir.hosseini', 'گزارش آزمون احراز هویت.pdf', samplePdf('KYC test report')),
+      ],
+    });
+    const reactAs = async (by: string, messageId: string, emoji: '👍' | '👀' | '🎉') =>
+      chat.react(await as(by), messageId, { emoji, active: true });
+    await reactAs('maryam.ahmadi', tryIt.id, '👍');
+    await reactAs('amir.hosseini', tryIt.id, '🎉');
+    await reactAs('maryam.ahmadi', shot.id, '👀');
+    await reactAs('ali.rezaei', shift.id, '👍');
+    await reactAs('zahra.mohammadi', shift.id, '👍');
     const dm = await chat.direct(await as('maryam.ahmadi'), idOf('ali.rezaei'));
     await post('maryam.ahmadi', dm.id, 'علی جان، گزارش تیکت‌های دیروز را تا ظهر می‌فرستی؟');
     const group = await chat.createGroup(await as('maryam.ahmadi'), {

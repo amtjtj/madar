@@ -1,11 +1,11 @@
 'use client';
 
-import { ArrowRight, Info, MoreVertical, Pencil, Reply, Send, Trash2, X } from 'lucide-react';
+import { ArrowRight, Info, MoreVertical, Pencil, Reply, SmilePlus, Trash2 } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { t } from '@madar/i18n';
-import { MESSAGE_MAX, canStillEdit, formatNumber, formatTime, type Message } from '@madar/shared';
+import { canStillEdit, formatNumber, formatTime, type Message } from '@madar/shared';
 import {
   Button,
   ConversationAvatar,
@@ -14,9 +14,13 @@ import {
   Menu,
   MessageBubble,
   Modal,
+  ReactionBar,
+  ReactionPicker,
   Skeleton,
   useToast,
 } from '@madar/ui';
+
+import { AttachmentList } from '@/components/work/attachments';
 
 import { ApiClientError } from '@/lib/api';
 import {
@@ -25,12 +29,20 @@ import {
   useEditMessage,
   useMarkRead,
   useMessages,
+  useReact,
   useSendMessage,
 } from '@/hooks/chat';
 import { useMe } from '@/hooks/use-me';
-import { PENDING_PREFIX, flattenMessages, groupMessages, isPending } from '@/lib/chat';
+import {
+  PENDING_PREFIX,
+  flattenMessages,
+  groupMessages,
+  isPending,
+  reactionViews,
+} from '@/lib/chat';
 import { errorMessage } from '@/lib/errors';
 
+import { Composer } from './composer';
 import { ConversationInfo } from './conversation-info';
 
 /** One conversation: header, messages by day, the «unread» line, and the composer. */
@@ -46,9 +58,10 @@ export function ConversationView({ id }: { id: string }) {
   const edit = useEditMessage();
   const remove = useDeleteMessage();
   const markRead = useMarkRead(id);
+  const react = useReact(meRef);
   const { toast } = useToast();
-  const [text, setText] = useState('');
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [reacting, setReacting] = useState<Message | null>(null);
   const [editing, setEditing] = useState<Message | null>(null);
   const [deleting, setDeleting] = useState<Message | null>(null);
   const [infoOpen, setInfoOpen] = useState(false);
@@ -67,6 +80,17 @@ export function ConversationView({ id }: { id: string }) {
     const el = scroller.current;
     if (el && nearBottom.current) el.scrollTop = el.scrollHeight;
   }, [all.length]);
+
+  // Images load after the layout and push the newest message out of view: stay at the bottom.
+  useEffect(() => {
+    const el = scroller.current;
+    if (!el) return;
+    const onLoad = () => {
+      if (nearBottom.current) el.scrollTop = el.scrollHeight;
+    };
+    el.addEventListener('load', onLoad, true);
+    return () => el.removeEventListener('load', onLoad, true);
+  }, [conversation?.id]);
 
   // Seeing the newest message moves the read mark forward: when it arrives while the person is
   // at the bottom, when they scroll back down, and when they return to the tab.
@@ -92,31 +116,11 @@ export function ConversationView({ id }: { id: string }) {
 
   const onError = (err: unknown) => toast({ tone: 'error', title: errorMessage(err) });
 
-  const submit = () => {
-    const body = text.trim();
-    if (!body) return;
-    if (editing) {
-      edit.mutate({ id: editing.id, body }, { onError });
-      setEditing(null);
-    } else {
-      send.mutate({ body, replyTo, tempId: `${PENDING_PREFIX}${Date.now()}` }, { onError });
-      setReplyTo(null);
-      nearBottom.current = true;
-    }
-    setText('');
-    input.current?.focus();
-  };
-
-  const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-      e.preventDefault();
-      submit();
-    }
-    if (e.key === 'Escape') {
-      setReplyTo(null);
-      setEditing(null);
-    }
-  };
+  const toggleReaction = (
+    message: Message,
+    emoji: Message['reactions'][number]['emoji'],
+    active: boolean,
+  ) => react.mutate({ message, emoji, active }, { onError });
 
   const back = (
     <Link
@@ -231,6 +235,23 @@ export function ConversationView({ id }: { id: string }) {
                       mine={mine}
                       author={!mine && showAuthor ? message.author.displayName : undefined}
                       body={message.body}
+                      mentions={message.mentions}
+                      meId={me?.member?.id}
+                      attachments={
+                        message.attachments.length ? (
+                          <AttachmentList attachments={message.attachments} chat />
+                        ) : undefined
+                      }
+                      reactions={
+                        <ReactionBar
+                          reactions={reactionViews(message, me?.member?.id)}
+                          onToggle={
+                            conversation.can.post && !isPending(message)
+                              ? (emoji, active) => toggleReaction(message, emoji, active)
+                              : undefined
+                          }
+                        />
+                      }
                       time={formatTime(new Date(message.createdAt), timeZone)}
                       edited={Boolean(message.editedAt)}
                       deleted={message.deleted}
@@ -261,6 +282,12 @@ export function ConversationView({ id }: { id: string }) {
                               ...(conversation.can.post
                                 ? [
                                     {
+                                      key: 'react',
+                                      label: t('chat.react'),
+                                      icon: <SmilePlus aria-hidden />,
+                                      onSelect: () => setReacting(message),
+                                    },
+                                    {
                                       key: 'reply',
                                       label: t('chat.reply'),
                                       icon: <Reply aria-hidden />,
@@ -281,7 +308,6 @@ export function ConversationView({ id }: { id: string }) {
                                       onSelect: () => {
                                         setReplyTo(null);
                                         setEditing(message);
-                                        setText(message.body);
                                         input.current?.focus();
                                       },
                                     },
@@ -308,64 +334,31 @@ export function ConversationView({ id }: { id: string }) {
       </div>
 
       {conversation.can.post ? (
-        <form
-          aria-label={t('chat.composer')}
-          className="flex flex-col gap-2 border-t border-line pt-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            submit();
+        <Composer
+          id={id}
+          people={conversation.members
+            .filter((m) => m.id !== me?.member?.id)
+            .map((m) => ({ id: m.id, displayName: m.displayName }))}
+          replyTo={replyTo}
+          editing={editing}
+          inputRef={input}
+          onCancel={() => {
+            setReplyTo(null);
+            setEditing(null);
           }}
-        >
-          {(replyTo || editing) && (
-            <div className="flex items-center gap-2 rounded-lg bg-sunken px-3 py-1.5 text-xs text-ink-muted">
-              {replyTo ? (
-                <Reply aria-hidden className="size-3.5" />
-              ) : (
-                <Pencil aria-hidden className="size-3.5" />
-              )}
-              <span className="min-w-0 flex-1 truncate">
-                {replyTo
-                  ? `${t('chat.replyingTo', { name: replyTo.author.displayName })}: ${replyTo.body}`
-                  : t('chat.editing')}
-              </span>
-              <button
-                type="button"
-                aria-label={replyTo ? t('chat.cancelReply') : t('chat.cancelEdit')}
-                onClick={() => {
-                  setReplyTo(null);
-                  if (editing) setText('');
-                  setEditing(null);
-                }}
-                className="grid size-7 place-items-center rounded-full hover:bg-surface [&_svg]:size-3.5"
-              >
-                <X aria-hidden />
-              </button>
-            </div>
-          )}
-          <div className="flex items-end gap-2">
-            <label htmlFor={`composer-${id}`} className="sr-only">
-              {t('chat.placeholder')}
-            </label>
-            <textarea
-              id={`composer-${id}`}
-              ref={input}
-              rows={1}
-              maxLength={MESSAGE_MAX}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={onKeyDown}
-              placeholder={t('chat.placeholder')}
-              className="max-h-40 min-h-11 flex-1 resize-none rounded-xl border border-line-strong bg-surface px-3 py-2.5 text-ink outline-none placeholder:text-ink-subtle focus-visible:outline-2 focus-visible:outline-focus [field-sizing:content]"
-            />
-            <Button
-              type="submit"
-              size="icon"
-              aria-label={t('chat.send')}
-              disabled={!text.trim()}
-              icon={<Send aria-hidden className="rtl:-scale-x-100" />}
-            />
-          </div>
-        </form>
+          onSend={(body, uploads) => {
+            send.mutate(
+              { body, replyTo, uploads, tempId: `${PENDING_PREFIX}${Date.now()}` },
+              { onError },
+            );
+            setReplyTo(null);
+            nearBottom.current = true;
+          }}
+          onEdit={(message, body) => {
+            edit.mutate({ id: message.id, body }, { onError });
+            setEditing(null);
+          }}
+        />
       ) : (
         <p className="border-t border-line pt-3 text-center text-sm text-ink-muted">
           {t('chat.readOnly')}
@@ -373,6 +366,24 @@ export function ConversationView({ id }: { id: string }) {
       )}
 
       <ConversationInfo conversation={conversation} open={infoOpen} onOpenChange={setInfoOpen} />
+      <Modal
+        open={reacting !== null}
+        onOpenChange={(open) => !open && setReacting(null)}
+        title={t('chat.react')}
+      >
+        {reacting && (
+          <ReactionPicker
+            mine={reactionViews(reacting, me?.member?.id)
+              .filter((r) => r.mine)
+              .map((r) => r.emoji)}
+            onPick={(emoji, active) => {
+              toggleReaction(reacting, emoji, active);
+              setReacting(null);
+            }}
+            className="justify-center"
+          />
+        )}
+      </Modal>
       <Modal
         open={deleting !== null}
         onOpenChange={(open) => !open && setDeleting(null)}

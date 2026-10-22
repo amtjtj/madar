@@ -85,6 +85,7 @@ export function ConversationList({ className }: { className?: string }) {
                     : undefined
                 }
                 unread={c.unreadCount}
+                mentioned={c.unreadMentions > 0}
                 muted={c.muted}
                 active={pathname === `/chat/${c.id}`}
               />

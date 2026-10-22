@@ -3,8 +3,11 @@ import { t } from '@madar/i18n';
 import {
   formatJalaliDate,
   formatTime,
+  mentionToken,
+  mentionsAsText,
   type ConversationSummary,
   type Message,
+  type ReactionEmoji,
   type MessagePage,
 } from '@madar/shared';
 
@@ -101,9 +104,79 @@ export function chatTime(iso: string, timeZone?: string, now = new Date()): stri
 export function conversationPreview(c: ConversationSummary, meId: string | undefined): string {
   const last = c.lastMessage;
   if (!last) return t('chat.noMessages');
-  const text = last.deleted ? t('chat.deletedPreview') : last.body.replace(/\s+/g, ' ');
+  const names = new Map(last.mentions.map((m) => [m.id, m.displayName]));
+  const body = mentionsAsText(last.body, names, t('ui.chat.someone')).replace(/\s+/g, ' ').trim();
+  const text = last.deleted
+    ? t('chat.deletedPreview')
+    : body || (last.fileName ? t('chat.filePreview', { name: last.fileName }) : '');
   const name = last.author.id === meId ? t('chat.you') : last.author.displayName;
   return c.kind === 'direct' && last.author.id !== meId
     ? text
     : t('chat.previewBy', { name, text });
+}
+
+/** Reactions as the bar shows them, with «mine» for the viewer. */
+export function reactionViews(message: Pick<Message, 'reactions'>, meId: string | undefined) {
+  return message.reactions.map((r) => ({
+    emoji: r.emoji,
+    names: r.members.map((m) => m.displayName),
+    mine: r.members.some((m) => m.id === meId),
+  }));
+}
+
+/** The message with the viewer's reaction turned on or off (optimistic). */
+export function toggleReaction(
+  message: Message,
+  emoji: ReactionEmoji,
+  active: boolean,
+  me: { id: string; displayName: string },
+): Message {
+  const others = message.reactions.map((r) =>
+    r.emoji === emoji ? { ...r, members: r.members.filter((m) => m.id !== me.id) } : r,
+  );
+  const reactions = active
+    ? others.some((r) => r.emoji === emoji)
+      ? others.map((r) => (r.emoji === emoji ? { ...r, members: [...r.members, me] } : r))
+      : [...others, { emoji, members: [me] }]
+    : others;
+  return { ...message, reactions: reactions.filter((r) => r.members.length > 0) };
+}
+
+/**
+ * The «@name» being typed right before the caret, if any: an «@» at the start or after a space,
+ * then up to 30 characters without a line break.
+ */
+export function mentionQuery(text: string, caret: number): { start: number; query: string } | null {
+  const before = text.slice(0, caret);
+  const at = before.lastIndexOf('@');
+  if (at < 0 || (at > 0 && !/\s/.test(before[at - 1] ?? ''))) return null;
+  const query = before.slice(at + 1);
+  if (query.length > 30 || /\n/.test(query)) return null;
+  return { start: at, query };
+}
+
+/** People whose name matches what was typed after «@» (any word may match). */
+export function matchPeople<T extends { displayName: string }>(people: T[], query: string): T[] {
+  const q = query.trim();
+  if (!q) return people.slice(0, 8);
+  return people.filter((p) => p.displayName.includes(q)).slice(0, 8);
+}
+
+/** The composer shows «@name»; the server gets `<@id>` for the people picked from the list. */
+export function encodeMentions(
+  text: string,
+  picked: { id: string; displayName: string }[],
+): string {
+  let out = text;
+  // Longer names first, so «علی رضایی» is not taken by a picked «علی».
+  for (const p of [...picked].sort((a, b) => b.displayName.length - a.displayName.length)) {
+    out = out.split(`@${p.displayName}`).join(mentionToken(p.id));
+  }
+  return out;
+}
+
+/** The other way, for editing a sent message. */
+export function decodeMentions(body: string, mentions: { id: string; displayName: string }[]) {
+  const names = new Map(mentions.map((m) => [m.id, m.displayName]));
+  return mentionsAsText(body, names, t('ui.chat.someone'));
 }

@@ -1,7 +1,18 @@
 import type { Message } from '@madar/shared';
 import { describe, expect, it } from 'vitest';
 
-import { flattenMessages, groupMessages, upsertMessage } from './chat';
+import {
+  conversationPreview,
+  decodeMentions,
+  encodeMentions,
+  flattenMessages,
+  groupMessages,
+  matchPeople,
+  mentionQuery,
+  reactionViews,
+  toggleReaction,
+  upsertMessage,
+} from './chat';
 
 const msg = (id: string, author: string, createdAt: string, body = id): Message => ({
   id,
@@ -61,5 +72,57 @@ describe('chat helpers', () => {
     );
     expect(groups).toHaveLength(2);
     expect(groups[1]?.items.map((i) => i.showAuthor)).toEqual([true, false, true]);
+  });
+
+  it('finds the «@name» being typed and matches people by any part of the name', () => {
+    expect(mentionQuery('سلام @مری', 9)).toEqual({ start: 5, query: 'مری' });
+    expect(mentionQuery('@', 1)).toEqual({ start: 0, query: '' });
+    expect(mentionQuery('a@b.ir', 6)).toBeNull();
+    expect(mentionQuery('@مریم\nبعد', 9)).toBeNull();
+    const people = [{ displayName: 'مریم احمدی' }, { displayName: 'علی رضایی' }];
+    expect(matchPeople(people, 'احمد')).toEqual([people[0]]);
+    expect(matchPeople(people, '')).toHaveLength(2);
+  });
+
+  it('turns picked «@name» into tokens and back', () => {
+    const ali = { id: '0190a1b2-0000-7000-8000-000000000002', displayName: 'علی' };
+    const aliR = { id: '0190a1b2-0000-7000-8000-000000000003', displayName: 'علی رضایی' };
+    const body = encodeMentions('@علی رضایی و @علی ببینید', [ali, aliR]);
+    expect(body).toBe(`<@${aliR.id}> و <@${ali.id}> ببینید`);
+    expect(decodeMentions(body, [ali, aliR])).toBe('@علی رضایی و @علی ببینید');
+  });
+
+  it('toggles my reaction and marks it as mine', () => {
+    const me = { id: 'me', displayName: 'من' };
+    const base = msg('5', 'a', '2026-10-20T08:00:00Z');
+    const on = toggleReaction(base, '👍', true, me);
+    expect(reactionViews(on, 'me')).toEqual([{ emoji: '👍', names: ['من'], mine: true }]);
+    expect(toggleReaction(on, '👍', false, me).reactions).toEqual([]);
+  });
+
+  it('previews a file-only message by the file name and mentions by name', () => {
+    const summary = (body: string, fileName: string | null) => ({
+      id: 'c',
+      kind: 'group' as const,
+      title: 'گروه',
+      peer: null,
+      projectId: null,
+      departmentId: null,
+      lastMessage: {
+        author: { id: 'a', displayName: 'مریم' },
+        body,
+        createdAt: '2026-10-20T08:00:00Z',
+        deleted: false,
+        mentions: [{ id: '0190a1b2-0000-7000-8000-000000000002', displayName: 'علی' }],
+        fileName,
+      },
+      unreadCount: 0,
+      unreadMentions: 0,
+      muted: false,
+    });
+    expect(conversationPreview(summary('', 'گزارش.pdf'), 'me')).toBe('مریم: فایل: گزارش.pdf');
+    expect(
+      conversationPreview(summary('<@0190a1b2-0000-7000-8000-000000000002> سلام', null), 'me'),
+    ).toBe('مریم: @علی سلام');
   });
 });

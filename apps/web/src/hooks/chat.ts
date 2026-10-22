@@ -14,10 +14,12 @@ import type {
   CreateGroupRequest,
   Message,
   MessagePage,
+  ReactionEmoji,
+  Upload,
 } from '@madar/shared';
 
 import { api } from '@/lib/api';
-import { applyLiveMessage } from '@/lib/chat';
+import { applyLiveMessage, toggleReaction } from '@/lib/chat';
 
 import { chatKeys, notificationKeys } from './keys';
 
@@ -80,12 +82,21 @@ function refreshLists(client: QueryClient) {
 export function useSendMessage(id: string, me: { id: string; displayName: string }) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (input: { body: string; replyTo?: Message | null; tempId: string }) =>
+    mutationFn: (input: {
+      body: string;
+      replyTo?: Message | null;
+      tempId: string;
+      uploads?: Upload[];
+    }) =>
       api<Message>(`/api/conversations/${id}/messages`, {
         method: 'POST',
-        body: { body: input.body, replyToId: input.replyTo?.id ?? null },
+        body: {
+          body: input.body,
+          replyToId: input.replyTo?.id ?? null,
+          uploadIds: (input.uploads ?? []).map((u) => u.id),
+        },
       }),
-    onMutate: ({ body, replyTo, tempId }) => {
+    onMutate: ({ body, replyTo, tempId, uploads = [] }) => {
       applyLiveMessage(client, {
         id: tempId,
         conversationId: id,
@@ -102,7 +113,13 @@ export function useSendMessage(id: string, me: { id: string; displayName: string
         createdAt: new Date().toISOString(),
         editedAt: null,
         deleted: false,
-        attachments: [],
+        attachments: uploads.map((u) => ({
+          ...u,
+          uploadedBy: me,
+          createdAt: new Date().toISOString(),
+          subject: null,
+          can: { delete: false },
+        })),
         mentions: [],
         reactions: [],
       });
@@ -154,6 +171,26 @@ export function useDeleteMessage() {
       api<undefined>(`/api/messages/${message.id}`, { method: 'DELETE' }),
     onSuccess: (_d, message) => applyLiveMessage(client, { ...message, body: '', deleted: true }),
     onSettled: () => refreshLists(client),
+  });
+}
+
+/** My reaction on or off, shown at once; the server's copy (also sent live) replaces it. */
+export function useReact(me: { id: string; displayName: string }) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { message: Message; emoji: ReactionEmoji; active: boolean }) =>
+      api<Message>(`/api/messages/${input.message.id}/reactions`, {
+        method: 'PUT',
+        body: { emoji: input.emoji, active: input.active },
+      }),
+    onMutate: ({ message, emoji, active }) => {
+      applyLiveMessage(client, toggleReaction(message, emoji, active, me));
+      return { message };
+    },
+    onSuccess: (message) => applyLiveMessage(client, message),
+    onError: (_e, _v, context) => {
+      if (context) applyLiveMessage(client, context.message);
+    },
   });
 }
 

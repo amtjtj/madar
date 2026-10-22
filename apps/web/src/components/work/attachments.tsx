@@ -193,10 +193,13 @@ export function AttachmentList({
   taskId,
   attachments: all,
   compact,
+  chat,
 }: {
   taskId?: string;
   attachments: Attachment[];
   compact?: boolean;
+  /** Inside a chat message: bigger images, no uploader line (the bubble says who sent it). */
+  chat?: boolean;
 }) {
   const [viewing, setViewing] = useState<Attachment | null>(null);
   const [removing, setRemoving] = useState<Attachment | null>(null);
@@ -210,7 +213,13 @@ export function AttachmentList({
           aria-label={t('work.files.images')}
           className={cn(
             'grid gap-2',
-            compact ? 'grid-cols-4 sm:grid-cols-6' : 'grid-cols-3 sm:grid-cols-4',
+            chat
+              ? images.length === 1
+                ? 'w-56 max-w-full grid-cols-1'
+                : 'w-64 max-w-full grid-cols-2'
+              : compact
+                ? 'grid-cols-4 sm:grid-cols-6'
+                : 'grid-cols-3 sm:grid-cols-4',
           )}
         >
           {images.map((a) => (
@@ -228,10 +237,14 @@ export function AttachmentList({
                 fileName={a.fileName}
                 size={a.size}
                 kind={a.kind}
-                meta={t('work.files.meta', {
-                  name: a.uploadedBy.displayName,
-                  time: formatRelativeTime(new Date(a.createdAt)),
-                })}
+                meta={
+                  chat
+                    ? undefined
+                    : t('work.files.meta', {
+                        name: a.uploadedBy.displayName,
+                        time: formatRelativeTime(new Date(a.createdAt)),
+                      })
+                }
                 href={fileUrl(a, a.kind === 'pdf')}
                 external={a.kind === 'pdf'}
                 actions={
