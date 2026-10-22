@@ -2,7 +2,7 @@
 
 import { Search } from 'lucide-react';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { t } from '@madar/i18n';
 import type { ConversationSummary } from '@madar/shared';
@@ -15,6 +15,7 @@ import { useMe } from '@/hooks/use-me';
 import { chatTime, conversationPreview } from '@/lib/chat';
 
 import { NewConversation } from './new-conversation';
+import { SearchResults } from './search-results';
 
 type Tab = 'all' | 'teams' | 'people';
 
@@ -32,6 +33,12 @@ export function ConversationList({ className }: { className?: string }) {
   const [tab, setTab] = useState<Tab>('all');
   const [query, setQuery] = useState('');
   const q = query.trim();
+  // Messages are searched on the server: wait until typing pauses.
+  const [searched, setSearched] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setSearched(q), 300);
+    return () => clearTimeout(timer);
+  }, [q]);
   const shown = (items ?? []).filter((c) => inTab(c, tab) && (!q || c.title.includes(q)));
 
   return (
@@ -64,34 +71,38 @@ export function ConversationList({ className }: { className?: string }) {
             <Skeleton key={i} className="h-16 rounded-xl" />
           ))}
         </div>
-      ) : !shown.length ? (
-        <EmptyState
-          title={q ? t('chat.noResults') : t('chat.empty')}
-          description={q ? undefined : t('chat.emptyHint')}
-        />
+      ) : !shown.length && !q ? (
+        <EmptyState title={t('chat.empty')} description={t('chat.emptyHint')} />
       ) : (
-        <ul className="flex min-h-0 flex-col overflow-y-auto">
-          {shown.map((c) => (
-            <li key={c.id}>
-              <ConversationRow
-                href={`/chat/${c.id}`}
-                Link={NextLink}
-                kind={c.kind}
-                title={c.title}
-                preview={conversationPreview(c, me?.member?.id)}
-                time={
-                  c.lastMessage
-                    ? chatTime(c.lastMessage.createdAt, me?.tenant?.timezone)
-                    : undefined
-                }
-                unread={c.unreadCount}
-                mentioned={c.unreadMentions > 0}
-                muted={c.muted}
-                active={pathname === `/chat/${c.id}`}
-              />
-            </li>
-          ))}
-        </ul>
+        <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">
+          {!shown.length ? (
+            <p className="px-1 py-2 text-sm text-ink-muted">{t('chat.noResults')}</p>
+          ) : (
+            <ul className="flex flex-col">
+              {shown.map((c) => (
+                <li key={c.id}>
+                  <ConversationRow
+                    href={`/chat/${c.id}`}
+                    Link={NextLink}
+                    kind={c.kind}
+                    title={c.title}
+                    preview={conversationPreview(c, me?.member?.id)}
+                    time={
+                      c.lastMessage
+                        ? chatTime(c.lastMessage.createdAt, me?.tenant?.timezone)
+                        : undefined
+                    }
+                    unread={c.unreadCount}
+                    mentioned={c.unreadMentions > 0}
+                    muted={c.muted}
+                    active={pathname === `/chat/${c.id}`}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+          <SearchResults query={q.length >= 2 ? searched : ''} />
+        </div>
       )}
     </div>
   );

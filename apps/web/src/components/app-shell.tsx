@@ -5,6 +5,7 @@ import {
   ArrowDownWideNarrow,
   BellRing,
   Download,
+  MessagesSquare,
   Building2,
   ChartNetwork,
   Clock,
@@ -100,6 +101,16 @@ export function useOrgNavItems(): NavItem[] {
             label: t('shell.audit'),
             href: '/audit',
             icon: <ScrollText aria-hidden />,
+          },
+        ]
+      : []),
+    ...(can('chat.export')
+      ? [
+          {
+            key: '/org/chat-export',
+            label: t('chatExport.short'),
+            href: '/org/chat-export',
+            icon: <MessagesSquare aria-hidden />,
           },
         ]
       : []),

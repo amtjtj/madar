@@ -1,10 +1,12 @@
 import type { InfiniteData, QueryClient } from '@tanstack/react-query';
 import { t } from '@madar/i18n';
 import {
+  csvLine,
   formatJalaliDate,
   formatTime,
   mentionToken,
   mentionsAsText,
+  type ChatExport,
   type ConversationSummary,
   type Message,
   type ReactionEmoji,
@@ -202,4 +204,47 @@ export function encodeMentions(
 export function decodeMentions(body: string, mentions: { id: string; displayName: string }[]) {
   const names = new Map(mentions.map((m) => [m.id, m.displayName]));
   return mentionsAsText(body, names, t('ui.chat.someone'));
+}
+
+/** A search excerpt split so the matched words can be bold (Persian and Latin digits match). */
+export function highlightParts(text: string, query: string): { text: string; match: boolean }[] {
+  const q = query.trim();
+  if (!q) return [{ text, match: false }];
+  const latin = (v: string) => v.replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)));
+  const hay = latin(text).toLowerCase();
+  const needle = latin(q).toLowerCase();
+  const parts: { text: string; match: boolean }[] = [];
+  let from = 0;
+  for (let at = hay.indexOf(needle); at >= 0; at = hay.indexOf(needle, at + needle.length)) {
+    if (at > from) parts.push({ text: text.slice(from, at), match: false });
+    parts.push({ text: text.slice(at, at + needle.length), match: true });
+    from = at + needle.length;
+  }
+  if (from < text.length) parts.push({ text: text.slice(from), match: false });
+  return parts;
+}
+
+/**
+ * A channel export as CSV text: a BOM so Excel reads the Persian, Jalali dates in the company's
+ * time zone, files listed by name.
+ */
+export function chatExportCsv(data: ChatExport, timeZone?: string): string {
+  const header = csvLine([
+    t('chatExport.columns.date'),
+    t('chatExport.columns.time'),
+    t('chatExport.columns.author'),
+    t('chatExport.columns.text'),
+    t('chatExport.columns.files'),
+  ]);
+  const lines = data.rows.map((r) => {
+    const at = new Date(r.createdAt);
+    return csvLine([
+      formatJalaliDate(at, 'short', timeZone),
+      formatTime(at, timeZone),
+      r.author,
+      r.edited ? `${r.text} (${t('ui.chat.edited')})` : r.text,
+      r.files.join(t('ui.listSeparator')),
+    ]);
+  });
+  return `\uFEFF${[header, ...lines].join('\r\n')}\r\n`;
 }

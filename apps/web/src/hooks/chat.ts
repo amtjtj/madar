@@ -13,7 +13,10 @@ import type {
   ConversationSummary,
   CreateGroupRequest,
   Message,
+  ChatExport,
+  ChatSearchPage,
   CreateTaskFromMessageRequest,
+  ExportableChannel,
   MessagePage,
   MessageTasks,
   ReactionEmoji,
@@ -295,6 +298,53 @@ export function useCreateTaskFromMessage() {
       countPin(message);
       void client.invalidateQueries({ queryKey: ['tasks'] });
       void client.invalidateQueries({ queryKey: ['today'] });
+    },
+  });
+}
+
+/** Messages containing the words, in my conversations or one of them; 30 at a time. */
+export function useChatSearch(q: string, conversationId?: string) {
+  const query = q.trim();
+  return useInfiniteQuery({
+    queryKey: chatKeys.search(query, conversationId),
+    enabled: query.length >= 2,
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams({ q: query });
+      if (conversationId) params.set('conversationId', conversationId);
+      if (pageParam) params.set('before', pageParam);
+      return api<ChatSearchPage>(`/api/chat/search?${params.toString()}`);
+    },
+    getNextPageParam: (last) => last.nextBefore ?? undefined,
+  });
+}
+
+/** The page around one message, for opening a search result. */
+export function useAroundMessages(id: string, messageId: string | null) {
+  return useQuery({
+    queryKey: chatKeys.around(id, messageId ?? ''),
+    enabled: messageId !== null,
+    queryFn: () =>
+      api<MessagePage>(`/api/conversations/${id}/messages?around=${messageId}&limit=50`),
+  });
+}
+
+export function useExportChannels(enabled: boolean) {
+  return useQuery({
+    queryKey: chatKeys.exports,
+    enabled,
+    queryFn: () => api<ExportableChannel[]>('/api/chat/exports/channels'),
+  });
+}
+
+export function useExportChannel() {
+  return useMutation({
+    mutationFn: ({ id, from, to }: { id: string; from: string | null; to: string | null }) => {
+      const params = new URLSearchParams();
+      if (from) params.set('from', from);
+      if (to) params.set('to', to);
+      const qs = params.toString();
+      return api<ChatExport>(`/api/chat/exports/${id}${qs ? `?${qs}` : ''}`);
     },
   });
 }

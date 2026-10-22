@@ -2,7 +2,9 @@ import type { Message } from '@madar/shared';
 import { describe, expect, it } from 'vitest';
 
 import {
+  chatExportCsv,
   conversationPreview,
+  highlightParts,
   decodeMentions,
   encodeMentions,
   flattenMessages,
@@ -129,5 +131,37 @@ describe('chat helpers', () => {
     expect(
       conversationPreview(summary('<@0190a1b2-0000-7000-8000-000000000002> سلام', null), 'me'),
     ).toBe('مریم: @علی سلام');
+  });
+
+  it('marks the matched words, Persian digits included', () => {
+    expect(highlightParts('سرور تست ۴۰۲۱ آماده', '4021')).toEqual([
+      { text: 'سرور تست ', match: false },
+      { text: '۴۰۲۱', match: true },
+      { text: ' آماده', match: false },
+    ]);
+  });
+
+  it('writes a channel export as CSV with a BOM and Persian headings', () => {
+    const csv = chatExportCsv(
+      {
+        channel: { id: 'c', kind: 'department', title: 'پشتیبانی' },
+        rows: [
+          {
+            createdAt: '2026-10-20T08:00:00Z',
+            author: 'علی رضایی',
+            text: 'سلام، "تیم"',
+            files: ['الف.pdf'],
+            edited: false,
+          },
+        ],
+      },
+      'Asia/Tehran',
+    );
+    expect(csv.startsWith('\uFEFF')).toBe(true);
+    const [head, row] = csv.slice(1).split('\r\n');
+    expect(head?.split(',')).toHaveLength(5);
+    expect(row).toContain('علی رضایی');
+    expect(row).toContain('"سلام، ""تیم"""');
+    expect(row).toContain('الف.pdf');
   });
 });

@@ -7,11 +7,13 @@ import {
   MoreVertical,
   Pencil,
   Reply,
+  Search,
   SmilePlus,
   Stamp,
   Trash2,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { t } from '@madar/i18n';
@@ -27,6 +29,8 @@ import {
   ReactionBar,
   ReactionPicker,
   Skeleton,
+  TextField,
+  cn,
   useToast,
 } from '@madar/ui';
 
@@ -40,6 +44,7 @@ import {
   useEditMessage,
   useMarkRead,
   useMessages,
+  useAroundMessages,
   useCountPin,
   useReact,
   useSendMessage,
@@ -57,9 +62,10 @@ import { errorMessage } from '@/lib/errors';
 import { Composer } from './composer';
 import { ConversationInfo } from './conversation-info';
 import { MakeTaskDialog, PinnedTasks } from './message-tasks';
+import { SearchResults } from './search-results';
 
 /** One conversation: header, messages by day, the «unread» line, and the composer. */
-export function ConversationView({ id }: { id: string }) {
+export function ConversationView({ id, focusId = null }: { id: string; focusId?: string | null }) {
   const { data: conversation, isPending: loading, isError, error } = useConversation(id);
   const messages = useMessages(id);
   const { data: me } = useMe();
@@ -78,6 +84,16 @@ export function ConversationView({ id }: { id: string }) {
   const [making, setMaking] = useState<Message | null>(null);
   const [pinning, setPinning] = useState<Message | null>(null);
   const countPin = useCountPin();
+  const router = useRouter();
+  // Opened from a search result: the page around that message instead of the newest ones.
+  const around = useAroundMessages(id, focusId);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchText, setSearchText] = useState('');
+  const [searched, setSearched] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setSearched(searchText.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchText]);
   const [editing, setEditing] = useState<Message | null>(null);
   const [deleting, setDeleting] = useState<Message | null>(null);
   const [infoOpen, setInfoOpen] = useState(false);
@@ -88,14 +104,24 @@ export function ConversationView({ id }: { id: string }) {
   const [unreadAfter, setUnreadAfter] = useState<string | null | undefined>(undefined);
   if (conversation && unreadAfter === undefined) setUnreadAfter(conversation.lastReadMessageId);
 
-  const all = flattenMessages(messages.data?.pages ?? []);
+  const focusing = focusId !== null && Boolean(around.data);
+  const all = focusing ? (around.data?.items ?? []) : flattenMessages(messages.data?.pages ?? []);
   const lastId = all.filter((m) => !isPending(m)).at(-1)?.id;
 
   // Stick to the bottom when new messages arrive, unless the person scrolled up to read.
   useLayoutEffect(() => {
     const el = scroller.current;
+    if (focusing) return;
     if (el && nearBottom.current) el.scrollTop = el.scrollHeight;
-  }, [all.length]);
+  }, [all.length, focusing]);
+  // A search result: bring the message into view.
+  useEffect(() => {
+    if (!focusing || !focusId) return;
+    nearBottom.current = false;
+    document
+      .getElementById(`message-${focusId}`)
+      ?.scrollIntoView({ block: 'center', behavior: 'auto' });
+  }, [focusing, focusId]);
 
   // Images load after the layout and push the newest message out of view: stay at the bottom.
   useEffect(() => {
@@ -193,6 +219,14 @@ export function ConversationView({ id }: { id: string }) {
         </div>
         <button
           type="button"
+          onClick={() => setSearchOpen(true)}
+          aria-label={t('chat.searchIn')}
+          className="grid size-10 place-items-center rounded-full text-ink-muted hover:bg-sunken focus-visible:outline-2 focus-visible:outline-focus [&_svg]:size-5"
+        >
+          <Search aria-hidden />
+        </button>
+        <button
+          type="button"
           onClick={() => setInfoOpen(true)}
           aria-label={t('chat.info')}
           className="grid size-10 place-items-center rounded-full text-ink-muted hover:bg-sunken focus-visible:outline-2 focus-visible:outline-focus [&_svg]:size-5"
@@ -212,7 +246,7 @@ export function ConversationView({ id }: { id: string }) {
         aria-live="polite"
         aria-relevant="additions"
       >
-        {messages.hasNextPage && (
+        {!focusing && messages.hasNextPage && (
           <Button
             variant="ghost"
             size="sm"
@@ -242,8 +276,17 @@ export function ConversationView({ id }: { id: string }) {
                   !isPending(message) &&
                   canStillEdit(message.createdAt);
                 const showUnread = message.id === firstUnreadId;
+                const focused = focusing && message.id === focusId;
                 return (
-                  <div key={message.id} className="flex flex-col gap-1.5">
+                  <div
+                    key={message.id}
+                    id={`message-${message.id}`}
+                    aria-label={focused ? t('chat.foundHere') : undefined}
+                    className={cn(
+                      'flex flex-col gap-1.5 rounded-2xl transition-colors',
+                      focused && 'bg-primary-soft/60 p-1',
+                    )}
+                  >
                     {showUnread && (
                       <p className="my-1 text-center text-xs font-bold text-primary-ink">
                         {t('chat.unreadLine')}
@@ -366,6 +409,16 @@ export function ConversationView({ id }: { id: string }) {
         )}
       </div>
 
+      {focusing && (
+        <Button
+          variant="secondary"
+          size="sm"
+          className="mb-2 self-center"
+          onClick={() => router.replace(`/chat/${id}`)}
+        >
+          {t('chat.toLatest')}
+        </Button>
+      )}
       {conversation.can.post ? (
         <Composer
           id={id}
@@ -380,6 +433,7 @@ export function ConversationView({ id }: { id: string }) {
             setEditing(null);
           }}
           onSend={(body, uploads, mentions) => {
+            if (focusing) router.replace(`/chat/${id}`);
             const sent = send.mutateAsync({
               body,
               replyTo,
@@ -406,6 +460,26 @@ export function ConversationView({ id }: { id: string }) {
       )}
 
       <ConversationInfo conversation={conversation} open={infoOpen} onOpenChange={setInfoOpen} />
+      <Modal open={searchOpen} onOpenChange={setSearchOpen} title={t('chat.searchIn')}>
+        <div className="flex flex-col gap-3">
+          <TextField
+            label={t('chat.searchIn')}
+            hideLabel
+            type="search"
+            autoFocus
+            placeholder={t('chat.searchInPlaceholder')}
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+          />
+          <div className="max-h-[60vh] overflow-y-auto">
+            <SearchResults
+              query={searched}
+              conversationId={id}
+              onPick={() => setSearchOpen(false)}
+            />
+          </div>
+        </div>
+      </Modal>
       <MakeTaskDialog
         message={making}
         conversation={conversation}
