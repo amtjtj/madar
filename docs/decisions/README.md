@@ -29,3 +29,4 @@ Template: Status · Date · Context · Decision · Alternatives considered · Co
 | 0021 | Task evidence («شاهد کار») | Accepted |
 | 0022 | Internal chat | Accepted |
 | 0023 | Meetings, minutes and decisions | Accepted |
+| 0024 | Personal calendar | Accepted |

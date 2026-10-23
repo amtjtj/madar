@@ -1096,6 +1096,7 @@ export const fa = {
     backToToday: 'امروز',
     dayItems: '{date}، {count} مورد',
     dayNoItems: '{date}، بدون مورد',
+    dayWithState: '{label}، {state}',
     projectEnd: 'پایان پروژه «{title}»',
     periodEnd: 'پایان {name}',
     truncated: 'بعضی موردها به‌خاطر زیاد بودن نشان داده نشده‌اند.',

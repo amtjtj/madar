@@ -106,16 +106,24 @@ export function MonthView({
               selected={selected}
               onSelect={(date) => {
                 setSelected(date);
-                setSheet(true);
+                // Wide screens show the day beside the month; only phones open a sheet.
+                setSheet(!window.matchMedia('(min-width: 768px)').matches);
               }}
-              dayLabel={(cell) =>
-                cell.items.length
+              dayLabel={(cell) => {
+                const day = data?.days.find((d) => d.date === cell.date);
+                const label = cell.items.length
                   ? t('calendar.dayItems', {
                       date: formatCalendarDate(cell.date, 'full'),
                       count: formatNumber(cell.items.length),
                     })
-                  : t('calendar.dayNoItems', { date: formatCalendarDate(cell.date, 'full') })
-              }
+                  : t('calendar.dayNoItems', { date: formatCalendarDate(cell.date, 'full') });
+                const state = day?.holiday
+                  ? t('calendar.holiday')
+                  : day?.off
+                    ? t('calendar.off')
+                    : null;
+                return state ? t('calendar.dayWithState', { label, state }) : label;
+              }}
             />
           )}
         </CardContent>
@@ -125,19 +133,17 @@ export function MonthView({
         <CardContent className="pt-4">{dayPanel}</CardContent>
       </Card>
       {/* Phones: the day in a sheet. */}
-      <div className="md:hidden">
-        <Modal
-          open={sheet && selected !== null}
-          onOpenChange={setSheet}
-          title={selected ? dayHeading(selected, today) : ''}
-        >
-          {selectedItems.length ? (
-            <DayItems items={selectedItems} timeZone={timeZone} />
-          ) : (
-            <p className="py-2 text-sm text-ink-subtle">{t('calendar.emptyDay')}</p>
-          )}
-        </Modal>
-      </div>
+      <Modal
+        open={sheet && selected !== null}
+        onOpenChange={setSheet}
+        title={selected ? dayHeading(selected, today) : ''}
+      >
+        {selectedItems.length ? (
+          <DayItems items={selectedItems} timeZone={timeZone} />
+        ) : (
+          <p className="py-2 text-sm text-ink-subtle">{t('calendar.emptyDay')}</p>
+        )}
+      </Modal>
     </div>
   );
 }
