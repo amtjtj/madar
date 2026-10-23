@@ -4,7 +4,7 @@ import { Sparkles } from 'lucide-react';
 import { useRef, useState } from 'react';
 
 import { t } from '@madar/i18n';
-import { formatNumber, type MinutesDraftResponse } from '@madar/shared';
+import { formatNumber, MINUTES_NOTES_MAX, type MinutesDraftResponse } from '@madar/shared';
 import { AssistantThinking, Button, CheckboxField, DraftCard, LiteText, useToast } from '@madar/ui';
 
 import { useMinutesDraft } from '@/hooks/ai';
@@ -72,19 +72,25 @@ function MinutesAssistInner({
   const add = async () => {
     if (!result) return;
     const chosen = result.decisions.filter((_, i) => picked.has(i));
+    let left = result.decisions;
     setAdding(true);
     let done = 0;
     try {
       for (const text of chosen) {
         await addDecision.mutateAsync(text);
         done++;
+        // Each one leaves the list as soon as it is added, so a retry never adds it twice.
+        left = left.filter((d) => d !== text);
+        const remaining = left;
+        setResult((current) => (current ? { ...current, decisions: remaining } : current));
+        setPicked(
+          new Set(remaining.map((d, i) => (chosen.includes(d) ? i : -1)).filter((i) => i >= 0)),
+        );
       }
       toast({
         tone: 'success',
         title: t('assistant.minutes.decisionsAdded', { count: formatNumber(done) }),
       });
-      setResult({ ...result, decisions: result.decisions.filter((_, i) => !picked.has(i)) });
-      setPicked(new Set());
     } catch (error) {
       toast({ tone: 'error', title: errorMessage(error) });
     } finally {
@@ -175,13 +181,18 @@ function MinutesAssistInner({
         size="sm"
         className="self-start"
         icon={<Sparkles aria-hidden />}
-        disabled={notes.trim().length < 3}
+        disabled={notes.trim().length < 3 || notes.trim().length > MINUTES_NOTES_MAX}
         onClick={ask}
       >
         {t('assistant.minutes.tidy')}
       </Button>
       {notes.trim().length < 3 && (
         <p className="text-xs text-ink-subtle">{t('assistant.minutes.tidyHint')}</p>
+      )}
+      {notes.trim().length > MINUTES_NOTES_MAX && (
+        <p className="text-xs text-ink-subtle">
+          {t('assistant.minutes.tooLong', { max: formatNumber(MINUTES_NOTES_MAX) })}
+        </p>
       )}
       {problem && (
         <p role="alert" className="rounded-xl bg-danger-soft p-3 text-sm text-danger-ink">

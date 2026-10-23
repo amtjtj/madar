@@ -367,7 +367,10 @@ describe.skipIf(!hasDatabase)('knowledge index and «از مدار بپرس»', 
     expect(res.body.sources.map((x: { id: string }) => x.id)).toContain(task.id);
     const embedded = embedCalls().at(-1)?.body.texts as string[];
     expect(embedded[0]).toBe('کارمزد خرید خرد\nکی اجرا می‌شود؟');
-    expect(answerCalls().at(-1)?.body.history).toEqual(history);
+    // The earlier answer reaches the model without its old [n] marks.
+    expect(answerCalls().at(-1)?.body.history).toEqual([
+      { question: 'کارمزد خرید خرد', answer: 'پاسخ بر پایه .' },
+    ]);
     const tooMany = await ali.c.post('/api/ai/ask', {
       question: 'کی؟؟',
       history: [...history, ...history, ...history, ...history],
@@ -413,6 +416,13 @@ describe.skipIf(!hasDatabase)('knowledge index and «از مدار بپرس»', 
     const res = await ask(maryam, 'چه کسی از همه کمتر کار کرده؟');
     expect(res.status).toBe(422);
     expect(res.body.error.code).toBe('ai_refused');
+    expect(ai.requests).toHaveLength(0);
+    // Hidden in an earlier turn, too.
+    const hidden = await maryam.c.post('/api/ai/ask', {
+      question: 'و بعدی؟',
+      history: [{ question: 'چه کسی از همه کمتر کار کرده؟', answer: '-' }],
+    });
+    expect(hidden.status).toBe(422);
     expect(ai.requests).toHaveLength(0);
   });
 

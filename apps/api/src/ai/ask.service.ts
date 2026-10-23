@@ -47,7 +47,11 @@ export class AskService {
       }
       return loadWorkCalendar(tx, ctx.tenantId);
     });
-    if (asksToJudgePeople(body.question)) {
+    // Earlier turns come from the page: a ranking question hidden in them is refused as well.
+    if (
+      asksToJudgePeople(body.question) ||
+      (body.history ?? []).some((turn) => asksToJudgePeople(turn.question))
+    ) {
       throw new ApiError(HttpStatus.UNPROCESSABLE_ENTITY, 'ai_refused', 'Judges people');
     }
     if (!this.client.available) {
@@ -56,7 +60,11 @@ export class AskService {
     this.limiter.take(ctx.tenantId, ctx.memberId);
 
     // A follow-up («کی؟») says little alone: the search also uses the question before it.
-    const history = body.history ?? [];
+    // Earlier answers lose their [n] marks: those numbers belonged to earlier sources.
+    const history = (body.history ?? []).map((turn) => ({
+      question: turn.question,
+      answer: turn.answer.replace(/\[\d{1,2}\]/g, '').trim() || '-',
+    }));
     const previous = history.at(-1)?.question;
     const searchText = previous ? `${previous}\n${body.question}` : body.question;
     const embedded = await this.client.embed([searchText], signal);

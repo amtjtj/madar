@@ -241,6 +241,64 @@ describe.skipIf(!hasDatabase)('manager assistant drafts (minutes, letter replies
     expect((await maryam.c.post('/api/ai/letter-reply', { letterId: draft.id })).status).toBe(404);
   });
 
+  it('leaves out of the thread what I never received, and stops at a confidential letter', async () => {
+    const send = async (from: Person, input: Record<string, unknown>) => {
+      const d = (await from.c.post('/api/letters', input)).body;
+      return (await from.c.post(`/api/letters/${d.id}/send`)).body;
+    };
+    const thread = () =>
+      (last('/v1/letter-reply') as { thread: Array<{ subject: string }> }).thread.map(
+        (t) => t.subject,
+      );
+    // Reza never had the first letter: his draft sees only the one sent to him.
+    const toAli = await send(maryam, {
+      subject: 'نامه اول',
+      body: lite('متن'),
+      to: [ali.memberId],
+    });
+    const toReza = await send(ali, {
+      subject: 'ارجاع به رضا',
+      body: lite('لطفاً بررسی کنید.'),
+      to: [reza.memberId],
+      replyToId: toAli.id,
+    });
+    expect((await reza.c.post('/api/ai/letter-reply', { letterId: toReza.id })).status).toBe(201);
+    expect(thread()).toEqual([]);
+    // A confidential letter earlier in the thread cuts it there, with everything before it.
+    const confidential = await send(maryam, {
+      subject: 'محرمانه',
+      body: lite('رقم'),
+      to: [ali.memberId],
+      confidential: true,
+      replyToId: toAli.id,
+    });
+    const answer = await send(ali, {
+      subject: 'پاسخ',
+      body: lite('دریافت شد.'),
+      to: [maryam.memberId],
+      replyToId: confidential.id,
+    });
+    expect((await maryam.c.post('/api/ai/letter-reply', { letterId: answer.id })).status).toBe(201);
+    expect(thread()).toEqual([]);
+    expect(JSON.stringify(last('/v1/letter-reply'))).not.toContain('رقم');
+  });
+
+  it('a follow-up to my own letter speaks to its recipient', async () => {
+    const d = (
+      await maryam.c.post('/api/letters', {
+        subject: 'پیگیری',
+        body: lite('متن'),
+        to: [ali.memberId],
+      })
+    ).body;
+    await maryam.c.post(`/api/letters/${d.id}/send`);
+    expect((await maryam.c.post('/api/ai/letter-reply', { letterId: d.id })).status).toBe(201);
+    expect(last('/v1/letter-reply')).toMatchObject({
+      sender: 'مریم احمدی',
+      recipient: 'علی رضایی',
+    });
+  });
+
   it('never drafts a reply to a confidential letter', async () => {
     const d = (
       await maryam.c.post('/api/letters', {

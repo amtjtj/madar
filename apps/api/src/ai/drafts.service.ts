@@ -147,7 +147,18 @@ export class DraftsService {
         });
         parentId = parent.replyToId;
       }
-      const ids = [letter.senderId, ctx.memberId, ...thread.map((t) => t.senderId)];
+      // Writing a follow-up to my own letter: the reply speaks to its first «to» recipient.
+      let recipientId = ctx.memberId;
+      if (letter.senderId === ctx.memberId) {
+        const [first] = await tx
+          .select({ memberId: s.letterRecipients.memberId })
+          .from(s.letterRecipients)
+          .where(and(eq(s.letterRecipients.letterId, letter.id), eq(s.letterRecipients.kind, 'to')))
+          .orderBy(s.letterRecipients.id)
+          .limit(1);
+        if (first) recipientId = first.memberId;
+      }
+      const ids = [letter.senderId, recipientId, ...thread.map((t) => t.senderId)];
       const names = new Map(
         (
           await tx
@@ -161,7 +172,7 @@ export class DraftsService {
         subject: letter.subject.slice(0, 200),
         body: plain(letter.body.text, BODY_MAX) || '-',
         sender: name(letter.senderId),
-        recipient: name(ctx.memberId),
+        recipient: name(recipientId),
         thread: thread.reverse().map((t) => ({
           sender: name(t.senderId),
           subject: t.subject.slice(0, 200),
