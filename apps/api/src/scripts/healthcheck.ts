@@ -1,6 +1,9 @@
 /**
  * Container healthcheck (plan phase-1-step-9 §6). `api`: the HTTP server answers and reaches the
- * database. `worker`: its heartbeat in Redis is fresh. Exits 0 when healthy, 1 otherwise.
+ * database. `worker`: its heartbeat in Redis is fresh. `demo`: the daily reset loop is the
+ * container's main process, so a running container is a healthy one (compose restarts it if the
+ * loop dies); the check exists because `compose up --wait` refuses a service without one.
+ * Exits 0 when healthy, 1 otherwise.
  */
 import { Redis } from 'ioredis';
 
@@ -32,7 +35,7 @@ async function worker(): Promise<boolean> {
   }
 }
 
-const check = mode === 'worker' ? worker : api;
+const check = mode === 'worker' ? worker : mode === 'demo' ? () => Promise.resolve(true) : api;
 check()
   .then((healthy) => process.exit(healthy ? 0 : 1))
   .catch(() => process.exit(1));

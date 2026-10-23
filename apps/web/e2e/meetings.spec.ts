@@ -52,7 +52,8 @@ test('schedule a meeting, record minutes, turn a decision into a task, cancel an
     mimeType: 'application/pdf',
     buffer: PDF,
   });
-  await expect(page.getByText('صورت‌جلسه.pdf')).toBeVisible();
+  // The name shows while uploading too; the delete button only once the file has arrived.
+  await expect(page.getByRole('button', { name: 'حذف صورت‌جلسه.pdf' })).toBeVisible();
   await page.getByRole('button', { name: 'ثبت صورت‌جلسه' }).click();
   await expect(page.locator('strong', { hasText: 'دو برداشت' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'ویرایش صورت‌جلسه' })).toBeVisible();

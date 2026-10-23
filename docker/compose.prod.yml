@@ -164,8 +164,13 @@ services:
       DEMO_RESET_AT: ${DEMO_RESET_AT:-05:00}
     volumes:
       - files-data:/data/files
+    # Newer compose refuses `up --wait` for a service whose healthcheck is disabled.
     healthcheck:
-      disable: true
+      test: ['CMD', 'node', 'dist/scripts/healthcheck.js', 'demo']
+      interval: 60s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
     depends_on:
       migrate:
         condition: service_completed_successfully

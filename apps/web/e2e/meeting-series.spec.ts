@@ -54,6 +54,8 @@ test('a weekly meeting: replies, a change for this and the following ones, minut
     .getByRole('dialog', { name: 'کدام جلسه‌ها تغییر کنند؟' })
     .getByRole('button', { name: 'این و جلسه‌های بعدی' })
     .click();
+  // The edit form's own summary shows the new hours too: wait until the meeting page is open.
+  await expect(page).toHaveURL(/\/meetings\/[0-9a-f-]{36}$/);
   await expect(page.getByText(/ساعت ۱۰:۰۰ تا ۱۰:۳۰/).first()).toBeVisible();
   const nextId = page.url().split('/').at(-1) ?? '';
 

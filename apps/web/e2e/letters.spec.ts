@@ -45,7 +45,8 @@ test('write, send, refer, reply and read a letter; drafts come back; outsiders s
     mimeType: 'application/pdf',
     buffer: PDF,
   });
-  await expect(page.getByText('قرارداد.pdf')).toBeVisible();
+  // Uploaded, not only on its way (the name shows while uploading too).
+  await expect(page.getByRole('button', { name: 'حذف قرارداد.pdf' })).toBeVisible();
 
   // A short summary before sending.
   await page.getByRole('button', { name: 'ارسال', exact: true }).click();

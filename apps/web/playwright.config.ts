@@ -23,6 +23,9 @@ export default defineConfig({
     locale: 'fa-IR',
     timezoneId: 'Asia/Tehran',
     trace: 'retain-on-failure',
+    // Full Chromium, not the headless shell: the shell keeps notification permission denied
+    // even after grantPermissions, so the device-push test could never turn push on.
+    channel: executablePath ? undefined : 'chromium',
     launchOptions: { executablePath },
   },
   projects: [
