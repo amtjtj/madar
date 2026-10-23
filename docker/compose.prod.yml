@@ -43,6 +43,8 @@ x-app-env: &app-env
   AI_SERVICE_URL: ${AI_SERVICE_URL:-}
   AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:-}
   AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-90000}
+  # «از مدار بپرس» (ADR 0026): 0.6 for bge-m3; 0.95 with the fake embedding (demos without a model).
+  AI_ASK_MAX_DISTANCE: ${AI_ASK_MAX_DISTANCE:-0.6}
   TZ: Asia/Tehran
 
 services:

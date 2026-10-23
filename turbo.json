@@ -30,7 +30,8 @@
         "API_CORS_ORIGINS",
         "AI_SERVICE_URL",
         "AI_SERVICE_TOKEN",
-        "AI_TIMEOUT_MS"
+        "AI_TIMEOUT_MS",
+        "AI_ASK_MAX_DISTANCE"
       ]
     },
     "typecheck": {

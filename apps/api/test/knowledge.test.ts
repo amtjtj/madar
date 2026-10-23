@@ -116,6 +116,7 @@ describe.skipIf(!hasDatabase)('knowledge index and «از مدار بپرس»', 
     ({ app, env } = await createTestApp({
       AI_SERVICE_URL: `http://127.0.0.1:${port}`,
       AI_SERVICE_TOKEN: TOKEN,
+      AI_ASK_MAX_DISTANCE: 0.95,
     }));
     handle = app.get<DbHandle>(DB_HANDLE);
     job = new KnowledgeIndexJob(handle, app.get(AiClient));
@@ -300,6 +301,94 @@ describe.skipIf(!hasDatabase)('knowledge index and «از مدار بپرس»', 
     expect((await chunks()).some((c) => c.sourceId === conversation.id)).toBe(false);
   });
 
+  const ask = (p: { c: Client }, question: string) => p.c.post('/api/ai/ask', { question });
+  const answerCalls = () => ai.requests.filter((r) => r.path === '/v1/answer');
+
+  it('answers from what the person may see, with numbered sources', async () => {
+    ai.requests.length = 0;
+    const res = await ask(ali, 'کارمزد خرید خرد');
+    expect(res.status).toBe(201);
+    expect(res.body.answer).toBe('پاسخ بر پایه [1].');
+    const ids = res.body.sources.map((x: { id: string }) => x.id);
+    expect(ids).toContain(task.id);
+    expect(ids).toContain(letter.id);
+    expect(ids).toContain(meeting.id);
+    expect(ids).toContain(channelId);
+    expect(res.body.sources[0]).toMatchObject({ n: 1, cited: true });
+    expect(res.body.sources.slice(1).every((x: { cited: boolean }) => !x.cited)).toBe(true);
+    const channel = res.body.sources.find((x: { kind: string }) => x.kind === 'channel');
+    expect(channel.day).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(channel.messageId).toEqual(expect.any(String));
+    // The model got only the question, today and the found sources.
+    const sent = answerCalls()[0]?.body as { question: string; sources: Array<{ n: number }> };
+    expect(Object.keys(sent).sort()).toEqual(['question', 'sources', 'today']);
+    expect(sent.sources.map((x) => x.n)).toEqual(res.body.sources.map((x: { n: number }) => x.n));
+  });
+
+  it('never answers from what the person cannot see', async () => {
+    // Marketing sees no support task, letter, meeting or channel: nothing found, no model call.
+    ai.requests.length = 0;
+    const res = await ask(reza, 'کارمزد خرید خرد');
+    expect(res.status).toBe(201);
+    expect(res.body).toEqual({ answer: null, sources: [] });
+    expect(answerCalls()).toHaveLength(0);
+
+    // A private project stays private, even from the owner.
+    const secret = (
+      await maryam.c.post('/api/projects', {
+        name: 'طرح محرمانه',
+        departmentId: support.id,
+        visibility: 'private',
+      })
+    ).body;
+    const hidden = (
+      await maryam.c.post('/api/tasks', { title: 'زعفرانک پنهان', projectId: secret.id })
+    ).body;
+    await job.runForTenant(tenantId);
+    const mine = await ask(maryam, 'زعفرانک پنهان');
+    expect(mine.body.sources.map((x: { id: string }) => x.id)).toContain(hidden.id);
+    const theirs = await ask({ c: owner }, 'زعفرانک پنهان');
+    expect(theirs.body).toEqual({ answer: null, sources: [] });
+    expect((await ask(ali, 'زعفرانک پنهان')).body.sources).toEqual([]);
+
+    // Confidential letters and direct messages are never in the index at all.
+    expect((await ask(ali, 'رقم حقوق محرمانه')).body.sources).toEqual([]);
+    expect(
+      (await ask(maryam, 'راز کارمزد بین ما')).body.sources.map((x: { id: string }) => x.id),
+    ).not.toContain(directId);
+  });
+
+  it('refuses questions that rank or judge people, without calling the model', async () => {
+    ai.requests.length = 0;
+    const res = await ask(maryam, 'چه کسی از همه کمتر کار کرده؟');
+    expect(res.status).toBe(422);
+    expect(res.body.error.code).toBe('ai_refused');
+    expect(ai.requests).toHaveLength(0);
+  });
+
+  it('is refused while off, validated, and limited per person', async () => {
+    const off = await ask(other, 'کارمزد خرید خرد');
+    expect(off.status).toBe(403);
+    expect(off.body.error.code).toBe('ai_disabled');
+    expect((await ask(ali, 'ab')).status).toBe(400);
+    expect((await ask(ali, 'ک'.repeat(501))).status).toBe(400);
+    const statuses: number[] = [];
+    for (let i = 0; i < 20; i++) statuses.push((await ask(reza, `پرسش شماره ${i}`)).status);
+    expect(statuses.filter((code) => code === 429).length).toBeGreaterThan(0);
+  });
+
+  it('index status is for admins: what is indexed and what is waiting', async () => {
+    expect((await ali.c.get('/api/ai/index-status')).status).toBe(403);
+    const status = (await owner.get('/api/ai/index-status')).body;
+    expect(status.sources).toMatchObject({ letter: 1, meeting: 1, channel: 1 });
+    expect(status.sources.task).toBeGreaterThanOrEqual(2);
+    expect(status.chunks).toBeGreaterThanOrEqual(5);
+    expect(status.pending).toBe(0);
+    await ali.c.post('/api/tasks', { title: 'کار تازه در صف' });
+    expect((await owner.get('/api/ai/index-status')).body.pending).toBe(1);
+    await job.runForTenant(tenantId);
+  });
+
   it('another company has its own index; chunks of an old embedding model are rebuilt', async () => {
     await other.c.put('/api/settings/ai', { enabled: true });
     const theirDepartment = (await other.c.post('/api/departments', { name: 'پشتیبانی' })).body;
@@ -313,6 +402,15 @@ describe.skipIf(!hasDatabase)('knowledge index and «از مدار بپرس»', 
     expect(theirs).toHaveLength(1);
     const mine = await chunks();
     expect(mine.some((c) => theirs.some((t) => t.sourceId === c.sourceId))).toBe(false);
+    // The same words find only each company's own sources.
+    const theirAnswer = await ask(other, 'حذف کارمزد خرید خرد طلا');
+    expect(theirAnswer.body.sources.map((x: { id: string }) => x.id)).toEqual([
+      theirs[0]?.sourceId,
+    ]);
+    const myAnswer = await ask(maryam, 'حذف کارمزد خرید خرد طلا');
+    expect(myAnswer.body.sources.map((x: { id: string }) => x.id)).not.toContain(
+      theirs[0]?.sourceId,
+    );
 
     ai.state.model = 'fake-embed-2';
     ai.requests.length = 0;
@@ -342,6 +440,5 @@ describe.skipIf(!hasDatabase)('knowledge index and «از مدار بپرس»', 
     await owner.put('/api/settings/ai', { enabled: true });
     await job.runForTenant(tenantId);
     expect((await chunks()).length).toBeGreaterThan(0);
-    void reza;
   });
 });

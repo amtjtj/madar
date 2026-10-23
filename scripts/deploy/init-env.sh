@@ -82,6 +82,8 @@ LLM_THREADS=4
 EMBED_MODEL=bge-m3
 EMBED_MODEL_FILE=bge-m3-Q8_0.gguf
 EMBED_THREADS=2
+# How close a chunk must be to a question (cosine distance; 0.6 suits bge-m3).
+AI_ASK_MAX_DISTANCE=0.6
 ENV
 
 if [ "$demo" = --demo ]; then

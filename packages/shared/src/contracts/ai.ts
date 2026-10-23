@@ -87,7 +87,7 @@ export const knowledgeIndexStatus = z.object({
   /** Indexed sources (not chunks) by kind. */
   sources: z.record(knowledgeKind, z.number().int().min(0)),
   chunks: z.number().int().min(0),
-  /** The first full indexing after the assistant was turned on has finished. */
-  ready: z.boolean(),
+  /** Sources still waiting to be (re)indexed; 0 once the index has caught up. */
+  pending: z.number().int().min(0),
 });
 export type KnowledgeIndexStatus = z.infer<typeof knowledgeIndexStatus>;
