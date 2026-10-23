@@ -9,6 +9,7 @@ import { formatCalendarDate, weekEndOf, type ReportScope } from '@madar/shared';
 import { Button, Card, EmptyState, SelectField, Skeleton } from '@madar/ui';
 
 import { PageHeader } from '@/components/app-shell';
+import { ReportSummaryCard } from '@/components/assistant/report-summary-card';
 import { WeeklyReportView } from '@/components/reports/weekly-report-view';
 import { useDepartments } from '@/hooks/queries';
 import { useReportRef, useReportWeeks, useWeeklyReport } from '@/hooks/reports';
@@ -169,7 +170,15 @@ function Reports() {
             <EmptyState title={t('reports.empty')} description={t('reports.emptyHint')} />
           </Card>
         ) : (
-          <WeeklyReportView report={report} companyName={me?.tenant?.name ?? ''} />
+          <div className="flex flex-col gap-4">
+            <ReportSummaryCard
+              scope={scope}
+              departmentId={departmentId}
+              week={week}
+              partial={report.partial}
+            />
+            <WeeklyReportView report={report} companyName={me?.tenant?.name ?? ''} />
+          </div>
         )}
       </div>
     </>

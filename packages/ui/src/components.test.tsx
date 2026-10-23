@@ -13,6 +13,7 @@ import { ThemeToggle } from './components/theme.js';
 import { LetterRow, LiteText, RecipientChip, UrgencyBadge } from './components/letter.js';
 import { AudienceNote, EvidenceCard, MinutesEvidenceCard } from './components/evidence.js';
 import { CalendarItemRow, CalendarMonth, LayerToggle } from './components/calendar.js';
+import { AssistantBadge, AssistantThinking, SuggestionList } from './components/assistant.js';
 import {
   CalendarDnd,
   DayStrip,
@@ -601,5 +602,47 @@ describe('week calendar', () => {
       </CalendarDnd>,
     );
     expect(screen.getByRole('button', { name: 'جابه‌جا کردن «گزارش» به روز دیگر' })).toBeTruthy();
+  });
+});
+
+describe('assistant', () => {
+  it('marks drafts and shows a calm thinking state', () => {
+    render(
+      <>
+        <AssistantBadge />
+        <AssistantThinking />
+      </>,
+    );
+    expect(screen.getByText('پیش‌نویس دستیار')).toBeTruthy();
+    expect(screen.getByRole('status').textContent).toContain('دستیار در حال فکر کردن…');
+  });
+
+  it('edits, removes and adds suggestions', () => {
+    const onChange = vi.fn();
+    const items = [
+      { key: 'a', title: 'تعیین بودجه', dueOn: null },
+      { key: 'b', title: 'طراحی بنر', dueOn: '2026-10-25' },
+    ];
+    render(
+      <SuggestionList
+        items={items}
+        onChange={onChange}
+        today="2026-10-24"
+        label="کارهای پیشنهادی"
+        newKey={() => 'c'}
+      />,
+    );
+    expect(screen.getAllByRole('listitem')).toHaveLength(2);
+    fireEvent.change(screen.getAllByRole('textbox', { name: 'عنوان کار' })[0] as HTMLElement, {
+      target: { value: 'تعیین بودجه کمپین' },
+    });
+    expect(onChange).toHaveBeenLastCalledWith([
+      { ...items[0], title: 'تعیین بودجه کمپین' },
+      items[1],
+    ]);
+    fireEvent.click(screen.getByRole('button', { name: 'حذف «طراحی بنر»' }));
+    expect(onChange).toHaveBeenLastCalledWith([items[0]]);
+    fireEvent.click(screen.getByRole('button', { name: 'افزودن ردیف' }));
+    expect(onChange).toHaveBeenLastCalledWith([...items, { key: 'c', title: '', dueOn: null }]);
   });
 });

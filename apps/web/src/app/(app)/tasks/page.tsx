@@ -9,6 +9,8 @@ import { t } from '@madar/i18n';
 import { Badge } from '@madar/ui';
 
 import { PageHeader } from '@/components/app-shell';
+import { AssistantGate } from '@/components/assistant/assistant-gate';
+import { BreakdownDialog } from '@/components/assistant/breakdown-dialog';
 import { NewTaskButton } from '@/components/work/new-task-button';
 import { Segmented, TaskViews } from '@/components/work/task-views';
 import { useDepartments } from '@/hooks/queries';
@@ -56,7 +58,14 @@ function TasksScreen() {
       <PageHeader
         title={t('tasks.title')}
         subtitle={t('tasks.subtitle')}
-        action={<NewTaskButton today={today} addToToday={false} />}
+        action={
+          <div className="flex items-center gap-2">
+            <AssistantGate>
+              <BreakdownDialog today={today} />
+            </AssistantGate>
+            <NewTaskButton today={today} addToToday={false} />
+          </div>
+        }
       />
       {drillDown && (
         <div className="mb-4 flex flex-wrap items-center gap-2" role="status">

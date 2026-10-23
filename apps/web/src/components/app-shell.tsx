@@ -21,6 +21,7 @@ import {
   MessageCircle,
   Network,
   ScrollText,
+  Sparkles,
   Target,
   Users,
   WifiOff,
@@ -135,6 +136,12 @@ export function useOrgNavItems(): NavItem[] {
             label: t('fileSettings.short'),
             href: '/org/files',
             icon: <Paperclip aria-hidden />,
+          },
+          {
+            key: '/org/assistant',
+            label: t('assistant.settingsShort'),
+            href: '/org/assistant',
+            icon: <Sparkles aria-hidden />,
           },
         ]
       : []),

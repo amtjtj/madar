@@ -13,6 +13,8 @@ import {
 } from '@madar/shared';
 import {
   Avatar,
+  SuggestionList,
+  type Suggestion,
   CalendarDnd,
   CalendarMonth,
   DayStrip,
@@ -719,5 +721,26 @@ export function WeekDemo({ today }: { today: string }) {
         />
       </div>
     </CalendarDnd>
+  );
+}
+
+export function SuggestionDemo({ today }: { today: string }) {
+  const [items, setItems] = useState<Suggestion[]>([
+    { key: 'a', title: t('designSystem.assistant.first'), dueOn: addDays(today, 2) },
+    { key: 'b', title: t('designSystem.assistant.second'), dueOn: addDays(today, 5) },
+    { key: 'c', title: t('designSystem.assistant.third'), dueOn: null },
+  ]);
+  const [next, setNext] = useState(0);
+  return (
+    <SuggestionList
+      label={t('assistant.suggestions')}
+      items={items}
+      onChange={setItems}
+      today={today}
+      newKey={() => {
+        setNext(next + 1);
+        return `n${next}`;
+      }}
+    />
   );
 }

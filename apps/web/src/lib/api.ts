@@ -15,6 +15,8 @@ export class ApiClientError extends Error {
 interface ApiOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
+  /** Cancels the request (the error then has code `aborted`). */
+  signal?: AbortSignal;
 }
 
 /** JSON request to our API (same origin; the session cookie rides along). */
@@ -27,9 +29,10 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
       credentials: 'same-origin',
       cache: 'no-store',
+      signal: options.signal,
     });
   } catch {
-    throw new ApiClientError(0, 'network');
+    throw new ApiClientError(0, options.signal?.aborted ? 'aborted' : 'network');
   }
   if (res.status === 204) return undefined as T;
   const data: unknown = await res.json().catch(() => null);

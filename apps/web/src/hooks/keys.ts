@@ -106,3 +106,10 @@ export const calendarKeys = {
     ['calendar', 'agenda', today, layers.join(','), member] as const,
   people: ['calendar', 'people'] as const,
 };
+
+/** The assistant (ADR 0025). */
+export const aiKeys = {
+  status: ['ai', 'status'] as const,
+  summary: (scope: string, departmentId: string | undefined, week: string | undefined) =>
+    ['ai', 'summary', scope, departmentId ?? null, week ?? null] as const,
+};

@@ -15,6 +15,8 @@ import {
   AchievementBadge,
   Avatar,
   AvatarGroup,
+  AssistantBadge,
+  AssistantThinking,
   Badge,
   CalendarItemRow,
   BarList,
@@ -55,6 +57,7 @@ import {
   ChatDemo,
   WorkDemo,
   CalendarDemo,
+  SuggestionDemo,
   WeekDemo,
 } from './interactive';
 import { Code, Panel, Section } from './section';
@@ -563,6 +566,22 @@ export default function DesignSystemPage() {
               </div>
               <CalendarDemo today={calendarDateIn(new Date())} />
               <WeekDemo today={calendarDateIn(new Date())} />
+            </div>
+          </Panel>
+        </Section>
+
+        <Section id="assistant" title={t('designSystem.sections.assistant')}>
+          <Panel>
+            <div className="flex max-w-xl flex-col gap-4">
+              <div className="flex flex-col gap-2 rounded-2xl border border-line bg-surface p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-bold text-ink">{t('assistant.summaryTitle')}</span>
+                  <AssistantBadge />
+                </div>
+                <p className="leading-8 text-ink">{t('designSystem.assistant.summary')}</p>
+              </div>
+              <AssistantThinking />
+              <SuggestionDemo today={calendarDateIn(new Date())} />
             </div>
           </Panel>
         </Section>

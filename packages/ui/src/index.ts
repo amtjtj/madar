@@ -162,3 +162,10 @@ export {
   type MessageBubbleProps,
   type ReactionView,
 } from './components/chat.js';
+export {
+  AssistantBadge,
+  AssistantThinking,
+  SuggestionList,
+  type Suggestion,
+  type SuggestionListProps,
+} from './components/assistant.js';
