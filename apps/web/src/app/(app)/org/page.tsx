@@ -6,12 +6,14 @@ import Link from 'next/link';
 import { t } from '@madar/i18n';
 import { Card } from '@madar/ui';
 
-import { PageHeader, useOrgNavItems } from '@/components/app-shell';
+import { PageHeader, useAskNavItem, useOrgNavItems } from '@/components/app-shell';
 
 /** Mobile hub for the organization screens (the tab bar has room for five tabs). */
 export default function OrgPage() {
-  // Meetings and the calendar live in the sidebar on desktop; on phones they are reached from here and the today card.
+  // Meetings, the calendar and «از مدار بپرس» live in the sidebar on desktop; on phones they are
+  // reached from here (and the today page).
   const items = [
+    ...useAskNavItem(),
     {
       key: '/meetings',
       label: t('meetings.nav'),

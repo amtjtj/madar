@@ -163,9 +163,13 @@ export {
   type ReactionView,
 } from './components/chat.js';
 export {
+  AnswerCard,
   AssistantBadge,
   AssistantThinking,
+  SourceList,
   SuggestionList,
+  type AnswerCardProps,
+  type SourceItem,
   type Suggestion,
   type SuggestionListProps,
 } from './components/assistant.js';

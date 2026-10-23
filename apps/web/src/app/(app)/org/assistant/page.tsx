@@ -1,13 +1,14 @@
 'use client';
 
-import { CircleAlert, CircleCheck, CircleOff, Sparkles } from 'lucide-react';
+import { CircleAlert, CircleCheck, CircleOff, Database, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 
 import { t } from '@madar/i18n';
+import { formatNumber } from '@madar/shared';
 import { Card, CardContent, CheckboxField, EmptyState, Skeleton, useToast } from '@madar/ui';
 
 import { PageHeader } from '@/components/app-shell';
-import { useAiHealth, useAiStatus, useSaveAiSettings } from '@/hooks/ai';
+import { useAiHealth, useAiStatus, useKnowledgeIndex, useSaveAiSettings } from '@/hooks/ai';
 import { useCan } from '@/hooks/queries';
 import { errorMessage } from '@/lib/errors';
 
@@ -21,6 +22,7 @@ export default function AssistantSettingsPage() {
   // Three states: not installed, installed and answering, installed but not answering.
   const working = Boolean(health?.reachable && health.modelReachable);
   const save = useSaveAiSettings();
+  const { data: index } = useKnowledgeIndex(Boolean(status?.enabled) && can('tenant.manage'));
   const { toast } = useToast();
   // Set in the click itself so the switch never flickers back while the request is in flight.
   const [pending, setPending] = useState<boolean | null>(null);
@@ -82,6 +84,36 @@ export default function AssistantSettingsPage() {
               <Sparkles aria-hidden className="text-accent-ink" />
               {t('assistant.whatItSees')} {t('assistant.privacy')}
             </p>
+            <section
+              aria-labelledby="knowledge-index"
+              className="flex flex-col gap-2 rounded-xl border border-line p-3 text-sm"
+            >
+              <h2
+                id="knowledge-index"
+                className="flex items-center gap-2 font-semibold text-ink [&_svg]:size-4 [&_svg]:text-ink-muted"
+              >
+                <Database aria-hidden />
+                {t('assistant.index.title')}
+              </h2>
+              {!status.enabled ? (
+                <p className="text-ink-muted">{t('assistant.index.off')}</p>
+              ) : !index ? (
+                <Skeleton className="h-5 w-2/3" />
+              ) : (
+                <p className="text-ink-muted" role="status">
+                  {index.pending > 0
+                    ? t('assistant.index.preparing', { count: formatNumber(index.pending) })
+                    : t('assistant.index.ready')}{' '}
+                  {t('assistant.index.counts', {
+                    tasks: formatNumber(index.sources.task),
+                    letters: formatNumber(index.sources.letter),
+                    meetings: formatNumber(index.sources.meeting),
+                    channels: formatNumber(index.sources.channel),
+                  })}
+                </p>
+              )}
+              <p className="text-ink-subtle">{t('assistant.index.never')}</p>
+            </section>
           </CardContent>
         </Card>
       )}

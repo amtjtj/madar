@@ -110,6 +110,7 @@ export const calendarKeys = {
 /** The assistant (ADR 0025). */
 export const aiKeys = {
   status: ['ai', 'status'] as const,
+  index: ['ai', 'index'] as const,
   summary: (scope: string, departmentId: string | undefined, week: string | undefined) =>
     ['ai', 'summary', scope, departmentId ?? null, week ?? null] as const,
 };

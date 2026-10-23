@@ -19,6 +19,7 @@ import {
   LogOut,
   Mail,
   MessageCircle,
+  MessageCircleQuestion,
   Network,
   ScrollText,
   Sparkles,
@@ -45,6 +46,7 @@ import {
   NotificationPopover,
 } from '@/components/notifications/notification-bell';
 import { ChatLink } from '@/components/chat/chat-link';
+import { useAiStatus } from '@/hooks/ai';
 import { LetterLink } from '@/components/letters/letter-link';
 import { useChatUnread } from '@/hooks/chat';
 import { useLetterUnread } from '@/hooks/letters';
@@ -61,6 +63,21 @@ function roleLabel(roles: string[]): string {
   const order = ['owner', 'admin', 'executive', 'hr_manager', 'member'] as const;
   const top = order.find((r) => roles.includes(r)) ?? 'member';
   return t(`roles.${top}`);
+}
+
+/** «از مدار بپرس» (ADR 0026), only while this server has the assistant and the company turned it on. */
+export function useAskNavItem(): NavItem[] {
+  const { data } = useAiStatus();
+  return data?.available && data.enabled
+    ? [
+        {
+          key: '/ask',
+          label: t('ask.nav'),
+          href: '/ask',
+          icon: <MessageCircleQuestion aria-hidden />,
+        },
+      ]
+    : [];
 }
 
 /** The organization screens the member may open (sidebar section and the /org hub). */
@@ -166,6 +183,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     },
   ];
   const orgItems = useOrgNavItems();
+  const askItems = useAskNavItem();
   const { data: unreadLetters = 0 } = useLetterUnread();
   const { data: unreadChat = 0 } = useChatUnread();
   // Weekly reports: company-wide readers and department managers (sidebar only; the phone tab
@@ -203,6 +221,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       href: '/calendar',
       icon: <CalendarDays aria-hidden />,
     },
+    ...askItems,
     ...(readsReports
       ? [
           {
@@ -230,6 +249,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     pathname === '/org' ||
     activeKey === '/meetings' ||
     activeKey === '/calendar' ||
+    activeKey === '/ask' ||
     orgItems.some((i) => i.key === activeKey)
       ? '/org'
       : activeKey;

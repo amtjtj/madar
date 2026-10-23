@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   AiSettings,
   AiStatus,
+  AskResponse,
+  KnowledgeIndexStatus,
   ReportScope,
   ReportSummary,
   TaskBreakdownResponse,
@@ -116,5 +118,23 @@ export function useReportSummary(
       return api<ReportSummary>(`/api/reports/weekly/summary?${params.toString()}`);
     },
     enabled,
+  });
+}
+
+/** «از مدار بپرس»: an answer from what I may see; `signal` cancels a slow model. */
+export function useAsk() {
+  return useMutation({
+    mutationFn: ({ question, signal }: { question: string; signal: AbortSignal }) =>
+      api<AskResponse>('/api/ai/ask', { method: 'POST', body: { question }, signal }),
+  });
+}
+
+/** Admins: what the knowledge index holds and how much is still waiting (refreshed while it fills). */
+export function useKnowledgeIndex(enabled: boolean) {
+  return useQuery({
+    queryKey: aiKeys.index,
+    queryFn: () => api<KnowledgeIndexStatus>('/api/ai/index-status'),
+    enabled,
+    refetchInterval: (query) => ((query.state.data?.pending ?? 0) > 0 ? 15_000 : false),
   });
 }

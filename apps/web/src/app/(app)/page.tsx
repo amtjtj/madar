@@ -28,6 +28,7 @@ import {
 } from '@madar/ui';
 
 import { PageHeader } from '@/components/app-shell';
+import { AskLink } from '@/components/assistant/ask-link';
 import { GoalTag } from '@/components/goals/goal-tag';
 import { CompanyView } from '@/components/home/company-view';
 import { MyGoalsCard } from '@/components/home/my-goals-card';
@@ -130,7 +131,14 @@ function Home() {
             ? formatCalendarDate(today.date, 'full')
             : formatJalaliDate(new Date(), 'full', me?.tenant?.timezone),
         })}
-        action={today ? <NewTaskButton today={today.date} /> : undefined}
+        action={
+          today ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <AskLink className="md:hidden" />
+              <NewTaskButton today={today.date} />
+            </div>
+          ) : undefined
+        }
       />
       <div className="flex flex-col gap-6 pb-20 md:pb-0">
         {can('department.manage') && can('member.create') && <SetupChecklist />}

@@ -1,14 +1,15 @@
 'use client';
 
 import { t } from '@madar/i18n';
-import { formatNumber } from '@madar/shared';
-import { Plus, Sparkles, Trash2 } from 'lucide-react';
+import { formatNumber, type KnowledgeKind } from '@madar/shared';
+import { CalendarClock, ListTodo, Mail, MessageCircle, Plus, Sparkles, Trash2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { cn } from '../lib/cn.js';
 import { Button } from './button.js';
 import { DatePicker } from './date-picker.js';
 import { TextField } from './input.js';
+import type { LinkComponent } from './navigation.js';
 import { Skeleton } from './skeleton.js';
 
 /** «پیش‌نویس دستیار»: marks text the assistant wrote, for a person to read with care (ADR 0025). */
@@ -129,6 +130,143 @@ export function SuggestionList({
       >
         {t('ui.assistant.add')}
       </Button>
+    </div>
+  );
+}
+
+const DefaultLink: LinkComponent = ({ children, ...props }) => <a {...props}>{children}</a>;
+
+const CITATION = /\[(\d{1,2})\]/g;
+
+/** Text with `[n]` citations as links to the numbered sources below (ADR 0026). */
+function CitedText({ text, idPrefix }: { text: string; idPrefix: string }) {
+  const parts: ReactNode[] = [];
+  let last = 0;
+  for (const match of text.matchAll(CITATION)) {
+    const at = match.index;
+    if (at > last) parts.push(text.slice(last, at));
+    const n = Number(match[1]);
+    parts.push(
+      <a
+        key={`${at}-${n}`}
+        href={`#${idPrefix}-${n}`}
+        aria-label={t('ui.assistant.citation', { n: formatNumber(n) })}
+        className="mx-0.5 inline-grid h-5 min-w-5 place-items-center rounded-full bg-accent-soft px-1 align-text-top text-xs font-bold text-accent-ink hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+      >
+        {formatNumber(n)}
+      </a>,
+    );
+    last = at + match[0].length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return <>{parts}</>;
+}
+
+export interface AnswerCardProps {
+  /** The assistant's answer; `[n]` marks cite source n. */
+  text: string;
+  /** Prefix of the source anchors (unique per page). */
+  idPrefix?: string;
+  /** The sources, under the answer (usually a SourceList). */
+  children?: ReactNode;
+  className?: string;
+}
+
+/** An answer the assistant wrote from the company's own sources, marked as a draft (ADR 0026). */
+export function AnswerCard({ text, idPrefix = 'source', children, className }: AnswerCardProps) {
+  return (
+    <section
+      aria-label={t('ui.assistant.answer')}
+      className={cn('flex flex-col gap-4 rounded-2xl border border-line bg-surface p-4', className)}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-bold text-ink">{t('ui.assistant.answer')}</span>
+        <AssistantBadge />
+      </div>
+      {text.split('\n').map((paragraph, i) => (
+        <p key={i} className="leading-8 text-ink">
+          <CitedText text={paragraph} idPrefix={idPrefix} />
+        </p>
+      ))}
+      {children}
+    </section>
+  );
+}
+
+const KIND_ICONS: Record<KnowledgeKind, ReactNode> = {
+  task: <ListTodo aria-hidden />,
+  letter: <Mail aria-hidden />,
+  meeting: <CalendarClock aria-hidden />,
+  channel: <MessageCircle aria-hidden />,
+};
+
+export interface SourceItem {
+  n: number;
+  kind: KnowledgeKind;
+  title: string;
+  href: string;
+  /** The answer refers to it; the others are shown quieter. */
+  cited: boolean;
+}
+
+/** The numbered sources of an answer, each opening its own page. */
+export function SourceList({
+  items,
+  idPrefix = 'source',
+  Link = DefaultLink,
+}: {
+  items: SourceItem[];
+  idPrefix?: string;
+  Link?: LinkComponent;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <h2 className="text-sm font-bold text-ink-muted">{t('ui.assistant.sources')}</h2>
+      <ol className="flex flex-col gap-2">
+        {items.map((item) => (
+          <li
+            key={item.n}
+            id={`${idPrefix}-${item.n}`}
+            tabIndex={-1}
+            className="scroll-mt-24 rounded-xl outline-none target:ring-2 target:ring-focus focus-visible:ring-2 focus-visible:ring-focus"
+          >
+            <Link
+              href={item.href}
+              className={cn(
+                'flex min-h-14 items-center gap-3 rounded-xl border border-line px-3 py-2 hover:bg-sunken',
+                !item.cited && 'border-dashed',
+              )}
+            >
+              <span
+                aria-hidden
+                className={cn(
+                  'grid size-6 shrink-0 place-items-center rounded-full text-xs font-bold',
+                  item.cited ? 'bg-accent-soft text-accent-ink' : 'bg-sunken text-ink-subtle',
+                )}
+              >
+                {formatNumber(item.n)}
+              </span>
+              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary-soft text-primary-ink [&_svg]:size-4">
+                {KIND_ICONS[item.kind]}
+              </span>
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span
+                  className={cn(
+                    'truncate font-semibold',
+                    item.cited ? 'text-ink' : 'text-ink-muted',
+                  )}
+                >
+                  {item.title}
+                </span>
+                <span className="text-xs text-ink-subtle">
+                  {t(`ui.assistant.kinds.${item.kind}`)}
+                  {item.cited && <span className="sr-only">، {t('ui.assistant.cited')}</span>}
+                </span>
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }

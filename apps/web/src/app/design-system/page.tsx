@@ -15,8 +15,10 @@ import {
   AchievementBadge,
   Avatar,
   AvatarGroup,
+  AnswerCard,
   AssistantBadge,
   AssistantThinking,
+  SourceList,
   Badge,
   CalendarItemRow,
   BarList,
@@ -581,6 +583,34 @@ export default function DesignSystemPage() {
                 <p className="leading-8 text-ink">{t('designSystem.assistant.summary')}</p>
               </div>
               <AssistantThinking />
+              <AnswerCard text={t('designSystem.assistant.answer')} idPrefix="demo-source">
+                <SourceList
+                  idPrefix="demo-source"
+                  items={[
+                    {
+                      n: 1,
+                      kind: 'meeting',
+                      title: t('designSystem.assistant.source1'),
+                      href: '#assistant',
+                      cited: true,
+                    },
+                    {
+                      n: 2,
+                      kind: 'task',
+                      title: t('designSystem.assistant.source2'),
+                      href: '#assistant',
+                      cited: true,
+                    },
+                    {
+                      n: 3,
+                      kind: 'letter',
+                      title: t('designSystem.assistant.source3'),
+                      href: '#assistant',
+                      cited: false,
+                    },
+                  ]}
+                />
+              </AnswerCard>
               <SuggestionDemo today={calendarDateIn(new Date())} />
             </div>
           </Panel>
