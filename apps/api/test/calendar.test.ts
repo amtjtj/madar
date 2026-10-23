@@ -35,6 +35,8 @@ describe.skipIf(!hasDatabase)('personal calendar', () => {
   let other: Client;
   let stranger: Person; // a member of the other company
   let range: { from: string; to: string };
+  let env: Awaited<ReturnType<typeof createTestApp>>['env'];
+  let supportId: string;
 
   const get = async (p: Person | { c: Client }, query = '') => {
     const res = await p.c.get(`/api/calendar?from=${range.from}&to=${range.to}${query}`);
@@ -45,12 +47,12 @@ describe.skipIf(!hasDatabase)('personal calendar', () => {
   const allItems = (cal: CalendarRange) => cal.days.flatMap((d) => d.items);
 
   beforeAll(async () => {
-    let env;
     ({ app, env } = await createTestApp());
     const session = await ownerSession(app, env);
     tenantId = session.tenantId;
     owner = { c: session.c, memberId: (await session.c.get('/api/me')).body.member.id };
     const support = (await owner.c.post('/api/departments', { name: 'پشتیبانی' })).body;
+    supportId = support.id;
     const management = (await owner.c.post('/api/departments', { name: 'مدیریت' })).body;
     await owner.c.put(`/api/departments/${management.id}/oversight`, {
       resources: ['meeting', 'task', 'project'],
@@ -314,6 +316,37 @@ describe.skipIf(!hasDatabase)('personal calendar', () => {
     expect(itemsOn(forExec, day).find((i) => i.id === open.id)?.task?.editable).toBe(false);
     // Working hours come with each day.
     expect(cal.days.some((d) => d.hours !== null)).toBe(true);
+  });
+
+  it('moves a due date with the version it carries, and refuses a stale one', async () => {
+    const day = addDays(today(), 11);
+    const task = (await ali.c.post('/api/tasks', { title: 'جابه‌جایی از تقویم', dueOn: day })).body;
+    const item = itemsOn((await get(boss, `&member=${ali.memberId}`)).body, day).find(
+      (i) => i.id === task.id,
+    );
+    const version = item?.task?.version ?? -1;
+    const moved = await boss.c.patch(`/api/tasks/${task.id}`, {
+      version,
+      dueOn: addDays(day, 1),
+    });
+    expect(moved.status).toBe(200);
+    // The same, now stale, version: someone else moved it meanwhile.
+    const stale = await ali.c.patch(`/api/tasks/${task.id}`, { version, dueOn: addDays(day, 2) });
+    expect(stale.status).toBe(409);
+    expect(stale.body.error.code).toBe('version_conflict');
+  });
+
+  it('leaves a suspended member out of the people and their calendar', async () => {
+    const gone = await memberSession(app, env, owner.c, {
+      displayName: 'عضو تعلیق‌شده',
+      departments: [{ departmentId: supportId, deptRole: 'member', isPrimary: true }],
+    });
+    expect((await owner.c.post(`/api/members/${gone.memberId}/suspend`)).status).toBe(201);
+    const ids = ((await boss.c.get('/api/calendar/people')).body as Array<{ id: string }>).map(
+      (x) => x.id,
+    );
+    expect(ids).not.toContain(gone.memberId);
+    expect((await get(boss, `&member=${gone.memberId}`)).status).toBe(404);
   });
 
   it('refuses someone outside my people, and anyone from another company', async () => {

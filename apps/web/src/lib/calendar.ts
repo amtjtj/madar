@@ -4,6 +4,7 @@ import {
   CALENDAR_LAYERS,
   formatCalendarDate,
   formatTime,
+  type CalendarDay,
   type CalendarItem,
   type CalendarLayer,
   type CalendarRange,
@@ -156,4 +157,33 @@ export function moveDueInRange(
     return { ...day, items: [...items, moved] };
   });
   return { ...range, days, overdue };
+}
+
+/**
+ * The items of a day that are not in the hour grid, each with where it came from (its drag key):
+ * past-due tasks (on today) first, then the day's own items. A late task on today's plan comes in
+ * the day's items, so its key is the day, not «overdue».
+ */
+export function allDayItems(
+  day: CalendarDay,
+  today: string,
+  overdue: CalendarItem[],
+): Array<{ item: CalendarItem; where: string }> {
+  return [
+    ...(day.date === today ? overdue.map((item) => ({ item, where: 'overdue' })) : []),
+    ...sortItems(day.items.filter((i) => !i.meeting)).map((item) => ({ item, where: day.date })),
+  ];
+}
+
+/** Every movable item of a range by its drag key, for the drag-and-drop lookups. */
+export function movableItems(
+  days: CalendarDay[],
+  overdue: CalendarItem[],
+): Map<string, CalendarItem> {
+  const map = new Map<string, CalendarItem>();
+  for (const item of overdue) if (movable(item)) map.set(dragKey('overdue', item), item);
+  for (const day of days) {
+    for (const item of day.items) if (movable(item)) map.set(dragKey(day.date, item), item);
+  }
+  return map;
 }

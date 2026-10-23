@@ -32,11 +32,13 @@ async function dragTo(page: Page, handle: Locator, target: Locator) {
 
 test("desktop: drag a due date across the week, and open a team member's calendar", async ({
   page,
+  browser,
   baseURL,
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop', 'the week view is for wide screens');
   test.slow();
-  const { manager, employee, support, createMember } = await setUpCompany(baseURL ?? '');
+  const { manager, employee, support, marketing, createMember } = await setUpCompany(baseURL ?? '');
+  const director = await createMember('نادر کیانی', marketing.id, 'member', ['executive']);
   const zahra = await createMember('زهرا موسوی', support.id, 'member');
   const saturday = nextSaturday();
   const monday = addDays(saturday, 2);
@@ -85,6 +87,19 @@ test("desktop: drag a due date across the week, and open a team member's calenda
   await expect(
     page.getByRole('button', { name: 'جابه‌جا کردن «پاسخ تیکت‌های معوق» به روز دیگر' }),
   ).toBeVisible();
+
+  // The executive reads Ali's calendar but may not move his work: no handle, no «تغییر سررسید».
+  const other = await browser.newPage({ viewport: page.viewportSize() ?? undefined });
+  await signIn(other, director.person.username, 'نادر');
+  await other.goto(`/calendar?view=week&date=${saturday}&member=${employee.person.memberId}`);
+  await expect(other.getByRole('link', { name: 'پاسخ تیکت‌های معوق' })).toBeVisible();
+  await expect(
+    other.getByRole('button', { name: /جابه‌جا کردن «پاسخ تیکت‌های معوق»/ }),
+  ).toHaveCount(0);
+  await expect(
+    other.getByRole('button', { name: /تغییر سررسید «پاسخ تیکت‌های معوق»/ }),
+  ).toHaveCount(0);
+  await other.close();
 });
 
 test('phone: the day view, a meeting on its hour, and «تغییر سررسید»', async ({

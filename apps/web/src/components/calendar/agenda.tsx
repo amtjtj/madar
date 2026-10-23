@@ -10,6 +10,7 @@ import { useAgenda } from '@/hooks/calendar';
 import { dayHeading } from '@/lib/calendar';
 
 import { DayItems } from './day-items';
+import { CalendarError } from './calendar-error';
 import { DueMovesProvider } from './due-moves';
 
 /** «فهرست زمانی»: from today on, day by day, only days with something (and today). */
@@ -24,11 +25,12 @@ export function Agenda({
   member?: string;
   timeZone?: string;
 }) {
-  const { data, isPending, hasNextPage, fetchNextPage, isFetchingNextPage } = useAgenda(
+  const { data, isPending, error, hasNextPage, fetchNextPage, isFetchingNextPage } = useAgenda(
     today,
     layers,
     member,
   );
+  if (error && !data) return <CalendarError error={error} />;
   if (isPending) {
     return (
       <div className="flex flex-col gap-3" aria-busy>

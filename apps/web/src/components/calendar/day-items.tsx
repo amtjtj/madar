@@ -1,11 +1,10 @@
 'use client';
 
-import { CalendarClock } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { t } from '@madar/i18n';
 import type { CalendarItem } from '@madar/shared';
-import { Badge, Button, CalendarItemRow, DragItem } from '@madar/ui';
+import { Badge, CalendarItemRow, DragItem } from '@madar/ui';
 
 import { NextLink } from '@/components/next-link';
 import {
@@ -18,7 +17,7 @@ import {
   sortItems,
 } from '@/lib/calendar';
 
-import { useDueMoves } from './due-moves';
+import { ChangeDueButton } from './due-moves';
 
 /**
  * The items of one day (or the past-due list), meetings first. `where` is the day (or «overdue»):
@@ -33,7 +32,6 @@ export function DayItems({
   timeZone?: string;
   where?: string;
 }) {
-  const moves = useDueMoves();
   return (
     <ul className="flex flex-col">
       {sortItems(items).map((item) => {
@@ -55,15 +53,7 @@ export function DayItems({
               }
               tags={<ItemTags item={item} />}
             />
-            {moves && movable(item) && (
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={t('calendar.changeDueOf', { title: itemTitle(item) })}
-                icon={<CalendarClock aria-hidden />}
-                onClick={() => moves.pick(item)}
-              />
-            )}
+            {movable(item) && <ChangeDueButton item={item} />}
           </div>
         );
         return (

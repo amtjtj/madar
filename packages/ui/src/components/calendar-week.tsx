@@ -122,7 +122,10 @@ export function CalendarDnd({ onMove, itemTitle, dayLabel, children }: CalendarD
       <DndContext
         sensors={sensors}
         collisionDetection={collision}
-        accessibility={{ announcements }}
+        accessibility={{
+          announcements,
+          screenReaderInstructions: { draggable: t('ui.calendar.drag.instructions') },
+        }}
         onDragStart={({ active: a }: DragStartEvent) => setActive(String(a.id))}
         onDragEnd={onDragEnd}
         onDragCancel={() => setActive(null)}
@@ -305,12 +308,10 @@ export function WeekGrid({
         {days.map((day) => {
           const weekday = PERSIAN_WEEKDAYS[persianWeekdayOfCalendarDate(day.date)] ?? '';
           return (
-            <div
-              key={day.date}
-              aria-label={dayLabel(day)}
-              className="flex flex-col items-center gap-0.5 py-2 text-xs"
-            >
+            <div key={day.date} className="flex flex-col items-center gap-0.5 py-2 text-xs">
+              <span className="sr-only">{dayLabel(day)}</span>
               <span
+                aria-hidden
                 className={cn('font-semibold', day.off ? 'text-danger-ink' : 'text-ink-subtle')}
               >
                 {days.length > 1 ? (
@@ -323,6 +324,7 @@ export function WeekGrid({
                 )}
               </span>
               <span
+                aria-hidden
                 className={cn(
                   'grid size-7 place-items-center rounded-full text-sm font-bold',
                   day.today

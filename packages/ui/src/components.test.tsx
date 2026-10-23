@@ -560,7 +560,7 @@ describe('week calendar', () => {
     expect(screen.getByText('سررسید 2026-10-24')).toBeTruthy();
     expect(screen.getByRole('link', { name: /بررسی صف/ }).getAttribute('href')).toBe('/meetings/1');
     expect(screen.getByText('اکنون')).toBeTruthy();
-    expect(screen.getByLabelText('ستون 2026-10-25')).toBeTruthy();
+    expect(screen.getByText('ستون 2026-10-25')).toBeTruthy();
   });
 
   it('picks a day from the strip', () => {

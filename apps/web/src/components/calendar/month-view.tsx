@@ -18,11 +18,11 @@ import { Button, CalendarMonth, Card, CardContent, Modal, Skeleton, cn } from '@
 
 import { NextLink } from '@/components/next-link';
 import { useCalendarRange } from '@/hooks/calendar';
-import { dayHeading, itemLayer, itemTitle } from '@/lib/calendar';
+import { dayHeading, itemLayer, itemTitle, movableItems } from '@/lib/calendar';
 
 import { DayItems } from './day-items';
+import { CalendarError } from './calendar-error';
 import { DueMovesProvider } from './due-moves';
-import { movableItems } from './week-view';
 
 /** A Jalali month with the chosen day's items beside it (a sheet on phones). */
 export function MonthView({
@@ -46,7 +46,7 @@ export function MonthView({
   const [selected, setSelected] = useState<string | null>(anchor);
   const [sheet, setSheet] = useState(false);
   const { from, to } = monthRange(month.jy, month.jm);
-  const { data, isPending } = useCalendarRange(from, to, layers, member);
+  const { data, isPending, error } = useCalendarRange(from, to, layers, member);
   const title = `${JALALI_MONTHS[month.jm - 1]} ${formatNumber(month.jy, { useGrouping: false })}`;
   const cells = (data?.days ?? []).map((day) => ({
     date: day.date,
@@ -88,7 +88,7 @@ export function MonthView({
 
   return (
     <DueMovesProvider
-      items={data ? movableItems(data.days, today, data.overdue) : new Map()}
+      items={data ? movableItems(data.days, data.overdue) : new Map()}
       days={data?.days ?? []}
       today={today}
     >
@@ -127,7 +127,9 @@ export function MonthView({
                 onClick={() => setMonth(shiftJalaliMonth(month.jy, month.jm, 1))}
               />
             </div>
-            {isPending && !data ? (
+            {error && !data ? (
+              <CalendarError error={error} />
+            ) : isPending && !data ? (
               <Skeleton className="h-96 rounded-xl" />
             ) : (
               <CalendarMonth

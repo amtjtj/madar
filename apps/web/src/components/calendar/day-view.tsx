@@ -5,12 +5,13 @@ import { formatCalendarDate, formatNumber, weekRange, type CalendarLayer } from 
 import { Card, CardContent, DayStrip, DropDay, Skeleton } from '@madar/ui';
 
 import { useCalendarRange } from '@/hooks/calendar';
-import { dayHeading } from '@/lib/calendar';
+import { allDayItems, dayHeading, movableItems } from '@/lib/calendar';
 
 import { DayItems } from './day-items';
 import { DueMovesProvider } from './due-moves';
 import { TimeGrid } from './time-grid';
-import { allDayItems, movableItems, WeekNav } from './week-view';
+import { WeekNav } from './week-view';
+import { CalendarError } from './calendar-error';
 
 /** «روز» (plan phase-2-step-14b): the week as a strip, the chosen day's items and its hours. */
 export function DayView({
@@ -30,7 +31,7 @@ export function DayView({
 }) {
   // The whole week: the strip shows which days are busy, and it shares the week view's cache.
   const { from, to } = weekRange(anchor);
-  const { data, isPending } = useCalendarRange(from, to, layers, member);
+  const { data, isPending, error } = useCalendarRange(from, to, layers, member);
   const overdue = data?.overdue ?? [];
   const day = data?.days.find((d) => d.date === anchor);
   return (
@@ -45,14 +46,12 @@ export function DayView({
             to: formatCalendarDate(to, 'long'),
           })}
         />
-        {isPending && !data ? (
+        {error && !data ? (
+          <CalendarError error={error} />
+        ) : isPending && !data ? (
           <Skeleton className="h-[28rem] rounded-xl" />
         ) : data && day ? (
-          <DueMovesProvider
-            items={movableItems(data.days, today, overdue)}
-            days={data.days}
-            today={today}
-          >
+          <DueMovesProvider items={movableItems(data.days, overdue)} days={data.days} today={today}>
             <DayStrip
               label={t('calendar.weekDays')}
               selected={anchor}

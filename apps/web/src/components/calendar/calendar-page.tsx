@@ -73,6 +73,14 @@ export function CalendarPage() {
     router.replace(`/calendar?${next.toString()}`, { scroll: false });
   };
   const onAnchor = (next: string) => go({ date: next === today ? undefined : next });
+  // Someone outside my list (an old link, a person who left): back to my own calendar.
+  const unknown = member !== undefined && people !== undefined && !person;
+  useEffect(() => {
+    if (!unknown) return;
+    const next = new URLSearchParams(window.location.search);
+    next.delete('member');
+    router.replace(`/calendar?${next.toString()}`, { scroll: false });
+  }, [unknown, router]);
 
   return (
     <>
@@ -128,9 +136,16 @@ export function CalendarPage() {
         {!view || !layers || !me ? (
           <Skeleton className="h-96 rounded-2xl" />
         ) : view === 'agenda' ? (
-          <Agenda today={today} layers={layers} member={member} timeZone={timeZone} />
+          <Agenda
+            key={member ?? 'me'}
+            today={today}
+            layers={layers}
+            member={member}
+            timeZone={timeZone}
+          />
         ) : view === 'week' ? (
           <WeekView
+            key={member ?? 'me'}
             anchor={anchor}
             today={today}
             layers={layers}
@@ -141,6 +156,7 @@ export function CalendarPage() {
           />
         ) : view === 'day' ? (
           <DayView
+            key={member ?? 'me'}
             anchor={anchor}
             today={today}
             layers={layers}

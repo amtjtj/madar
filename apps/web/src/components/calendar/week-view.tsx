@@ -9,17 +9,24 @@ import {
   formatCalendarDate,
   formatNumber,
   weekRange,
-  type CalendarDay,
-  type CalendarItem,
   type CalendarLayer,
 } from '@madar/shared';
 import { Button, Card, CardContent, DragItem, DropDay, Skeleton, cn } from '@madar/ui';
 
 import { NextLink } from '@/components/next-link';
 import { useCalendarRange } from '@/hooks/calendar';
-import { dragKey, itemHref, itemLayer, itemTitle, movable, sortItems } from '@/lib/calendar';
+import {
+  allDayItems,
+  dragKey,
+  itemHref,
+  itemLayer,
+  itemTitle,
+  movable,
+  movableItems,
+} from '@/lib/calendar';
 
-import { DueMovesProvider } from './due-moves';
+import { ChangeDueButton, DueMovesProvider } from './due-moves';
+import { CalendarError } from './calendar-error';
 import { TimeGrid } from './time-grid';
 
 const chipTone = {
@@ -30,24 +37,6 @@ const chipTone = {
   period: 'bg-layer-period-soft',
 } as const;
 const ALL_DAY_SHOWN = 3;
-
-/** The items of a day that are not in the hour grid (past due ones on today). */
-export function allDayItems(day: CalendarDay, today: string, overdue: CalendarItem[]) {
-  return [
-    ...(day.date === today ? overdue : []),
-    ...sortItems(day.items.filter((i) => !i.meeting)),
-  ];
-}
-
-/** Keys of every movable item in a range, for the drag-and-drop lookups. */
-export function movableItems(days: CalendarDay[], today: string, overdue: CalendarItem[]) {
-  const map = new Map<string, CalendarItem>();
-  for (const item of overdue) if (movable(item)) map.set(dragKey('overdue', item), item);
-  for (const day of days) {
-    for (const item of day.items) if (movable(item)) map.set(dragKey(day.date, item), item);
-  }
-  return map;
-}
 
 /** Previous, next and back to this week; the title in between. */
 export function WeekNav({
@@ -108,7 +97,7 @@ export function WeekView({
   onOpenDay: (date: string) => void;
 }) {
   const { from, to } = weekRange(anchor);
-  const { data, isPending } = useCalendarRange(from, to, layers, member);
+  const { data, isPending, error } = useCalendarRange(from, to, layers, member);
   const title = t('calendar.weekTitle', {
     from: formatCalendarDate(from, 'medium'),
     to: formatCalendarDate(to, 'long'),
@@ -125,14 +114,12 @@ export function WeekView({
           </p>
         ) : null}
         {empty && <p className="text-sm text-ink-subtle">{t('calendar.emptyWeek')}</p>}
-        {isPending && !data ? (
+        {error && !data ? (
+          <CalendarError error={error} />
+        ) : isPending && !data ? (
           <Skeleton className="h-[32rem] rounded-xl" />
         ) : data ? (
-          <DueMovesProvider
-            items={movableItems(data.days, today, overdue)}
-            days={data.days}
-            today={today}
-          >
+          <DueMovesProvider items={movableItems(data.days, overdue)} days={data.days} today={today}>
             <TimeGrid
               days={data.days}
               today={today}
@@ -151,8 +138,7 @@ export function WeekView({
                 const more = items.length - ALL_DAY_SHOWN;
                 return (
                   <DropDay date={day.date} className="flex h-full flex-col gap-1 p-1">
-                    {items.slice(0, ALL_DAY_SHOWN).map((item) => {
-                      const where = item.task?.overdue && day.date === today ? 'overdue' : day.date;
+                    {items.slice(0, ALL_DAY_SHOWN).map(({ item, where }) => {
                       const chip = (handle: ReactNode) => (
                         <div
                           className={cn(
@@ -168,6 +154,7 @@ export function WeekView({
                           >
                             {itemTitle(item)}
                           </NextLink>
+                          {movable(item) && <ChangeDueButton item={item} compact />}
                         </div>
                       );
                       return (

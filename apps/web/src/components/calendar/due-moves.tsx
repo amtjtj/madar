@@ -1,5 +1,6 @@
 'use client';
 
+import { CalendarClock } from 'lucide-react';
 import { createContext, useContext, useState, type ReactNode } from 'react';
 
 import { t } from '@madar/i18n';
@@ -17,6 +18,37 @@ interface DueMoves {
 }
 
 const DueMovesContext = createContext<DueMoves | null>(null);
+
+/** «تغییر سررسید» for a movable task; nothing outside `DueMovesProvider`. */
+export function ChangeDueButton({
+  item,
+  compact = false,
+}: {
+  item: CalendarItem;
+  compact?: boolean;
+}) {
+  const moves = useContext(DueMovesContext);
+  if (!moves) return null;
+  const label = t('calendar.changeDueOf', { title: itemTitle(item) });
+  return compact ? (
+    <button
+      type="button"
+      aria-label={label}
+      onClick={() => moves.pick(item)}
+      className="grid size-6 shrink-0 place-items-center rounded-md text-ink-subtle hover:bg-sunken hover:text-ink focus-visible:outline-2 focus-visible:outline-focus [&_svg]:size-3.5"
+    >
+      <CalendarClock aria-hidden />
+    </button>
+  ) : (
+    <Button
+      variant="ghost"
+      size="icon"
+      aria-label={label}
+      icon={<CalendarClock aria-hidden />}
+      onClick={() => moves.pick(item)}
+    />
+  );
+}
 
 /** «تغییر سررسید» for a row, when it sits inside `DueMovesProvider`. */
 export function useDueMoves(): DueMoves | null {
@@ -46,6 +78,14 @@ export function DueMovesProvider({
   const [picking, setPicking] = useState<CalendarItem | null>(null);
   const [confirming, setConfirming] = useState<{ item: CalendarItem; date: string } | null>(null);
 
+  const failed = (error: unknown) =>
+    toast({
+      title:
+        error instanceof ApiClientError && error.code === 'version_conflict'
+          ? t('calendar.moveConflict')
+          : errorMessage(error),
+      tone: 'error',
+    });
   const save = (item: CalendarItem, date: string) => {
     const task = item.task;
     if (!task || task.dueOn === date) return;
@@ -67,14 +107,7 @@ export function DueMovesProvider({
                 }
               : undefined,
           }),
-        onError: (error) =>
-          toast({
-            title:
-              error instanceof ApiClientError && error.code === 'version_conflict'
-                ? t('calendar.moveConflict')
-                : errorMessage(error),
-            tone: 'error',
-          }),
+        onError: failed,
       },
     );
   };
