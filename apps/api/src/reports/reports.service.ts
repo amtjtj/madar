@@ -4,6 +4,7 @@ import {
   calendarDateIn,
   weekStartOf,
   type ReportRef,
+  type ReportSummary,
   type ReportWeeksQuery,
   type WeeklyReport,
   type WeeklyReportQuery,
@@ -15,6 +16,7 @@ import { ApiError, forbidden, notFound } from '../common/errors.js';
 import { TenantDb } from '../database/tenant-db.service.js';
 import { loadWorkCalendar } from '../notifications/calendar.js';
 import { readsReport } from '../work/access.js';
+import { loadAiSettings } from '../ai/settings.js';
 import { buildWeeklyReport } from './builder.js';
 
 /** Weekly reports: the company one for company-wide readers, a department's for its managers too. */
@@ -47,6 +49,36 @@ export class ReportsService {
         .where(this.where(query, week));
       if (!row) throw notFound('Report');
       return row.data as unknown as WeeklyReport;
+    });
+  }
+
+  /**
+   * The assistant's summary of a stored report (ADR 0025): same readers as the report; null for the
+   * running week, while not made yet, or when the company turned the assistant off.
+   */
+  summary(ctx: TenantContext, query: WeeklyReportQuery): Promise<ReportSummary> {
+    this.authorize(ctx, query);
+    return this.db.run(ctx, async (tx) => {
+      await this.department(tx, query);
+      if (!(await loadAiSettings(tx, ctx.tenantId)).enabled) return { summary: null };
+      const { timeZone } = await loadWorkCalendar(tx, ctx.tenantId);
+      const current = weekStartOf(calendarDateIn(new Date(), timeZone));
+      const week = query.week ? weekStartOf(query.week) : current;
+      if (week >= current) return { summary: null };
+      const [row] = await tx
+        .select({ text: s.reportSummaries.text, createdAt: s.reportSummaries.createdAt })
+        .from(s.weeklyReports)
+        .innerJoin(
+          s.reportSummaries,
+          and(
+            eq(s.reportSummaries.tenantId, s.weeklyReports.tenantId),
+            eq(s.reportSummaries.reportId, s.weeklyReports.id),
+          ),
+        )
+        .where(this.where(query, week));
+      return {
+        summary: row ? { text: row.text, createdAt: row.createdAt.toISOString() } : null,
+      };
     });
   }
 

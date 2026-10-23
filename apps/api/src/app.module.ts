@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 
 import { AuthGuard } from './auth/auth.guard.js';
+import { AiModule } from './ai/ai.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { ConfigModule } from './config/config.module.js';
 import { DatabaseModule } from './database/database.module.js';
@@ -41,6 +42,7 @@ import { WorkModule } from './work/work.module.js';
     ChatModule,
     MeetingsModule,
     CalendarModule,
+    AiModule,
     GoalsModule,
     DashboardModule,
     ReportsModule,

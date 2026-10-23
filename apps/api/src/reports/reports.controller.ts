@@ -2,6 +2,7 @@ import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
 import {
   reportWeeksQuery,
   type ReportRef,
+  type ReportSummary,
   weeklyReportQuery,
   type ReportWeeksQuery,
   type WeeklyReport,
@@ -22,6 +23,14 @@ export class ReportsController {
     @Query(new ZodPipe(weeklyReportQuery)) query: WeeklyReportQuery,
   ): Promise<WeeklyReport> {
     return this.reports.weekly(ctx, query);
+  }
+
+  @Get('summary')
+  summary(
+    @Tenant() ctx: TenantContext,
+    @Query(new ZodPipe(weeklyReportQuery)) query: WeeklyReportQuery,
+  ): Promise<ReportSummary> {
+    return this.reports.summary(ctx, query);
   }
 
   @Get('weeks')

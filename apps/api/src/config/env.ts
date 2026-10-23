@@ -78,6 +78,12 @@ const envSchema = z.object({
     .enum(['true', 'false', '1', '0', ''])
     .default('true')
     .transform((value) => value !== 'false' && value !== '0'),
+  /** The AI service (ADR 0025) on the internal network; empty means the assistant is not installed. */
+  AI_SERVICE_URL: z.string().default(''),
+  /** Shared secret with the AI service. */
+  AI_SERVICE_TOKEN: z.string().default(''),
+  /** How long a call to the AI service may take (a 7B model on CPU is slow). */
+  AI_TIMEOUT_MS: z.coerce.number().int().min(1000).default(90_000),
 });
 
 /** Production refuses to start with development defaults (plan phase-1-step-9 §4). */
@@ -103,6 +109,15 @@ const productionSchema = envSchema.superRefine((env, ctx) => {
     for (const key of ['S3_ENDPOINT', 'S3_BUCKET', 'S3_ACCESS_KEY', 'S3_SECRET_KEY'] as const) {
       if (!env[key]) fail(key, 'Required with STORAGE_DRIVER=s3');
     }
+  }
+  if (
+    env.AI_SERVICE_URL &&
+    (env.AI_SERVICE_TOKEN.length < 16 || WEAK_SECRET.test(env.AI_SERVICE_TOKEN))
+  ) {
+    fail(
+      'AI_SERVICE_TOKEN',
+      'Required with AI_SERVICE_URL (a random value, at least 16 characters)',
+    );
   }
   for (const key of ['APP_DATABASE_URL', 'WORKER_DATABASE_URL'] as const) {
     if (env[key] && DEV_PASSWORD.test(env[key])) fail(key, 'Uses a development password');

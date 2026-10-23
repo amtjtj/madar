@@ -3,6 +3,8 @@ import type { Redis } from 'ioredis';
 
 import { ENV } from '../config/config.module.js';
 import type { Env } from '../config/env.js';
+import { AiClient } from '../ai/ai-client.js';
+import { ReportSummaryJob } from '../ai/summary-job.js';
 import { FilesCleanupJob } from '../files/cleanup-job.js';
 import { FILE_STORAGE, createStorage } from '../files/storage.js';
 import { MeetingJobs } from '../meetings/meeting-jobs.js';
@@ -40,8 +42,11 @@ import { SchedulerService } from './scheduler.service.js';
     { provide: FILE_STORAGE, useFactory: (env: Env) => createStorage(env), inject: [ENV] },
     FilesCleanupJob,
     MeetingJobs,
+    AiClient,
+    ReportSummaryJob,
   ],
   exports: [
+    ReportSummaryJob,
     FilesCleanupJob,
     MeetingJobs,
     RelayService,
