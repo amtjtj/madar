@@ -165,6 +165,16 @@ export async function createTenantFixture(handle: DbHandle, label = 't'): Promis
     await tx
       .insert(s.reportSummaries)
       .values({ reportId: report.id, text: 'خلاصه هفته', model: 'fake' });
+    await tx.insert(s.knowledgeChunks).values({
+      sourceType: 'task',
+      sourceId: task.id,
+      chunkNo: 0,
+      title: 'کار',
+      text: 'متن کار',
+      embedding: Array.from({ length: s.EMBEDDING_DIMENSIONS }, (_, i) => (i === 0 ? 1 : 0)),
+      model: 'fake',
+      contentHash: '0'.repeat(64),
+    });
     await tx.insert(s.attachments).values({
       subjectType: 'task',
       subjectId: task.id,

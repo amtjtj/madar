@@ -27,7 +27,8 @@ jobs:
     timeout-minutes: 20
     services:
       postgres:
-        image: postgres:18-alpine
+        # PostgreSQL 18 with pgvector (ADR 0026); production builds the same version on Alpine.
+        image: pgvector/pgvector:0.8.1-pg18
         env:
           POSTGRES_USER: madar
           POSTGRES_PASSWORD: madar_ci_password

@@ -68,6 +68,7 @@ const DATA_PLANE = [
   'key_result_checkins',
   'weekly_reports',
   'report_summaries',
+  'knowledge_chunks',
 ] as const;
 
 /** Tables the app may only append to (no UPDATE/DELETE grant). */

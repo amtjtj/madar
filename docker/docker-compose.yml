@@ -5,7 +5,11 @@ name: madar
 
 services:
   postgres:
-    image: postgres:18-alpine
+    # PostgreSQL 18 with pgvector (ADR 0026), built once from docker/postgres.Dockerfile.
+    image: madar-postgres:18-pgvector0.8.1
+    build:
+      context: ..
+      dockerfile: docker/postgres.Dockerfile
     restart: unless-stopped
     env_file: ../.env
     environment:

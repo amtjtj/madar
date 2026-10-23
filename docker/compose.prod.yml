@@ -47,7 +47,8 @@ x-app-env: &app-env
 
 services:
   postgres:
-    image: ${BASE_REGISTRY:-docker.io/library}/postgres:18-alpine
+    # PostgreSQL 18 (Alpine) with pgvector, built by deploy.sh from docker/postgres.Dockerfile (ADR 0026).
+    image: madar-postgres:18-pgvector0.8.1
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}

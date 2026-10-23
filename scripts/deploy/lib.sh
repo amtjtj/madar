@@ -2,6 +2,8 @@
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 ENV_FILE=${MADAR_ENV_FILE:-$ROOT/.env}
 PROJECT=${MADAR_PROJECT:-madar}
+# PostgreSQL with pgvector (docker/postgres.Dockerfile); keep in step with docker/compose.prod.yml.
+POSTGRES_IMAGE=madar-postgres:18-pgvector0.8.1
 # Compose runs the images of the current deployment, never whatever was built last.
 export MADAR_TAG=${MADAR_TAG:-$(cat "$ROOT/.deploy/current" 2>/dev/null || echo latest)}
 

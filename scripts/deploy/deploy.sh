@@ -51,8 +51,8 @@ if [ "$build" = 1 ]; then
     tag=build-$(date +%Y%m%d%H%M%S)
   fi
 else
-  docker image inspect "madar-api:$tag" "madar-web:$tag" >/dev/null \
-    || fail "images madar-api:$tag and madar-web:$tag are not loaded (docker load)"
+  docker image inspect "madar-api:$tag" "madar-web:$tag" "$POSTGRES_IMAGE" >/dev/null \
+    || fail "images madar-api:$tag, madar-web:$tag and $POSTGRES_IMAGE are not loaded (docker load)"
 fi
 
 # Back up before touching anything, if the stack is already running.
@@ -74,6 +74,12 @@ if [ "$build" = 1 ]; then
   for var in HTTPS_PROXY HTTP_PROXY NO_PROXY; do
     [ -n "${!var:-}" ] && build_args+=(--build-arg "$var=${!var}")
   done
+  # PostgreSQL with pgvector (ADR 0026): its tag is its version, so it is built once and the
+  # database is restarted only when that version changes.
+  if ! docker image inspect "$POSTGRES_IMAGE" >/dev/null 2>&1; then
+    say "Building $POSTGRES_IMAGE"
+    docker build "${build_args[@]}" -f docker/postgres.Dockerfile -t "$POSTGRES_IMAGE" .
+  fi
   say "Building images ($tag)"
   docker build "${build_args[@]}" -f docker/api.Dockerfile -t "madar-api:$tag" .
   docker build "${build_args[@]}" -f docker/web.Dockerfile -t "madar-web:$tag" .
