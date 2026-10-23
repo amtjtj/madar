@@ -22,7 +22,7 @@ export function TimeGrid({
   days: CalendarDay[];
   today: string;
   timeZone?: string;
-  allDay: (day: CalendarDay) => ReactNode;
+  allDay?: (day: CalendarDay) => ReactNode;
   dayLabel: (day: CalendarDay) => string;
 }) {
   const timed = days.flatMap((day) =>
@@ -80,7 +80,7 @@ export function TimeGrid({
       endHour={endHour}
       events={events}
       nowMinutes={minutes(wallClock(new Date(), timeZone))}
-      allDay={(day) => allDay(pick(day))}
+      allDay={allDay && ((day) => allDay(pick(day)))}
       dayLabel={(day) => dayLabel(pick(day))}
     />
   );

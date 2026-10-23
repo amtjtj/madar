@@ -74,35 +74,33 @@ export function DayView({
               }
             />
             <h2 className="text-sm font-bold text-ink">{dayHeading(anchor, today)}</h2>
-            <TimeGrid
-              days={[day]}
-              today={today}
-              timeZone={timeZone}
-              dayLabel={(d) => dayHeading(d.date, today)}
-              allDay={(d) => {
-                const items = allDayItems(d, today, overdue);
-                return (
-                  <DropDay date={d.date} className="h-full p-1">
-                    {items.length ? (
-                      <>
-                        {d.date === today && overdue.length > 0 && (
-                          <DayItems items={overdue} timeZone={timeZone} where="overdue" />
-                        )}
-                        <DayItems
-                          items={items.filter((i) => !(d.date === today && overdue.includes(i)))}
-                          timeZone={timeZone}
-                          where={d.date}
-                        />
-                      </>
-                    ) : d.items.some((i) => i.meeting) ? null : (
-                      <p className="px-2 py-3 text-sm text-ink-subtle">
-                        {d.date === today ? t('calendar.emptyToday') : t('calendar.emptyDay')}
-                      </p>
-                    )}
-                  </DropDay>
-                );
-              }}
-            />
+            {/* All-day items at full width above the hours (they need room on a phone). */}
+            <DropDay date={day.date} className="rounded-xl">
+              {allDayItems(day, today, overdue).length ? (
+                <>
+                  {day.date === today && overdue.length > 0 && (
+                    <DayItems items={overdue} timeZone={timeZone} where="overdue" />
+                  )}
+                  <DayItems
+                    items={day.items.filter((i) => !i.meeting)}
+                    timeZone={timeZone}
+                    where={day.date}
+                  />
+                </>
+              ) : day.items.some((i) => i.meeting) ? null : (
+                <p className="px-2 py-3 text-sm text-ink-subtle">
+                  {day.date === today ? t('calendar.emptyToday') : t('calendar.emptyDay')}
+                </p>
+              )}
+            </DropDay>
+            {day.items.some((i) => i.meeting) && (
+              <TimeGrid
+                days={[day]}
+                today={today}
+                timeZone={timeZone}
+                dayLabel={(d) => dayHeading(d.date, today)}
+              />
+            )}
           </DueMovesProvider>
         ) : null}
       </CardContent>

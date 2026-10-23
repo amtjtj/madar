@@ -151,7 +151,12 @@ export function DropDay({
   className?: string;
 }) {
   const enabled = useContext(DayDragContext);
-  if (!enabled) return <div className={className}>{children}</div>;
+  if (!enabled)
+    return (
+      <div data-day={date} className={className}>
+        {children}
+      </div>
+    );
   return (
     <DroppableDay date={date} className={className}>
       {children}
@@ -172,6 +177,7 @@ function DroppableDay({
   return (
     <div
       ref={setNodeRef}
+      data-day={date}
       data-over={isOver || undefined}
       className={cn(
         'transition-colors data-[over]:bg-primary-soft data-[over]:outline-2 data-[over]:-outline-offset-2 data-[over]:outline-primary',
@@ -263,8 +269,8 @@ export interface WeekGridProps {
   /** Whole hours to show (`timeGridSpan`). */
   startHour: number;
   endHour: number;
-  /** The all-day items of a day (wrap them in `DropDay` to accept drops). */
-  allDay: (day: WeekGridDay) => ReactNode;
+  /** The all-day items of a day (wrap them in `DropDay` to accept drops); no row without it. */
+  allDay?: (day: WeekGridDay) => ReactNode;
   events: WeekGridEvent[];
   /** Minutes from midnight now, for the «اکنون» line on today. */
   nowMinutes?: number;
@@ -333,19 +339,21 @@ export function WeekGrid({
         })}
       </div>
       {/* All-day row */}
-      <div className="grid border-b border-line" style={columns}>
-        <span className="self-center px-1 text-center text-[0.6875rem] text-ink-subtle">
-          {t('ui.calendar.allDay')}
-        </span>
-        {days.map((day) => (
-          <div
-            key={day.date}
-            className={cn('min-h-12 min-w-0 border-s border-line', day.off && 'bg-sunken/60')}
-          >
-            {allDay(day)}
-          </div>
-        ))}
-      </div>
+      {allDay && (
+        <div className="grid border-b border-line" style={columns}>
+          <span className="self-center px-1 text-center text-[0.6875rem] text-ink-subtle">
+            {t('ui.calendar.allDay')}
+          </span>
+          {days.map((day) => (
+            <div
+              key={day.date}
+              className={cn('min-h-12 min-w-0 border-s border-line', day.off && 'bg-sunken/60')}
+            >
+              {allDay(day)}
+            </div>
+          ))}
+        </div>
+      )}
       {/* Hours */}
       <div className="grid" style={columns} role="group" aria-label={t('ui.calendar.hours')}>
         <div className="relative" style={{ height }} aria-hidden>
