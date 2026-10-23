@@ -1,6 +1,6 @@
 # پلن فاز ۲الف، قدم ۱۴ب: نمای هفته و روز، جابه‌جایی سررسید با کشیدن، تقویم تیم
 
-> وضعیت: **در انتظار تایید** · تاریخ: ۱ آبان ۱۴۰۵
+> وضعیت: **پیاده‌سازی شد** · تاریخ: ۱ آبان ۱۴۰۵
 > مرجع:
 > - `docs/feedback/1405-07-27-team-review.md` بخش ۹ (تقویم):
 >   - «دسکتاپ پیش‌فرض هفته»؛
@@ -57,7 +57,7 @@
 
 | مسیر | توضیح |
 |---|---|
-| `GET /api/calendar?from&to&layers&member=<id>` | همان مسیر ۱۴الف. `member` اختیاری است و بدونش خودم است. اگر آن نفر در فهرست «تقویم چه کسی؟» من نباشد ← ۴۰۴ `member_not_found`. برای دیگران لایه `plan` و `myResponse` برنمی‌گردد. جواب: `{ days, overdue, truncated, member: { id, displayName } }` |
+| `GET /api/calendar?from&to&layers&member=<id>` | همان مسیر ۱۴الف. `member` اختیاری است و بدونش خودم است. اگر آن نفر در فهرست «تقویم چه کسی؟» من نباشد ← ۴۰۴ (`not_found`). برای دیگران لایه `plan` و `myResponse` برنمی‌گردد. جواب: `{ days, overdue, truncated, member: { id, displayName } }` |
 | `GET /api/calendar/people` | فهرست کسانی که می‌توانم تقویمشان را ببینم: `[{ id, displayName, avatar, department }]`، خودم اول. برای عضو عادی فقط خودش |
 
 قواعد:
@@ -111,7 +111,7 @@
 1. **shared:**
    - `weekRange`، بازه ساعت از تقویم کاری، چیدمان جلسه‌های هم‌پوشان؛
    - قرارداد: `member` در درخواست، `version` و `editable` در مورد کار، `calendarPerson`؛
-   - کد خطای `member_not_found` و رشته‌ها؛ با تست.
+   - رشته‌ها؛ با تست (برای نفرِ بیرون از فهرست همان `not_found` کافی است).
 2. **API:**
    - `calendar/access.ts` با `calendarPeople`؛
    - `GET /api/calendar/people`؛

@@ -1,4 +1,4 @@
-# 0024 — Personal calendar
+# 0024 — Calendar (personal and team)
 
 - Status: Accepted
 - Date: 2026-10-23
@@ -27,8 +27,26 @@ Phase 2, step 14a (`docs/plans/phase-2-step-14a.md`). Dates already live in seve
 - **Read-only.** Nothing is changed from the calendar in 14a; an item opens its own page. The one shortcut is «جلسه تازه» on a selected day (today or later), which opens the meeting form on that day (`/meetings/new?date=`, 09:00 for a later day).
 - **Accessibility.** The month is a plain table of buttons (no `role="grid"`, so no arrow-key promise); today carries `aria-current="date"`, the selected day `aria-pressed`, and each day's name says how many items it has and whether it is a holiday or a day off. A weekday column is red only when the company does not work it.
 
+## Step 14b: week and day views, moving due dates, team calendars
+Plan `docs/plans/phase-2-step-14b.md`, with the proposed answers (no «busy» blocks; oversight is not a team; dropping on a past day is allowed).
+- **Views.** Wide screens: «هفته» (default), «روز», «ماه», «فهرست زمانی». Phones: «فهرست زمانی» (default), «روز», «ماه»; a `?view=week` on a phone becomes the day view. The view, the day (`?date=`) and the person (`?member=`) live in the address.
+  - `WeekGrid` (`@madar/ui`): a header, an all-day row and an hour grid. The hours are the company's working hours on the shown days, widened for any meeting outside them (`timeGridSpan`); each day's `hours` comes with the range. Overlapping meetings sit side by side (`layoutOverlaps`); a meeting past midnight stays on its first day. A red «اکنون» line marks the time on today.
+  - The day view is a `DayStrip` (the week, busy days dotted), the day's all-day items at full width, and the hour grid only when there are meetings. It reads the same week range as the week view, so the two share a cache.
+- **Moving a due date** is the existing `PATCH /api/tasks/:id` with `version` and `dueOn`. There is no new write path, so permissions, events, notifications and the task's activity stay as they were.
+  - Each task item carries `version` and `editable`, computed with `editableTasks(viewer)` in the same query. Only open, editable tasks with a due date (or past due) move; a plan-only item, a meeting, a project or a period never does.
+  - Drag and drop with dnd-kit (`CalendarDnd`, `DragItem`, `DropDay`): mouse, touch hold, and keyboard (Space on the handle, arrows jump between days by their position on screen, Space to drop), announced in Persian. The days of the week row, the month cells and the day strip are drop targets.
+  - «تغییر سررسید» (a `DatePicker` in a dialog) does the same for phones and keyboards, on every view including the agenda.
+  - The move is optimistic in every cached range (`moveDueInRange`): the due item leaves its day or the past-due list (a plan item stays, no longer due) and lands on the new day, or in the past-due list if the day is past. An error rolls it back; a version conflict says the task changed meanwhile. A toast offers «برگرداندن». A day off or holiday asks for confirmation first; a past day is allowed, as on the task page.
+- **Team calendars.** `GET /api/calendar?member=` and `GET /api/calendar/people`, both through one condition, `calendarPeople(actor)` in `apps/api/src/calendar/access.ts`:
+  - myself; the active members of departments I head or manage; everyone, for a role granting tenant-wide `task.read` (role grants only: oversight reads pages, not people's calendars);
+  - anyone else, or anyone from another company, is a plain 404 (`not_found`).
+  - Only «whose» changes (assignee, participant, project member). Every layer still uses the **viewer's** visibility: `visibleTasks(me)`, `visibleMeetings(me)` (so another person's one-on-ones stay out), `visibleProjects(me)`. Someone else's daily plan and meeting replies are never returned; the layers dialog drops the plan layer for them and says why.
+  - Seeing a colleague's calendar is not a sensitive action (ADR 0009) and is not audited; moving a due date is the task's normal activity.
+  - The people picker is a native select, names sorted alphabetically, with no counts or ranking (gamification red lines).
+
 ## Consequences
 - No migration and no RLS change: isolation comes from the tables the calendar reads, each already under forced RLS. The integration test still checks that another company sees nothing.
 - Adding a layer means a contract value, one query using that resource's visibility condition, a token colour and an i18n string.
-- A project or a goal period has only an end date in the calendar; spans (start to end bars) wait for the week view in 14b.
-- Shared work (my department's tasks, my team's meetings) is not in a personal calendar; team calendars are 14b.
+- A project or a goal period has only an end date in the calendar; spans (start to end bars) are not drawn.
+- A manager sees one person at a time; a combined team view, «busy» blocks for meetings they cannot see, and moving meetings by drag are left for later.
+- `editable` is computed on read; if task edit rules change, `editableTasks` and `canEditTask` must stay twins.
