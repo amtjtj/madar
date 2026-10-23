@@ -43,14 +43,21 @@ const collision: CollisionDetection = (args) => {
   return hits.length > 0 ? hits : rectIntersection(args);
 };
 
-/** Arrow keys jump to the nearest day in that direction (the grid is RTL, so «right» is earlier). */
+/** Arrow keys jump to the nearest day in that direction (in RTL the earlier day is to the east). */
 const dayKeyboard: KeyboardCoordinateGetter = (event, { context }) => {
-  const direction = (
-    { ArrowRight: 'right', ArrowLeft: 'left', ArrowUp: 'up', ArrowDown: 'down' } as const
-  )[event.code as 'ArrowRight'];
+  // Screen directions as vectors: arrows move on the screen, whatever the reading direction.
+  const step = (
+    {
+      ArrowRight: [1, 0],
+      ArrowLeft: [-1, 0],
+      ArrowUp: [0, -1],
+      ArrowDown: [0, 1],
+    } as Record<string, [number, number]>
+  )[event.code];
   const rect = context.collisionRect;
-  if (!direction || !rect) return undefined;
+  if (!step || !rect) return undefined;
   event.preventDefault();
+  const [sx, sy] = step;
   const cx = rect.left + rect.width / 2;
   const cy = rect.top + rect.height / 2;
   let best: { x: number; y: number } | undefined;
@@ -60,16 +67,9 @@ const dayKeyboard: KeyboardCoordinateGetter = (event, { context }) => {
     if (!target) continue;
     const dx = target.left + target.width / 2 - cx;
     const dy = target.top + target.height / 2 - cy;
-    const ahead =
-      direction === 'right'
-        ? dx > 1
-        : direction === 'left'
-          ? dx < -1
-          : direction === 'down'
-            ? dy > 1
-            : dy < -1;
+    const ahead = dx * sx + dy * sy > 1;
     if (!ahead) continue;
-    const horizontal = direction === 'right' || direction === 'left';
+    const horizontal = sx !== 0;
     const distance = horizontal ? Math.abs(dx) + Math.abs(dy) * 3 : Math.abs(dy) + Math.abs(dx) * 3;
     if (distance < bestDistance) {
       bestDistance = distance;
