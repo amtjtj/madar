@@ -17,6 +17,8 @@ import {
   subscribeInstall,
   subscriptionBody,
   syncDevicePush,
+  SERVICE_WORKER,
+  serviceWorkerReady,
   urlBase64ToBytes,
   type DevicePushStatus,
 } from '@/lib/pwa';
@@ -29,7 +31,7 @@ export function useServiceWorker(): void {
     captureInstallPrompt();
     if (!('serviceWorker' in navigator)) return;
     navigator.serviceWorker
-      .register('/sw.js', { scope: '/', updateViaCache: 'none' })
+      .register(SERVICE_WORKER.url, { scope: SERVICE_WORKER.scope, updateViaCache: 'none' })
       .catch(() => undefined);
   }, []);
 }
@@ -130,7 +132,7 @@ export function useDevicePush(owner: string | null) {
         setStatus(permission === 'denied' ? 'denied' : 'off');
         return false;
       }
-      const registration = await navigator.serviceWorker.ready;
+      const registration = await serviceWorkerReady();
       const key = urlBase64ToBytes(config.publicKey);
       let subscription = await registration.pushManager.getSubscription();
       const existingKey = subscription?.options.applicationServerKey;

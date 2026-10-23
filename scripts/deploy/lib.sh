@@ -2,6 +2,11 @@
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 ENV_FILE=${MADAR_ENV_FILE:-$ROOT/.env}
 PROJECT=${MADAR_PROJECT:-madar}
+# The settings file is the only source of these: compose lets a variable of the calling shell win
+# over --env-file, so one exported by a CI job or a developer's shell would point the stack at the
+# wrong database or secrets.
+unset DATABASE_URL APP_DATABASE_URL WORKER_DATABASE_URL REDIS_URL AUTH_SECRET VAPID_PUBLIC_KEY \
+  VAPID_PRIVATE_KEY AI_SERVICE_URL AI_SERVICE_TOKEN
 # PostgreSQL with pgvector (docker/postgres.Dockerfile); keep in step with docker/compose.prod.yml.
 POSTGRES_IMAGE=madar-postgres:18-pgvector0.8.1
 # Compose runs the images of the current deployment, never whatever was built last.

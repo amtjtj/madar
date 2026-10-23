@@ -33,6 +33,24 @@ export function pushSupported(): boolean {
 }
 
 /** The browser's push subscription on this device, if any. */
+/** Where the service worker lives (offline page, push); registered on every app load. */
+export const SERVICE_WORKER = { url: '/sw.js', scope: '/' } as const;
+
+/**
+ * The active service worker, registering it first when the load-time registration did not
+ * happen or failed (a slow first compile, a flaky network); otherwise `ready` would wait forever.
+ * A failed registration rejects, so the caller can say so.
+ */
+export async function serviceWorkerReady(): Promise<ServiceWorkerRegistration> {
+  if (!(await navigator.serviceWorker.getRegistration(SERVICE_WORKER.scope))) {
+    await navigator.serviceWorker.register(SERVICE_WORKER.url, {
+      scope: SERVICE_WORKER.scope,
+      updateViaCache: 'none',
+    });
+  }
+  return navigator.serviceWorker.ready;
+}
+
 export async function currentSubscription(): Promise<PushSubscription | null> {
   if (!pushSupported()) return null;
   const registration = await navigator.serviceWorker.getRegistration('/');
@@ -152,7 +170,7 @@ export async function syncDevicePush(owner: string, publicKey: string): Promise<
   if (!subscription) return;
   if (pushOwner() !== owner) {
     await subscription.unsubscribe();
-    const registration = await navigator.serviceWorker.ready;
+    const registration = await serviceWorkerReady();
     subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToBytes(publicKey),
