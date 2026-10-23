@@ -1,6 +1,8 @@
 import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import { z } from 'zod';
 
+import { schema } from '@madar/db';
+
 import { ENV } from '../config/config.module.js';
 import type { Env } from '../config/env.js';
 import { ApiError } from '../common/errors.js';
@@ -39,6 +41,24 @@ const breakdownReply = z.object({
   model: z.string().max(200),
 });
 
+const embedReply = z.object({
+  vectors: z.array(z.array(z.number()).length(schema.EMBEDDING_DIMENSIONS)),
+  model: z.string().min(1).max(200),
+});
+const answerReply = z.object({
+  text: z.string().min(1).max(4000),
+  cited: z.array(z.number().int()),
+  model: z.string().max(200),
+});
+
+/** One numbered source for an answer: only what the asking person may see (ADR 0026). */
+export interface AnswerSource {
+  n: number;
+  kind: 'task' | 'letter' | 'meeting' | 'channel';
+  title: string;
+  text: string;
+}
+
 export interface BreakdownInput {
   sentence: string;
   department: string;
@@ -68,6 +88,41 @@ export class AiClient {
     signal?: AbortSignal,
   ): Promise<z.infer<typeof breakdownReply>> {
     return this.post('/v1/task-breakdown', input, breakdownReply, signal);
+  }
+
+  /** Vectors for chunks or a question (at most 64 texts per call); same order as `texts`. */
+  async embed(
+    texts: string[],
+    signal?: AbortSignal,
+  ): Promise<{ vectors: number[][]; model: string }> {
+    const reply = await this.post('/v1/embed', { texts }, embedReply, signal);
+    if (reply.vectors.length !== texts.length) {
+      throw new ApiError(HttpStatus.BAD_GATEWAY, 'ai_failed', 'AI service answered badly');
+    }
+    return reply;
+  }
+
+  answer(
+    input: { question: string; today: string; sources: AnswerSource[] },
+    signal?: AbortSignal,
+  ): Promise<z.infer<typeof answerReply>> {
+    return this.post('/v1/answer', input, answerReply, signal);
+  }
+
+  /** The embedding model the service runs now (its /health), or undefined when it cannot say. */
+  async embedModel(): Promise<string | undefined> {
+    if (!this.available) return undefined;
+    try {
+      const response = await fetch(`${this.env.AI_SERVICE_URL.replace(/\/$/, '')}/health`, {
+        signal: AbortSignal.timeout(4000),
+      });
+      const body = z
+        .object({ embedModel: z.string().min(1).max(200) })
+        .safeParse(await response.json());
+      return response.ok && body.success ? body.data.embedModel : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   /** The service and its model answer (admins' status page); never throws. */

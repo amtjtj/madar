@@ -54,6 +54,9 @@ export class AiService {
         .set({ settings: sql`${s.tenants.settings} || ${JSON.stringify({ ai: body })}::jsonb` })
         // `tenants` is control-plane (no RLS): the session's tenant guards the row as well.
         .where(and(eq(s.tenants.id, ctx.tenantId), sql`${s.tenants.id} = app.current_tenant_id()`));
+      // Turning the assistant off clears the company's knowledge index (ADR 0026); turning it on
+      // again rebuilds it from scratch.
+      if (!body.enabled) await tx.delete(s.knowledgeChunks);
       await this.db.audit(tx, ctx, {
         action: 'ai_settings.updated',
         subjectType: 'tenant',

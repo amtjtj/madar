@@ -4,6 +4,7 @@ import type { Redis } from 'ioredis';
 import { ENV } from '../config/config.module.js';
 import type { Env } from '../config/env.js';
 import { AiClient } from '../ai/ai-client.js';
+import { KnowledgeIndexJob } from '../ai/knowledge-job.js';
 import { ReportSummaryJob } from '../ai/summary-job.js';
 import { FilesCleanupJob } from '../files/cleanup-job.js';
 import { FILE_STORAGE, createStorage } from '../files/storage.js';
@@ -44,9 +45,11 @@ import { SchedulerService } from './scheduler.service.js';
     MeetingJobs,
     AiClient,
     ReportSummaryJob,
+    KnowledgeIndexJob,
   ],
   exports: [
     ReportSummaryJob,
+    KnowledgeIndexJob,
     FilesCleanupJob,
     MeetingJobs,
     RelayService,

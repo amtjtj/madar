@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger, type OnModuleDestroy } from '@nestjs/common
 import { Queue, Worker } from 'bullmq';
 import type { Redis } from 'ioredis';
 
+import { KnowledgeIndexJob } from '../ai/knowledge-job.js';
 import { ReportSummaryJob } from '../ai/summary-job.js';
 import { ENV } from '../config/config.module.js';
 import type { Env } from '../config/env.js';
@@ -16,6 +17,9 @@ const MEETING_QUEUE = 'meeting-reminders';
 /** The assistant's report summaries (ADR 0025): slow model calls, so a queue of their own. */
 const SUMMARY_QUEUE = 'report-summaries';
 const SUMMARIES_MS = 10 * 60_000;
+/** The knowledge index for «از مدار بپرس» (ADR 0026): embeddings, also on a queue of their own. */
+const KNOWLEDGE_QUEUE = 'knowledge-index';
+const KNOWLEDGE_MS = 60_000;
 const EVERY_MS = 15 * 60_000;
 /** Meeting reminders need minute precision («۱۰ دقیقه دیگر»). */
 const MEETING_REMINDERS_MS = 60_000;
@@ -23,7 +27,7 @@ const MEETING_REMINDERS_MS = 60_000;
 /**
  * Recurring jobs (BullMQ job schedulers). Every 15 minutes: due reminders, weekly report snapshots,
  * the cleanup of unreachable files and making weekly meetings ahead. Every minute: meeting
- * reminders. Every 10 minutes: the assistant's report summaries.
+ * reminders and the assistant's knowledge index. Every 10 minutes: the assistant's report summaries.
  */
 @Injectable()
 export class SchedulerService implements OnModuleDestroy {
@@ -35,6 +39,8 @@ export class SchedulerService implements OnModuleDestroy {
   private remindersWorker: Worker | undefined;
   private summariesQueue: Queue | undefined;
   private summariesWorker: Worker | undefined;
+  private knowledgeQueue: Queue | undefined;
+  private knowledgeWorker: Worker | undefined;
 
   constructor(
     @Inject(REDIS) private readonly redis: Redis,
@@ -44,6 +50,7 @@ export class SchedulerService implements OnModuleDestroy {
     private readonly filesCleanup: FilesCleanupJob,
     private readonly meetings: MeetingJobs,
     private readonly summaries: ReportSummaryJob,
+    private readonly knowledge: KnowledgeIndexJob,
   ) {}
 
   async start(): Promise<void> {
@@ -94,14 +101,27 @@ export class SchedulerService implements OnModuleDestroy {
     this.summariesWorker.on('failed', (job, error) =>
       this.logger.error(`${job?.name}: ${error.message}`),
     );
+
+    this.knowledgeQueue = new Queue(KNOWLEDGE_QUEUE, options);
+    await this.knowledgeQueue.upsertJobScheduler(
+      'knowledge-index',
+      { every: KNOWLEDGE_MS },
+      { name: 'knowledge-index' },
+    );
+    this.knowledgeWorker = new Worker(KNOWLEDGE_QUEUE, () => this.knowledge.runAll(), options);
+    this.knowledgeWorker.on('failed', (job, error) =>
+      this.logger.error(`${job?.name}: ${error.message}`),
+    );
   }
 
   async onModuleDestroy(): Promise<void> {
     await this.worker?.close();
     await this.remindersWorker?.close();
     await this.summariesWorker?.close();
+    await this.knowledgeWorker?.close();
     await this.queue?.close();
     await this.remindersQueue?.close();
     await this.summariesQueue?.close();
+    await this.knowledgeQueue?.close();
   }
 }
