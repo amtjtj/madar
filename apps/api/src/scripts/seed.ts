@@ -21,6 +21,7 @@ import {
   mentionToken,
   weekStartOf,
   weeklyReport,
+  persianWeekdayOfCalendarDate,
   zonedInstant,
   type SaveLetterRequest,
   type SystemRole,
@@ -620,11 +621,21 @@ async function main(): Promise<void> {
     });
     const firstDecision = reviewMeeting.decisions[0];
     if (firstDecision) {
-      await meetings.convertDecision(await as('maryam.ahmadi'), review.id, firstDecision.id, {
-        title: 'به‌روزرسانی پاسخ‌های آماده پرتکرار',
-        assigneeId: idOf('ali.rezaei'),
-        dueOn: addDays(today, 5),
-        keyResultId: krIds.get('response') ?? null,
+      const decisionTask = await meetings.convertDecision(
+        await as('maryam.ahmadi'),
+        review.id,
+        firstDecision.id,
+        {
+          title: 'به‌روزرسانی پاسخ‌های آماده پرتکرار',
+          assigneeId: idOf('ali.rezaei'),
+          dueOn: addDays(today, 5),
+          keyResultId: krIds.get('response') ?? null,
+        },
+      );
+      // The review's minutes back the task they decided (plan phase-2-step-13b).
+      await app.get(EvidenceService).pin(await as('maryam.ahmadi'), decisionTask.id, {
+        kind: 'minutes',
+        subjectId: review.id,
       });
     }
     const sync = await meetings.create(await as('maryam.ahmadi'), {
@@ -634,6 +645,20 @@ async function main(): Promise<void> {
       participantIds: [idOf('amir.hosseini'), idOf('ali.rezaei')],
     });
     await meetings.cancel(await as('maryam.ahmadi'), sync.id);
+    // A weekly meeting every Saturday at 9, with replies to the first one.
+    const nextSaturday = addDays(today, (7 - persianWeekdayOfCalendarDate(today)) % 7 || 7);
+    const weekly = await meetings.create(await as('maryam.ahmadi'), {
+      type: 'regular',
+      title: 'هماهنگی هفتگی پشتیبانی',
+      ...slot(nextSaturday, '09:00', '09:30'),
+      location: 'اتاق جلسه طبقه دوم',
+      agenda: '- مرور تیکت‌های هفته\n- تاخیرهای برداشت\n- برنامه شیفت‌ها',
+      participantIds: supportTeam,
+      repeat: {},
+    });
+    await meetings.respond(await as('ali.rezaei'), weekly.id, 'accepted');
+    await meetings.respond(await as('zahra.mohammadi'), weekly.id, 'accepted');
+    await meetings.respond(await as('hossein.yousefi'), weekly.id, 'declined');
 
     for (const [title, krKey] of Object.entries(SEED_TASK_LINKS)) {
       const task = taskRefs.get(title);
