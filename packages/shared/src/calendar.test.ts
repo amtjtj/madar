@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { daysInRange, monthRange } from './calendar.js';
+import { daysInRange, layoutOverlaps, monthRange, timeGridSpan, weekRange } from './calendar.js';
 import { calendarQuery } from './contracts/calendar.js';
 import { persianWeekdayOfCalendarDate } from './locale/jalali.js';
 
@@ -33,5 +33,43 @@ describe('calendar ranges', () => {
     expect(calendarQuery.safeParse({ from: '2026-10-01', to: '2026-11-11' }).success).toBe(true);
     expect(calendarQuery.safeParse({ from: '2026-10-01', to: '2026-11-12' }).success).toBe(false);
     expect(calendarQuery.safeParse({ from: '2026-10-05', to: '2026-10-01' }).success).toBe(false);
+  });
+});
+
+describe('week grid helpers', () => {
+  it('finds the Saturday-to-Friday week', () => {
+    // 2026-10-23 is a Friday.
+    expect(weekRange('2026-10-23')).toEqual({ from: '2026-10-17', to: '2026-10-23' });
+    expect(weekRange('2026-10-24')).toEqual({ from: '2026-10-24', to: '2026-10-30' });
+  });
+
+  it('spans working hours and widens for events outside them', () => {
+    const hours = [{ start: '09:00', end: '18:00' }, { start: '09:00', end: '13:00' }, null];
+    expect(timeGridSpan(hours)).toEqual({ startHour: 9, endHour: 18 });
+    expect(timeGridSpan(hours, [{ start: 7 * 60 + 30, end: 8 * 60 }])).toEqual({
+      startHour: 7,
+      endHour: 18,
+    });
+    expect(timeGridSpan(hours, [{ start: 19 * 60, end: 20 * 60 + 15 }]).endHour).toBe(21);
+    expect(timeGridSpan([null])).toEqual({ startHour: 8, endHour: 18 });
+  });
+
+  it('puts overlapping events side by side', () => {
+    const layout = layoutOverlaps([
+      { id: 'a', start: 540, end: 600 },
+      { id: 'b', start: 570, end: 630 },
+      { id: 'c', start: 600, end: 660 }, // reuses a's column
+      { id: 'd', start: 700, end: 760 }, // alone
+    ]);
+    expect(layout.get('a')).toEqual({ column: 0, columns: 2 });
+    expect(layout.get('b')).toEqual({ column: 1, columns: 2 });
+    expect(layout.get('c')).toEqual({ column: 0, columns: 2 });
+    expect(layout.get('d')).toEqual({ column: 0, columns: 1 });
+  });
+
+  it('accepts a member and refuses a bad one', () => {
+    expect(
+      calendarQuery.safeParse({ from: '2026-10-24', to: '2026-10-30', member: 'x' }).success,
+    ).toBe(false);
   });
 });

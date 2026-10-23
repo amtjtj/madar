@@ -22,6 +22,8 @@ export const calendarQuery = z
                 (CALENDAR_LAYERS as readonly string[]).includes(l),
               ),
       ),
+    /** Someone else's calendar (plan phase-2-step-14b); mine when omitted. */
+    member: z.uuid().optional(),
   })
   .refine((q) => q.from <= q.to, { message: 'from after to' })
   .refine(
@@ -48,6 +50,10 @@ export const calendarItem = z.object({
       planned: z.boolean(),
       overdue: z.boolean(),
       dueOn: calendarDate.nullable(),
+      /** For moving the due date with `PATCH /api/tasks/:id`. */
+      version: z.number().int(),
+      /** The viewer may change it (drag or «تغییر سررسید»). */
+      editable: z.boolean(),
     })
     .nullable(),
   meeting: z
@@ -70,6 +76,8 @@ export const calendarDay = z.object({
   off: z.boolean(),
   /** One of the company's holidays. */
   holiday: z.boolean(),
+  /** The company's working hours that day; null on a day off or holiday. */
+  hours: z.object({ start: z.string(), end: z.string() }).nullable(),
   items: z.array(calendarItem),
 });
 export type CalendarDay = z.infer<typeof calendarDay>;
@@ -80,5 +88,15 @@ export const calendarRange = z.object({
   overdue: z.array(calendarItem),
   /** Layers cut at CALENDAR_LAYER_MAX items. */
   truncated: z.array(z.enum(CALENDAR_LAYERS)),
+  /** Whose calendar this is. */
+  member: z.object({ id: z.uuid(), displayName: z.string() }),
 });
 export type CalendarRange = z.infer<typeof calendarRange>;
+
+/** Someone whose calendar the viewer may open (themselves first). */
+export const calendarPerson = z.object({
+  id: z.uuid(),
+  displayName: z.string(),
+  department: z.string().nullable(),
+});
+export type CalendarPerson = z.infer<typeof calendarPerson>;
