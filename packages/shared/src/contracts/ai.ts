@@ -46,3 +46,48 @@ export const reportSummary = z.object({
   pending: z.boolean(),
 });
 export type ReportSummary = z.infer<typeof reportSummary>;
+
+/** «از مدار بپرس» (plan phase-3-step-16b, ADR 0026). */
+export const ASK_QUESTION_MAX = 500;
+/** Most sources one answer is written from. */
+export const ASK_SOURCES_MAX = 8;
+
+export const KNOWLEDGE_KINDS = ['task', 'letter', 'meeting', 'channel'] as const;
+export const knowledgeKind = z.enum(KNOWLEDGE_KINDS);
+export type KnowledgeKind = z.infer<typeof knowledgeKind>;
+
+export const askRequest = z.object({
+  question: z.string().trim().min(3).max(ASK_QUESTION_MAX),
+});
+export type AskRequest = z.infer<typeof askRequest>;
+
+export const askSource = z.object({
+  /** The number the answer cites as `[n]`. */
+  n: z.number().int().min(1),
+  kind: knowledgeKind,
+  /** Task, letter, meeting or conversation id. */
+  id: z.uuid(),
+  title: z.string(),
+  /** For a channel: the company day of the messages and the first message of that day. */
+  day: calendarDate.nullable(),
+  messageId: z.uuid().nullable(),
+  /** The answer refers to it. */
+  cited: z.boolean(),
+});
+export type AskSource = z.infer<typeof askSource>;
+
+export const askResponse = z.object({
+  /** Null when nothing the person may see matches: the model is not asked. */
+  answer: z.string().nullable(),
+  sources: z.array(askSource).max(ASK_SOURCES_MAX),
+});
+export type AskResponse = z.infer<typeof askResponse>;
+
+export const knowledgeIndexStatus = z.object({
+  /** Indexed sources (not chunks) by kind. */
+  sources: z.record(knowledgeKind, z.number().int().min(0)),
+  chunks: z.number().int().min(0),
+  /** The first full indexing after the assistant was turned on has finished. */
+  ready: z.boolean(),
+});
+export type KnowledgeIndexStatus = z.infer<typeof knowledgeIndexStatus>;

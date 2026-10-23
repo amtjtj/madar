@@ -13,6 +13,7 @@ export * from './contracts/calendar.js';
 export * from './calendar.js';
 export * from './meetings.js';
 export * from './chat-text.js';
+export * from './knowledge.js';
 export * from './contracts/me.js';
 export * from './contracts/members.js';
 export * from './contracts/notifications.js';

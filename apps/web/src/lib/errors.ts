@@ -39,6 +39,7 @@ const API_CODES = new Set([
   'ai_disabled',
   'ai_unavailable',
   'ai_failed',
+  'ai_refused',
   'meeting_reply_closed',
   'one_on_one_needs_one',
   'meeting_time_invalid',
