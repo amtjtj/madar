@@ -1,6 +1,6 @@
 'use client';
 
-import { CalendarClock, ChevronLeft } from 'lucide-react';
+import { CalendarClock, CalendarDays, ChevronLeft } from 'lucide-react';
 import Link from 'next/link';
 
 import { t } from '@madar/i18n';
@@ -10,13 +10,19 @@ import { PageHeader, useOrgNavItems } from '@/components/app-shell';
 
 /** Mobile hub for the organization screens (the tab bar has room for four tabs). */
 export default function OrgPage() {
-  // Meetings live in the sidebar on desktop; on phones they are reached from here and the today card.
+  // Meetings and the calendar live in the sidebar on desktop; on phones they are reached from here and the today card.
   const items = [
     {
       key: '/meetings',
       label: t('meetings.nav'),
       href: '/meetings',
       icon: <CalendarClock aria-hidden />,
+    },
+    {
+      key: '/calendar',
+      label: t('calendar.nav'),
+      href: '/calendar',
+      icon: <CalendarDays aria-hidden />,
     },
     ...useOrgNavItems(),
   ];

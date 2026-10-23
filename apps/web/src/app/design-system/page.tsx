@@ -16,6 +16,7 @@ import {
   Avatar,
   AvatarGroup,
   Badge,
+  CalendarItemRow,
   BarList,
   Button,
   Card,
@@ -53,6 +54,7 @@ import {
   RsvpDemo,
   ChatDemo,
   WorkDemo,
+  CalendarDemo,
 } from './interactive';
 import { Code, Panel, Section } from './section';
 
@@ -521,6 +523,44 @@ export default function DesignSystemPage() {
                 }}
                 date={t('designSystem.meetings.minutesDate')}
               />
+            </div>
+          </Panel>
+        </Section>
+
+        <Section id="calendar" title={t('designSystem.sections.calendar')}>
+          <Panel>
+            <div className="flex flex-col gap-4">
+              <div className="max-w-xl divide-y divide-line rounded-2xl border border-line bg-surface p-1">
+                <CalendarItemRow
+                  href="#calendar"
+                  layer="meeting"
+                  title={t('designSystem.calendar.meeting')}
+                  time={t('designSystem.calendar.time')}
+                />
+                <CalendarItemRow
+                  href="#calendar"
+                  layer="task"
+                  title={t('designSystem.calendar.task')}
+                  tags={<Badge tone="danger">{t('calendar.overdueTag')}</Badge>}
+                />
+                <CalendarItemRow
+                  href="#calendar"
+                  layer="plan"
+                  title={t('designSystem.calendar.plan')}
+                  tags={<Badge tone="success">{t('calendar.plannedTag')}</Badge>}
+                />
+                <CalendarItemRow
+                  href="#calendar"
+                  layer="project"
+                  title={t('designSystem.calendar.project')}
+                />
+                <CalendarItemRow
+                  href="#calendar"
+                  layer="period"
+                  title={t('designSystem.calendar.period')}
+                />
+              </div>
+              <CalendarDemo today={calendarDateIn(new Date())} />
             </div>
           </Panel>
         </Section>

@@ -96,3 +96,12 @@ export const meetingKeys = {
   today: ['meetings', 'today'] as const,
   meeting: (id: string) => ['meetings', 'detail', id] as const,
 };
+
+/** The personal calendar (ADR 0024). */
+export const calendarKeys = {
+  all: ['calendar'] as const,
+  range: (from: string, to: string, layers: string[]) =>
+    ['calendar', 'range', from, to, layers.join(',')] as const,
+  agenda: (today: string, layers: string[]) =>
+    ['calendar', 'agenda', today, layers.join(',')] as const,
+};

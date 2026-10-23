@@ -4,9 +4,17 @@ import { ChartColumn, Flame, House, ListTodo, Settings, Target, Users } from 'lu
 import { useState } from 'react';
 
 import { t } from '@madar/i18n';
-import { addDays, formatNumber, mentionToken, type ReactionEmoji } from '@madar/shared';
+import {
+  addDays,
+  formatCalendarDate,
+  formatNumber,
+  mentionToken,
+  type ReactionEmoji,
+} from '@madar/shared';
 import {
   Avatar,
+  CalendarMonth,
+  LayerToggle,
   Badge,
   BottomNav,
   Button,
@@ -588,4 +596,54 @@ export function FilesDemo() {
 export function RsvpDemo() {
   const [value, setValue] = useState<'pending' | 'accepted' | 'declined'>('pending');
   return <RsvpButtons value={value} onChange={setValue} className="max-w-sm" />;
+}
+
+export function CalendarDemo({ today }: { today: string }) {
+  const [selected, setSelected] = useState<string | null>(today);
+  const [layers, setLayers] = useState({ meeting: true, task: true });
+  const start = addDays(today, -10);
+  const cells = Array.from({ length: 14 }, (_, i) => {
+    const date = addDays(start, i);
+    const items = [
+      ...(layers.meeting && i % 3 === 0
+        ? [{ layer: 'meeting' as const, title: t('designSystem.calendar.meeting') }]
+        : []),
+      ...(layers.task && i % 2 === 0
+        ? [{ layer: 'task' as const, title: t('designSystem.calendar.task') }]
+        : []),
+      ...(i === 10
+        ? [{ layer: 'project' as const, title: t('designSystem.calendar.project') }]
+        : []),
+    ];
+    return { date, inMonth: true, today: date === today, off: i % 7 === 6, items };
+  });
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="max-w-sm rounded-2xl border border-line bg-surface p-1">
+        <LayerToggle
+          layer="meeting"
+          label={t('calendar.layers.meetings')}
+          checked={layers.meeting}
+          onChange={(meeting) => setLayers({ ...layers, meeting })}
+        />
+        <LayerToggle
+          layer="task"
+          label={t('calendar.layers.tasks')}
+          checked={layers.task}
+          onChange={(task) => setLayers({ ...layers, task })}
+        />
+      </div>
+      <CalendarMonth
+        cells={cells}
+        selected={selected}
+        onSelect={setSelected}
+        dayLabel={(cell) =>
+          t('designSystem.calendar.dayLabel', {
+            day: formatCalendarDate(cell.date, 'full'),
+            count: formatNumber(cell.items.length),
+          })
+        }
+      />
+    </div>
+  );
 }

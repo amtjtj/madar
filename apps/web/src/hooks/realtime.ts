@@ -8,6 +8,7 @@ import { io } from 'socket.io-client';
 import { applyLiveMessage } from '@/lib/chat';
 
 import {
+  calendarKeys,
   chatKeys,
   dashboardKeys,
   letterKeys,
@@ -41,13 +42,20 @@ export function useRealtime(enabled: boolean, tenantId?: string): boolean {
           void client.invalidateQueries({ queryKey: ['task'] });
           void client.invalidateQueries({ queryKey: workKeys.projects });
           void client.invalidateQueries({ queryKey: dashboardKeys.all });
+          void client.invalidateQueries({ queryKey: calendarKeys.all });
         }
-        if (pending.has('today')) void client.invalidateQueries({ queryKey: workKeys.today });
+        if (pending.has('today')) {
+          void client.invalidateQueries({ queryKey: workKeys.today });
+          void client.invalidateQueries({ queryKey: calendarKeys.all });
+        }
         if (pending.has('notifications')) {
           void client.invalidateQueries({ queryKey: notificationKeys.all });
         }
         if (pending.has('letters')) void client.invalidateQueries({ queryKey: letterKeys.all });
-        if (pending.has('meetings')) void client.invalidateQueries({ queryKey: meetingKeys.all });
+        if (pending.has('meetings')) {
+          void client.invalidateQueries({ queryKey: meetingKeys.all });
+          void client.invalidateQueries({ queryKey: calendarKeys.all });
+        }
         if (pending.has('chat') || pending.has('chatLists')) {
           void client.invalidateQueries({ queryKey: chatKeys.list });
           void client.invalidateQueries({ queryKey: chatKeys.unread });

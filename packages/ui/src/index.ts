@@ -107,6 +107,16 @@ export {
   type RecipientChipProps,
 } from './components/letter.js';
 export {
+  CalendarItemRow,
+  CalendarMonth,
+  LayerToggle,
+  type CalendarItemRowProps,
+  type CalendarLayerKind,
+  type CalendarMonthCell,
+  type CalendarMonthProps,
+  type LayerToggleProps,
+} from './components/calendar.js';
+export {
   DecisionItem,
   MeetingRow,
   MeetingTypeBadge,

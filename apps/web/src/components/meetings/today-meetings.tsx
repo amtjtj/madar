@@ -23,12 +23,20 @@ export function TodayMeetings() {
             <CalendarClock aria-hidden />
             {t('meetings.todayCard.title')}
           </h2>
-          <NextLink
-            href="/meetings"
-            className="text-sm font-semibold text-primary-ink hover:underline"
-          >
-            {t('meetings.todayCard.all')}
-          </NextLink>
+          <div className="flex items-center gap-3">
+            <NextLink
+              href="/calendar"
+              className="text-sm font-semibold text-primary-ink hover:underline"
+            >
+              {t('meetings.todayCard.calendar')}
+            </NextLink>
+            <NextLink
+              href="/meetings"
+              className="text-sm font-semibold text-primary-ink hover:underline"
+            >
+              {t('meetings.todayCard.all')}
+            </NextLink>
+          </div>
         </div>
         <ul className="-mx-2 flex flex-col">
           {data.map((m) => (

@@ -225,6 +225,17 @@
   --color-success-ink: var(--success-ink);
   --color-info: var(--info);
   --color-chart-1: var(--chart-1);
+  /* Calendar layers (ADR 0024): aliases of the semantic colors, so both themes follow. */
+  --color-layer-task: var(--primary);
+  --color-layer-task-soft: var(--primary-soft);
+  --color-layer-plan: var(--success);
+  --color-layer-plan-soft: var(--success-soft);
+  --color-layer-meeting: var(--info);
+  --color-layer-meeting-soft: var(--info-soft);
+  --color-layer-project: var(--accent);
+  --color-layer-project-soft: var(--accent-soft);
+  --color-layer-period: var(--warning);
+  --color-layer-period-soft: var(--warning-soft);
   --color-chart-2: var(--chart-2);
   --color-info-soft: var(--info-soft);
   --color-info-ink: var(--info-ink);

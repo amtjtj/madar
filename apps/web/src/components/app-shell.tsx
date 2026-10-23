@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import {
   ArrowDownWideNarrow,
   CalendarClock,
+  CalendarDays,
   BellRing,
   Download,
   MessagesSquare,
@@ -189,6 +190,12 @@ export function AppShell({ children }: { children: ReactNode }) {
       href: '/meetings',
       icon: <CalendarClock aria-hidden />,
     },
+    {
+      key: '/calendar',
+      label: t('calendar.nav'),
+      href: '/calendar',
+      icon: <CalendarDays aria-hidden />,
+    },
     ...(readsReports
       ? [
           {
@@ -213,7 +220,10 @@ export function AppShell({ children }: { children: ReactNode }) {
       .filter((key) => (key === '/' ? pathname === '/' : pathname.startsWith(key)))
       .sort((a, b) => b.length - a.length)[0] ?? '/';
   const bottomActiveKey =
-    pathname === '/org' || activeKey === '/meetings' || orgItems.some((i) => i.key === activeKey)
+    pathname === '/org' ||
+    activeKey === '/meetings' ||
+    activeKey === '/calendar' ||
+    orgItems.some((i) => i.key === activeKey)
       ? '/org'
       : activeKey;
 

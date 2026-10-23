@@ -12,6 +12,7 @@ import { Slider } from './components/slider.js';
 import { ThemeToggle } from './components/theme.js';
 import { LetterRow, LiteText, RecipientChip, UrgencyBadge } from './components/letter.js';
 import { AudienceNote, EvidenceCard, MinutesEvidenceCard } from './components/evidence.js';
+import { CalendarItemRow, CalendarMonth, LayerToggle } from './components/calendar.js';
 import {
   DecisionItem,
   MeetingRow,
@@ -485,5 +486,37 @@ describe('meeting replies and minutes evidence', () => {
     );
     expect(screen.getByText('هفتگی')).toBeTruthy();
     expect(screen.getByText('نمی‌آیم')).toBeTruthy();
+  });
+});
+
+describe('calendar', () => {
+  it('links an item and strikes a canceled one', () => {
+    render(
+      <CalendarItemRow layer="meeting" title="هماهنگی" href="/meetings/1" time="۱۰:۰۰" struck />,
+    );
+    expect(screen.getByRole('link').getAttribute('href')).toBe('/meetings/1');
+    expect(screen.getByText('هماهنگی').className).toContain('line-through');
+  });
+
+  it('opens a day and marks today', () => {
+    const onSelect = vi.fn();
+    const cells = Array.from({ length: 7 }, (_, i) => ({
+      date: `2026-10-${24 + i}`,
+      inMonth: true,
+      today: i === 0,
+      off: i === 6,
+      items: i === 1 ? [{ layer: 'task' as const, title: 'گزارش' }] : [],
+    }));
+    render(<CalendarMonth cells={cells} onSelect={onSelect} dayLabel={(c) => `روز ${c.date}`} />);
+    fireEvent.click(screen.getByRole('button', { name: 'روز 2026-10-25' }));
+    expect(onSelect).toHaveBeenCalledWith('2026-10-25');
+    expect(screen.getByText('۲')).toBeTruthy(); // 2026-10-24 is 2 Aban
+  });
+
+  it('switches a layer', () => {
+    const onChange = vi.fn();
+    render(<LayerToggle layer="task" label="سررسید کارها" checked onChange={onChange} />);
+    fireEvent.click(screen.getByRole('switch', { name: 'سررسید کارها' }));
+    expect(onChange).toHaveBeenCalledWith(false);
   });
 });
