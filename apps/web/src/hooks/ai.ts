@@ -26,7 +26,17 @@ export function useSaveAiSettings() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (body: AiSettings) => api<AiSettings>('/api/settings/ai', { method: 'PUT', body }),
-    onSuccess: () => void client.invalidateQueries({ queryKey: ['ai'] }),
+    // Optimistic: the switch moves at once and goes back if the server refuses.
+    onMutate: async (body) => {
+      await client.cancelQueries({ queryKey: aiKeys.status });
+      const previous = client.getQueryData<AiStatus>(aiKeys.status);
+      if (previous) client.setQueryData<AiStatus>(aiKeys.status, { ...previous, ...body });
+      return previous;
+    },
+    onError: (_error, _body, previous) => {
+      if (previous) client.setQueryData(aiKeys.status, previous);
+    },
+    onSettled: () => void client.invalidateQueries({ queryKey: ['ai'] }),
   });
 }
 

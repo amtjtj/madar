@@ -48,3 +48,6 @@ docker/caddy/certs/*.pem
 docker/caddy/certs/*.key
 backups/
 .deploy/
+
+# Model weights for the assistant (docs/deploy.md); large, licensed separately, never in git
+/models/

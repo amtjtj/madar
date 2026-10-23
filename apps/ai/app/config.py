@@ -2,6 +2,21 @@
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
+
+#: The monorepo's one `.env` (development); real environment variables win.
+ROOT_ENV = Path(__file__).resolve().parents[3] / ".env"
+
+
+def load_root_env(path: Path = ROOT_ENV) -> None:
+    if not path.is_file():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip())
 
 
 @dataclass(frozen=True)
@@ -19,6 +34,7 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> "Settings":
+        load_root_env()
         token = os.environ.get("AI_SERVICE_TOKEN", "")
         if len(token) < 16:
             raise RuntimeError("AI_SERVICE_TOKEN must be set (at least 16 characters)")

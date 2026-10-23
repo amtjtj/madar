@@ -1,4 +1,4 @@
-import type { OversightResource, SystemRole } from '@madar/shared';
+import { toPersianDigits, type OversightResource, type SystemRole } from '@madar/shared';
 
 /**
  * Demo company for development and demos (docs/pilot-assumptions.md §4):
@@ -197,3 +197,27 @@ export const SEED_PEOPLE: SeedPerson[] = [
     manager: 'fatemeh.najafi',
   },
 ];
+
+/** A summary like the assistant writes (ADR 0025): facts only, no names. */
+export function seedSummary(report: {
+  totals: { done: number; overdue: number };
+  previous: { done: number };
+  atRiskProjects: Array<{ name: string }>;
+}): string {
+  const n = (value: number) => toPersianDigits(String(value));
+  const change = report.totals.done - report.previous.done;
+  const trend =
+    change > 0
+      ? `${n(change)} کار بیشتر از هفته قبل`
+      : change < 0
+        ? `${n(-change)} کار کمتر از هفته قبل`
+        : 'به اندازه هفته قبل';
+  const risk = report.atRiskProjects[0];
+  return [
+    `این هفته ${n(report.totals.done)} کار انجام شد، ${trend}.`,
+    report.totals.overdue
+      ? `${n(report.totals.overdue)} کار باز از سررسید گذشته‌اند و بهتر است اول به آن‌ها رسیدگی شود.`
+      : 'هیچ کار بازی از سررسید نگذشته است.',
+    risk ? `پروژه «${risk.name}» هنوز در خطر است.` : 'هیچ پروژه‌ای در خطر نیست.',
+  ].join(' ');
+}

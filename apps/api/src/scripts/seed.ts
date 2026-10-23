@@ -26,7 +26,7 @@ import {
   type SaveLetterRequest,
   type SystemRole,
 } from '@madar/shared';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 import { AppModule } from '../app.module.js';
 import { AccountsService } from '../auth/accounts.service.js';
@@ -51,7 +51,7 @@ import { TenantsService } from '../tenants/tenants.service.js';
 import { ProjectsService } from '../work/projects.service.js';
 import { TasksService } from '../work/tasks.service.js';
 import { TodayService } from '../work/today.service.js';
-import { SEED_COMPANY, SEED_DEPARTMENTS, SEED_PEOPLE } from './seed-data.js';
+import { SEED_COMPANY, SEED_DEPARTMENTS, SEED_PEOPLE, seedSummary } from './seed-data.js';
 import { samplePdf, samplePng } from './seed-files.js';
 import { SEED_GOALS, SEED_PROJECT_LINKS, SEED_TASK_LINKS } from './seed-goals.js';
 import { SEED_HISTORY, SEED_PROJECTS, SEED_TASKS } from './seed-work.js';
@@ -695,6 +695,14 @@ async function main(): Promise<void> {
       holidays: solarHolidays,
     });
 
+    // The assistant is on for the demo company (each company turns it on itself).
+    await withTenant(handle.db, { tenantId }, (tx) =>
+      tx
+        .update(s.tenants)
+        .set({ settings: sql`${s.tenants.settings} || '{"ai":{"enabled":true}}'::jsonb` })
+        .where(eq(s.tenants.id, tenantId)),
+    );
+
     // Weekly reports for the last three finished weeks, as the worker would have stored them.
     const thisWeek = weekStartOf(today);
     const reportDepartments = SEED_DEPARTMENTS.map((d) => ({
@@ -721,13 +729,25 @@ async function main(): Promise<void> {
               now: builtAt,
             }),
           );
-          await tx.insert(s.weeklyReports).values({
-            scope: data.scope,
-            departmentId: department?.id ?? null,
-            weekStart,
-            data: data as unknown as Record<string, unknown>,
-            createdAt: builtAt,
-          });
+          const [stored] = await tx
+            .insert(s.weeklyReports)
+            .values({
+              scope: data.scope,
+              departmentId: department?.id ?? null,
+              weekStart,
+              data: data as unknown as Record<string, unknown>,
+              createdAt: builtAt,
+            })
+            .returning({ id: s.weeklyReports.id });
+          // What the assistant would have written (ADR 0025), so the demo shows the card.
+          if (stored) {
+            await tx.insert(s.reportSummaries).values({
+              reportId: stored.id,
+              text: seedSummary(data),
+              model: 'seed',
+              createdAt: builtAt,
+            });
+          }
         }
       });
     }

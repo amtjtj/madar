@@ -2,6 +2,12 @@ import { defineConfig, devices } from '@playwright/test';
 
 const apiPort = Number(process.env.E2E_API_PORT ?? 4100);
 const webPort = Number(process.env.E2E_WEB_PORT ?? 3100);
+const aiPort = Number(process.env.E2E_AI_PORT ?? 4300);
+/** The assistant (ADR 0025) with its fake model; each test company still turns it on itself. */
+const aiEnv = {
+  AI_SERVICE_URL: `http://localhost:${aiPort}`,
+  AI_SERVICE_TOKEN: 'e2e-ai-token-0123456789',
+};
 const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || undefined;
 
 export default defineConfig({
@@ -29,6 +35,13 @@ export default defineConfig({
   ],
   webServer: [
     {
+      command: 'pnpm --filter @madar/ai start',
+      url: `http://localhost:${aiPort}/health`,
+      env: { AI_PORT: String(aiPort), LLM_PROVIDER: 'fake', ...aiEnv },
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+    },
+    {
       command: 'pnpm --filter @madar/api build && pnpm --filter @madar/api start',
       url: `http://localhost:${apiPort}/api/health`,
       // NODE_ENV=test turns off rate limits so repeated signups in e2e runs are not throttled.
@@ -36,6 +49,7 @@ export default defineConfig({
         API_PORT: String(apiPort),
         AUTH_BASE_URL: `http://localhost:${webPort}`,
         NODE_ENV: 'test',
+        ...aiEnv,
       },
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
@@ -45,7 +59,7 @@ export default defineConfig({
       command: `until curl -sf http://localhost:${apiPort}/api/health > /dev/null; do sleep 1; done; pnpm --filter @madar/api worker`,
       wait: { stdout: /Worker started/ },
       // Own queue prefix: a dev worker on the same Redis must not take e2e jobs (and vice versa).
-      env: { NODE_ENV: 'test', QUEUE_PREFIX: 'madar-e2e' },
+      env: { NODE_ENV: 'test', QUEUE_PREFIX: 'madar-e2e', ...aiEnv },
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },

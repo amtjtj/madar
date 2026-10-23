@@ -39,6 +39,10 @@ x-app-env: &app-env
   S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
   S3_SECRET_KEY: ${S3_SECRET_KEY:-}
   S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+  # The assistant (ADR 0025): empty unless the `ai` profile runs (http://ai:4200).
+  AI_SERVICE_URL: ${AI_SERVICE_URL:-}
+  AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:-}
+  AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-90000}
   TZ: Asia/Tehran
 
 services:
@@ -106,8 +110,8 @@ services:
       redis:
         condition: service_healthy
     <<: *hardening
-    # Reaches the database (data) and is reached by Caddy (edge).
-    networks: [data, edge]
+    # Reaches the database (data) and the AI service (ai), and is reached by Caddy (edge).
+    networks: [data, edge, ai]
     logging: *logging
 
   worker:
@@ -129,7 +133,7 @@ services:
       redis:
         condition: service_healthy
     <<: *hardening
-    networks: [data]
+    networks: [data, ai]
     logging: *logging
 
   web:
@@ -164,6 +168,88 @@ services:
         condition: service_completed_successfully
     <<: *hardening
     networks: [data]
+    logging: *logging
+
+  # The assistant (ADR 0025, COMPOSE_PROFILES=ai): stateless, on the internal `ai` network only;
+  # it reaches the model server and nothing else (no database, no internet).
+  ai:
+    image: madar-ai:${MADAR_TAG:-latest}
+    profiles: [ai]
+    restart: unless-stopped
+    environment:
+      AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN}
+      LLM_PROVIDER: ${LLM_PROVIDER:-openai}
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://llm:8080/v1}
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5-7b-instruct}
+      LLM_TIMEOUT: ${LLM_TIMEOUT:-85}
+      TZ: Asia/Tehran
+    <<: *hardening
+    networks: [ai]
+    logging: *logging
+
+  # The model on CPU (COMPOSE_PROFILES=ai,llm-cpu): llama.cpp's OpenAI-compatible server with a
+  # GGUF file downloaded once into ./models (docs/deploy.md, «دستیار»). Slow but needs no GPU.
+  llm-cpu:
+    image: ${LLM_CPU_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-b5350}
+    profiles: [llm-cpu]
+    restart: unless-stopped
+    command:
+      - --model
+      - /models/${LLM_MODEL_FILE:-qwen2.5-7b-instruct-q4_k_m.gguf}
+      - --alias
+      - ${LLM_MODEL:-qwen2.5-7b-instruct}
+      - --host
+      - 0.0.0.0
+      - --port
+      - '8080'
+      - --ctx-size
+      - '4096'
+      - --threads
+      - '${LLM_THREADS:-4}'
+    volumes:
+      - ../models:/models:ro
+    healthcheck:
+      test: ['CMD', 'curl', '-sf', 'http://127.0.0.1:8080/health']
+      interval: 30s
+      timeout: 5s
+      start_period: 120s
+      retries: 3
+    <<: *hardening
+    networks:
+      ai:
+        aliases: [llm]
+    logging: *logging
+
+  # The model on a GPU (COMPOSE_PROFILES=ai,llm-gpu): vLLM, weights in ./models.
+  llm-gpu:
+    image: ${LLM_GPU_IMAGE:-vllm/vllm-openai:v0.8.5}
+    profiles: [llm-gpu]
+    restart: unless-stopped
+    command:
+      - --model
+      - /models/${LLM_MODEL_DIR:-Qwen2.5-7B-Instruct}
+      - --served-model-name
+      - ${LLM_MODEL:-qwen2.5-7b-instruct}
+      - --port
+      - '8080'
+      - --max-model-len
+      - '8192'
+    environment:
+      HF_HUB_OFFLINE: '1'
+    volumes:
+      - ../models:/models:ro
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    <<: *hardening
+    networks:
+      ai:
+        aliases: [llm]
     logging: *logging
 
   # Nightly pg_dump and attachments archive, with a restore check after every backup
@@ -222,6 +308,9 @@ services:
 networks:
   data:
   edge:
+  # No way out: the assistant and the model never reach the internet.
+  ai:
+    internal: true
 
 volumes:
   postgres-data:

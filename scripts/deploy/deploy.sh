@@ -77,6 +77,11 @@ if [ "$build" = 1 ]; then
   say "Building images ($tag)"
   docker build "${build_args[@]}" -f docker/api.Dockerfile -t "madar-api:$tag" .
   docker build "${build_args[@]}" -f docker/web.Dockerfile -t "madar-web:$tag" .
+  if ai_enabled; then
+    pip_index=$(env_value PIP_INDEX_URL)
+    docker build "${build_args[@]}" --build-arg "PIP_INDEX_URL=${pip_index:-https://pypi.org/simple}" \
+      -f docker/ai.Dockerfile -t "madar-ai:$tag" .
+  fi
 fi
 
 # First deployment: our own Web Push keys.
@@ -101,6 +106,7 @@ if [ "$current" != "$tag" ]; then
 fi
 docker tag "madar-api:$tag" madar-api:latest
 docker tag "madar-web:$tag" madar-web:latest
+ai_enabled && docker tag "madar-ai:$tag" madar-ai:latest
 
 if [ "$(env_value DEMO_MODE)" = true ] && [ ! -f .deploy/demo-seeded ]; then
   say "Seeding the demo company"
@@ -109,7 +115,7 @@ fi
 
 # Keep the images of the current and previous deployments (and one more); free old build cache.
 keep=$(printf '%s\n' "$tag" "$(cat .deploy/previous 2>/dev/null || true)" latest)
-for repo in madar-api madar-web; do
+for repo in madar-api madar-web madar-ai; do
   docker image ls "$repo" --format '{{.Tag}}' | grep -vxF "$keep" | tail -n +2 \
     | xargs -r -I{} docker image rm "$repo:{}" >/dev/null 2>&1 || true
 done

@@ -27,7 +27,10 @@
         "API_PORT",
         "WEB_PORT",
         "API_INTERNAL_URL",
-        "API_CORS_ORIGINS"
+        "API_CORS_ORIGINS",
+        "AI_SERVICE_URL",
+        "AI_SERVICE_TOKEN",
+        "AI_TIMEOUT_MS"
       ]
     },
     "typecheck": {

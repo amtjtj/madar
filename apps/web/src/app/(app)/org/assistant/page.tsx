@@ -44,7 +44,7 @@ export default function AssistantSettingsPage() {
             <CheckboxField
               label={t('assistant.toggle')}
               checked={status.enabled}
-              disabled={!status.available || save.isPending}
+              disabled={!status.available}
               onChange={(e) =>
                 save.mutate(
                   { enabled: e.target.checked },

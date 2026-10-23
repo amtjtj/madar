@@ -14,6 +14,11 @@ env_value() {
   grep -E "^$1=" "$ENV_FILE" 2>/dev/null | tail -n 1 | cut -d= -f2-
 }
 
+# The assistant's `ai` profile is on (COMPOSE_PROFILES in .env, comma-separated).
+ai_enabled() {
+  case ",$(env_value COMPOSE_PROFILES)," in *,ai,*) return 0 ;; *) return 1 ;; esac
+}
+
 say() { printf '\033[1m==> %s\033[0m\n' "$*"; }
 fail() { printf '\033[31mError: %s\033[0m\n' "$*" >&2; exit 1; }
 

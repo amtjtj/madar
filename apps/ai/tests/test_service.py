@@ -107,3 +107,19 @@ def test_logs_never_hold_company_text(make_client, caplog):
     assert "kind=task_breakdown" in text
     assert "یلدا" not in text
     assert "پشتیبانی" not in text
+
+
+def test_settings_come_from_the_environment(tmp_path, monkeypatch):
+    import pytest
+
+    from app.config import Settings, load_root_env
+
+    env = tmp_path / ".env"
+    env.write_text("# comment\nAI_SERVICE_TOKEN=from-file-0123456789\nLLM_PROVIDER=fake\n")
+    monkeypatch.delenv("AI_SERVICE_TOKEN", raising=False)
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
+    load_root_env(env)
+    assert Settings.from_env().token == "from-file-0123456789"
+    monkeypatch.setenv("AI_SERVICE_TOKEN", "short")
+    with pytest.raises(RuntimeError):
+        Settings.from_env()
