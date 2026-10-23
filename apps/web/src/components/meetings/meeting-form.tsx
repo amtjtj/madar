@@ -34,13 +34,17 @@ import { RecipientPicker, type Person } from '@/components/letters/recipient-pic
 import { useMeeting, useSaveMeeting, useUpdateSeries } from '@/hooks/meetings';
 import { useMe } from '@/hooks/use-me';
 import { errorMessage } from '@/lib/errors';
-import { defaultSlot, meetingInstants, seriesText, wallClock } from '@/lib/meetings';
+import { defaultSlot, meetingInstants, slotOn, seriesText, wallClock } from '@/lib/meetings';
 
 import { LiteField } from './lite-field';
 
 /** «جلسه تازه», or «ویرایش جلسه» with `?edit=<id>` (the organizer only). */
 export function MeetingFormPage() {
-  const editId = useSearchParams().get('edit') ?? undefined;
+  const params = useSearchParams();
+  const editId = params.get('edit') ?? undefined;
+  // From the calendar: «جلسه تازه» on a chosen day.
+  const date = params.get('date');
+  const initialDate = date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : undefined;
   const { data: meeting, isPending, isError } = useMeeting(editId);
   const { data: me } = useMe();
   if (!me || (editId && isPending)) return <Skeleton className="h-96 rounded-2xl" />;
@@ -53,6 +57,7 @@ export function MeetingFormPage() {
       meeting={editId ? meeting : undefined}
       memberId={me.member?.id}
       timeZone={me.tenant?.timezone}
+      initialDate={initialDate}
     />
   );
 }
@@ -81,10 +86,13 @@ function MeetingForm({
   meeting,
   memberId,
   timeZone,
+  initialDate,
 }: {
   meeting?: Meeting;
   memberId?: string;
   timeZone?: string;
+  /** A later day to start on (09:00); today or a past day keeps the next free hour. */
+  initialDate?: string;
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -95,7 +103,7 @@ function MeetingForm({
         start: wallClock(new Date(meeting.startsAt), timeZone),
         end: wallClock(new Date(meeting.endsAt), timeZone),
       }
-    : defaultSlot(timeZone);
+    : slotOn(defaultSlot(timeZone), initialDate);
   const [type, setType] = useState<MeetingType>(meeting?.type ?? 'regular');
   const [title, setTitle] = useState(meeting?.title ?? '');
   const [date, setDate] = useState(slot.date);

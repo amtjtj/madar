@@ -138,8 +138,10 @@ export function CalendarMonth({
 }: CalendarMonthProps) {
   const weeks: CalendarMonthCell[][] = [];
   for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+  // A weekday is shown as off when the company does not work it (every week of the grid).
+  const offColumn = (i: number) => weeks.length > 0 && weeks.every((week) => week[i]?.off ?? false);
   return (
-    <table className={cn('w-full table-fixed border-collapse', className)} role="grid">
+    <table className={cn('w-full table-fixed border-collapse', className)}>
       <thead>
         <tr>
           {PERSIAN_WEEKDAYS.map((day, i) => (
@@ -149,7 +151,7 @@ export function CalendarMonth({
               abbr={day}
               className={cn(
                 'pb-2 text-xs font-semibold',
-                i === 6 ? 'text-danger-ink' : 'text-ink-subtle',
+                offColumn(i) ? 'text-danger-ink' : 'text-ink-subtle',
               )}
             >
               <span className="md:hidden">{day.slice(0, 1)}</span>
@@ -171,6 +173,7 @@ export function CalendarMonth({
                     onClick={() => onSelect(cell.date)}
                     aria-label={dayLabel(cell)}
                     aria-pressed={selected === cell.date}
+                    aria-current={cell.today ? 'date' : undefined}
                     className={cn(
                       'flex h-16 w-full flex-col items-stretch gap-1 p-1 text-start transition-colors hover:bg-sunken focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus md:h-28 md:p-1.5',
                       cell.off && 'bg-sunken/60',
@@ -213,7 +216,7 @@ export function CalendarMonth({
                         </span>
                       ))}
                       {more > 0 && (
-                        <span className="px-1 text-[0.6875rem] text-ink-muted">
+                        <span dir="ltr" className="self-end px-1 text-[0.6875rem] text-ink-muted">
                           {t('ui.calendar.more', { count: toPersianDigits(String(more)) })}
                         </span>
                       )}

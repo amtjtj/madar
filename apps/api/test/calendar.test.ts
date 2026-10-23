@@ -31,6 +31,7 @@ describe.skipIf(!hasDatabase)('personal calendar', () => {
   let zahra: Person;
   let director: Person; // oversees meetings
   let other: Client;
+  let stranger: Person; // a member of the other company
   let range: { from: string; to: string };
 
   const get = async (p: Person | { c: Client }, query = '') => {
@@ -59,6 +60,10 @@ describe.skipIf(!hasDatabase)('personal calendar', () => {
     zahra = await memberSession(app, env, owner.c, { departments: dept(support.id) });
     director = await memberSession(app, env, owner.c, { departments: dept(management.id) });
     other = (await ownerSession(app, env)).c;
+    const otherDept = (await other.post('/api/departments', { name: 'فروش' })).body;
+    stranger = await memberSession(app, env, other, {
+      departments: [{ departmentId: otherDept.id, deptRole: 'member', isPrimary: true }],
+    });
     range = { from: addDays(today(), -10), to: addDays(today(), 20) };
   });
   afterAll(() => app?.close());
@@ -169,6 +174,68 @@ describe.skipIf(!hasDatabase)('personal calendar', () => {
     expect(onlyMeetings.days.some((d) => d.holiday)).toBe(false);
   });
 
+  it("shows a late task on today's plan once, and nothing deleted or out of sight", async () => {
+    const late = (
+      await ali.c.post('/api/tasks', {
+        title: 'عقب‌افتاده در برنامه امروز',
+        dueOn: addDays(today(), -2),
+        addToToday: true,
+      })
+    ).body;
+    const gone = (
+      await ali.c.post('/api/tasks', {
+        title: 'حذف‌شده',
+        dueOn: addDays(today(), 1),
+        addToToday: true,
+      })
+    ).body;
+    expect((await ali.c.delete(`/api/tasks/${gone.id}`)).status).toBe(204);
+    // A plan row for a task in Zahra's private project, which Ali cannot see.
+    const project = (
+      await zahra.c.post('/api/projects', { name: 'پروژه خصوصی زهرا', visibility: 'private' })
+    ).body;
+    const hidden = (
+      await zahra.c.post('/api/tasks', {
+        title: 'کار پنهان',
+        projectId: project.id,
+        dueOn: today(),
+      })
+    ).body;
+    loadEnv();
+    const ownerDb = createDb(process.env.DATABASE_URL ?? '');
+    try {
+      await ownerDb.db
+        .insert(s.dailyPlanItems)
+        .values({ tenantId, memberId: ali.memberId, planDate: today(), taskId: hidden.id });
+    } finally {
+      await ownerDb.pool.end();
+    }
+
+    const cal: CalendarRange = (await get(ali)).body;
+    const todays = itemsOn(cal, today()).filter((i) => i.id === late.id);
+    expect(todays).toHaveLength(1);
+    expect(todays[0]?.task).toMatchObject({ planned: true, overdue: true });
+    expect(cal.overdue.some((i) => i.id === late.id)).toBe(false);
+    const ids = [...allItems(cal), ...cal.overdue].map((i) => i.id);
+    expect(ids).not.toContain(gone.id);
+    expect(ids).not.toContain(hidden.id);
+  });
+
+  it("keeps a one-on-one between two others out of an overseer's calendar", async () => {
+    const day = addDays(today(), 6);
+    const meeting = (
+      await ali.c.post('/api/meetings', {
+        type: 'one_on_one',
+        title: 'گفت‌وگوی ماهانه',
+        startsAt: at(day, '09:00'),
+        endsAt: at(day, '09:30'),
+        participantIds: [zahra.memberId],
+      })
+    ).body;
+    expect(itemsOn((await get(zahra)).body, day).some((i) => i.id === meeting.id)).toBe(true);
+    expect(allItems((await get(director)).body).some((i) => i.id === meeting.id)).toBe(false);
+  });
+
   it('refuses a range longer than six weeks or reversed', async () => {
     expect(
       (await ali.c.get(`/api/calendar?from=${today()}&to=${addDays(today(), 42)}`)).status,
@@ -179,10 +246,42 @@ describe.skipIf(!hasDatabase)('personal calendar', () => {
   });
 
   it('another company sees none of it; a read-only company still reads', async () => {
-    const cal: CalendarRange = (await get({ c: other })).body;
-    expect(allItems(cal)).toEqual([]);
-    expect(cal.overdue).toEqual([]);
-    expect(cal.days.some((d) => d.holiday)).toBe(false);
+    // The other company has its own task, meeting, project and holiday.
+    const day = addDays(today(), 4);
+    const otherTask = (await stranger.c.post('/api/tasks', { title: 'کار شرکت دیگر', dueOn: day }))
+      .body;
+    const otherMeeting = (
+      await stranger.c.post('/api/meetings', {
+        type: 'regular',
+        title: 'جلسه شرکت دیگر',
+        startsAt: at(day, '10:00'),
+        endsAt: at(day, '11:00'),
+        participantIds: [],
+      })
+    ).body;
+    const otherProject = (
+      await stranger.c.post('/api/projects', { name: 'پروژه دیگر', dueOn: day })
+    ).body;
+    const otherHoliday = addDays(today(), 8);
+    await other.put('/api/work-calendar', { ...DEFAULT_WORK_CALENDAR, holidays: [otherHoliday] });
+
+    const theirs: CalendarRange = (await get(stranger)).body;
+    const theirIds = allItems(theirs).map((i) => i.id);
+    expect(theirIds).toEqual(
+      expect.arrayContaining([otherTask.id, otherMeeting.id, otherProject.id]),
+    );
+    // Nothing of Ali's company reaches them…
+    const aliIds = [...allItems((await get(ali)).body), ...(await get(ali)).body.overdue].map(
+      (i: { id: string }) => i.id,
+    );
+    expect(theirIds.some((id) => aliIds.includes(id))).toBe(false);
+    expect(theirs.overdue).toEqual([]);
+    // …and nothing of theirs reaches Ali.
+    const mine: CalendarRange = (await get(ali)).body;
+    expect(aliIds).not.toContain(otherTask.id);
+    expect(aliIds).not.toContain(otherMeeting.id);
+    expect(aliIds).not.toContain(otherProject.id);
+    expect(mine.days.find((d) => d.date === otherHoliday)?.holiday).toBe(false);
     loadEnv();
     const ownerDb = createDb(process.env.DATABASE_URL ?? '');
     try {

@@ -58,6 +58,10 @@ test('my calendar: agenda, a day of the month, layers that stay off', async ({ p
   await page.locator('button[aria-pressed="true"]').click();
   const item = page.getByRole('link', { name: /پیگیری تیکت‌های امروز/ });
   await expect(item).toBeVisible();
+  await expect(page.getByRole('link', { name: 'جلسه تازه' })).toHaveAttribute(
+    'href',
+    `/meetings/new?date=${dayIn(0)}`,
+  );
   await item.click();
   await expect(page).toHaveURL(new RegExp(`/tasks/${today.id}$`));
 });

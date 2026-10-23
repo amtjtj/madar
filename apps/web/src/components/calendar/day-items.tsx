@@ -20,7 +20,11 @@ export function DayItems({ items, timeZone }: { items: CalendarItem[]; timeZone?
             Link={NextLink}
             time={itemTime(item, timeZone)}
             struck={item.meeting?.canceled}
-            faded={item.meeting?.myResponse === 'declined'}
+            faded={
+              item.meeting?.myResponse === 'declined' ||
+              item.task?.statusCategory === 'done' ||
+              item.task?.statusCategory === 'canceled'
+            }
             tags={<ItemTags item={item} />}
           />
         </li>

@@ -92,6 +92,15 @@ export function defaultSlot(timeZone?: string, now = new Date()): Omit<MeetingFo
   return { date: today, start: `${pad(hour)}:00`, end: `${pad(hour + 1)}:00` };
 }
 
+/** The default slot moved to a later chosen day (09:00 to 10:00); an earlier day is ignored. */
+export function slotOn<T extends { date: string; start: string; end: string }>(
+  slot: T,
+  date?: string,
+): T {
+  if (!date || date <= slot.date) return slot;
+  return { ...slot, date, start: '09:00', end: '10:00' };
+}
+
 /** The meeting as it looks after `memberId` replies (for the optimistic update). */
 export function withResponse(
   meeting: Meeting,

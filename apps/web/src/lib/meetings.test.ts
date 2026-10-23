@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { zonedInstant } from '@madar/shared';
 
-import { defaultSlot, groupUpcoming, meetingInstants, meetingTime, wallClock } from './meetings';
+import {
+  defaultSlot,
+  groupUpcoming,
+  meetingInstants,
+  meetingTime,
+  slotOn,
+  wallClock,
+} from './meetings';
 
 const tz = 'Asia/Tehran';
 
@@ -48,5 +55,19 @@ describe('meetings', () => {
     const slot = defaultSlot(tz, zonedInstant('2026-10-22', '09:20', tz));
     expect(slot).toEqual({ date: '2026-10-22', start: '10:00', end: '11:00' });
     expect(wallClock(zonedInstant('2026-10-22', '23:30', tz), tz)).toBe('23:30');
+  });
+});
+
+describe('slotOn', () => {
+  const slot = { date: '2026-10-22', start: '11:00', end: '12:00' };
+  it('moves to a later day at nine, ignores today and the past', () => {
+    expect(slotOn(slot, '2026-10-25')).toEqual({
+      date: '2026-10-25',
+      start: '09:00',
+      end: '10:00',
+    });
+    expect(slotOn(slot, '2026-10-22')).toBe(slot);
+    expect(slotOn(slot, '2026-10-20')).toBe(slot);
+    expect(slotOn(slot)).toBe(slot);
   });
 });

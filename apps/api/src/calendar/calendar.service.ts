@@ -22,6 +22,7 @@ import { loadWorkCalendar } from '../notifications/calendar.js';
 import { visibleProjects, visibleTasks } from '../work/access.js';
 
 const OPEN = ['todo', 'in_progress'] as const;
+const OVERDUE_MAX = 100;
 type TaskRow = Pick<
   typeof s.tasks.$inferSelect,
   'id' | 'title' | 'priority' | 'statusCategory' | 'dueOn'
@@ -88,22 +89,19 @@ export class CalendarService {
         statusCategory: s.tasks.statusCategory,
         dueOn: s.tasks.dueOn,
       };
-      if (on.has('tasks')) {
+      // Past due days show nothing: those tasks appear once, above today.
+      const dueFrom = query.from > today ? query.from : today;
+      if (on.has('tasks') && dueFrom <= query.to) {
         const rows = await tx
           .select(taskColumns)
           .from(s.tasks)
           .where(
-            and(
-              this.myOpenTasks(ctx),
-              gte(s.tasks.dueOn, query.from),
-              lte(s.tasks.dueOn, query.to),
-            ),
+            and(this.myOpenTasks(ctx), gte(s.tasks.dueOn, dueFrom), lte(s.tasks.dueOn, query.to)),
           )
           .orderBy(asc(s.tasks.dueOn), asc(s.tasks.id))
           .limit(CALENDAR_LAYER_MAX + 1);
-        // Past due days show nothing: those tasks appear once, above today.
         for (const row of cut('tasks', rows)) {
-          if (row.dueOn && row.dueOn >= today) taskItem(row.dueOn, row, true, false);
+          if (row.dueOn) taskItem(row.dueOn, row, true, false);
         }
       }
       if (on.has('plan')) {
@@ -120,7 +118,7 @@ export class CalendarService {
               visibleTasks(ctx.actor),
             ),
           )
-          .orderBy(asc(s.dailyPlanItems.planDate))
+          .orderBy(asc(s.dailyPlanItems.planDate), asc(s.dailyPlanItems.sortKey), asc(s.tasks.id))
           .limit(CALENDAR_LAYER_MAX + 1);
         for (const row of cut('plan', rows)) {
           taskItem(row.planDate, row, row.dueOn === row.planDate, true);
@@ -133,23 +131,28 @@ export class CalendarService {
           .from(s.tasks)
           .where(and(this.myOpenTasks(ctx), lt(s.tasks.dueOn, today)))
           .orderBy(asc(s.tasks.dueOn), asc(s.tasks.id))
-          .limit(100);
-        overdue = rows.map((row) => ({
-          kind: 'task',
-          id: row.id,
-          title: row.title,
-          task: {
-            priority: row.priority,
-            statusCategory: row.statusCategory,
-            due: true,
-            planned: false,
-            overdue: true,
-            dueOn: row.dueOn,
-          },
-          meeting: null,
-          project: null,
-          period: null,
-        }));
+          .limit(OVERDUE_MAX + 1);
+        if (rows.length > OVERDUE_MAX && !truncated.includes('tasks')) truncated.push('tasks');
+        // A late task already on today's plan shows there, not twice.
+        overdue = rows
+          .slice(0, OVERDUE_MAX)
+          .filter((row) => !taskItems.has(`${today}:${row.id}`))
+          .map((row) => ({
+            kind: 'task',
+            id: row.id,
+            title: row.title,
+            task: {
+              priority: row.priority,
+              statusCategory: row.statusCategory,
+              due: true,
+              planned: false,
+              overdue: true,
+              dueOn: row.dueOn,
+            },
+            meeting: null,
+            project: null,
+            period: null,
+          }));
       }
 
       if (on.has('meetings')) {

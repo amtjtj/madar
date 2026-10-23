@@ -15,7 +15,7 @@ Phase 2, step 14a (`docs/plans/phase-2-step-14a.md`). Dates already live in seve
   - projects: active, `visibleProjects`, and I am the owner or in `project_members`; the end date only;
   - goal periods: the end of each period, shown to everyone (answer 2);
   - holidays and days off: from the company's work calendar (`hoursOn` without holidays decides «off»).
-- **Past due appears once.** An open task whose due date has passed is not repeated on its old day; it is listed once in `overdue` (only when today is inside the range, at most 100), shown above today.
+- **Past due appears once.** An open task whose due date has passed is not repeated on its old day (the tasks query starts at today); it is listed once in `overdue` (only when today is inside the range, at most 100, with `tasks` in `truncated` beyond that), shown above today. A late task already on today's plan shows only there, tagged both «برنامه امروز» and «گذشته».
 - **Bounded requests.** A range is at most 42 days (six whole weeks, the largest month grid); the agenda loads 14 days at a time. Each layer stops at 500 rows and names itself in `truncated`, and the page says some items are hidden.
 - **Days are company days.** «Today» and meeting days use the company time zone (`loadWorkCalendar`), like reminders and the daily plan.
 - **Screens.**
@@ -24,7 +24,8 @@ Phase 2, step 14a (`docs/plans/phase-2-step-14a.md`). Dates already live in seve
   - The month is `CalendarMonth` in `@madar/ui`: whole Saturday-to-Friday weeks (`monthRange`), dots on narrow screens, three labels and «+n» on wide ones; a day opens beside the month on desktop and in a sheet on phones.
   - Layers are colours from design tokens (`--color-layer-*`), toggled with `LayerToggle`; the choice is a per-device convenience in `localStorage` (`madar.calendar.layers`), wrapped in try/catch, never sent to the server.
   - Live refresh: the existing `work`, `today` and `meetings` realtime hints also invalidate the calendar queries. No new hint.
-- **Read-only.** Nothing is created or changed from the calendar in 14a; an item opens its own page.
+- **Read-only.** Nothing is changed from the calendar in 14a; an item opens its own page. The one shortcut is «جلسه تازه» on a selected day (today or later), which opens the meeting form on that day (`/meetings/new?date=`, 09:00 for a later day).
+- **Accessibility.** The month is a plain table of buttons (no `role="grid"`, so no arrow-key promise); today carries `aria-current="date"`, the selected day `aria-pressed`, and each day's name says how many items it has and whether it is a holiday or a day off. A weekday column is red only when the company does not work it.
 
 ## Consequences
 - No migration and no RLS change: isolation comes from the tables the calendar reads, each already under forced RLS. The integration test still checks that another company sees nothing.

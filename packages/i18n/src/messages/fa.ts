@@ -1101,7 +1101,6 @@ export const fa = {
     periodEnd: 'پایان {name}',
     truncated: 'بعضی موردها به‌خاطر زیاد بودن نشان داده نشده‌اند.',
     newMeeting: 'جلسه تازه',
-    close: 'بستن',
   },
   notifications: {
     title: 'اعلان‌ها',

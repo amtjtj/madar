@@ -8,7 +8,7 @@ import { Card } from '@madar/ui';
 
 import { PageHeader, useOrgNavItems } from '@/components/app-shell';
 
-/** Mobile hub for the organization screens (the tab bar has room for four tabs). */
+/** Mobile hub for the organization screens (the tab bar has room for five tabs). */
 export default function OrgPage() {
   // Meetings and the calendar live in the sidebar on desktop; on phones they are reached from here and the today card.
   const items = [

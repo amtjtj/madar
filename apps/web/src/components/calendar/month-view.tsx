@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { useState } from 'react';
 
 import { t } from '@madar/i18n';
@@ -15,6 +15,7 @@ import {
 } from '@madar/shared';
 import { Button, CalendarMonth, Card, CardContent, Modal, Skeleton, cn } from '@madar/ui';
 
+import { NextLink } from '@/components/next-link';
 import { useCalendarRange } from '@/hooks/calendar';
 import { dayHeading, itemLayer, itemTitle } from '@/lib/calendar';
 
@@ -51,15 +52,24 @@ export function MonthView({
   const selectedItems = selectedDay
     ? [...(selectedDay.date === today ? (data?.overdue ?? []) : []), ...selectedDay.items]
     : [];
-  const dayPanel = selected && (
-    <div className="flex flex-col gap-2">
-      <h2 className="text-sm font-bold text-ink">{dayHeading(selected, today)}</h2>
+  const dayBody = (
+    <>
       {selectedItems.length ? (
         <DayItems items={selectedItems} timeZone={timeZone} />
       ) : (
         <p className="py-2 text-sm text-ink-subtle">{t('calendar.emptyDay')}</p>
       )}
-    </div>
+      {/* A meeting can be planned for today or later, never in the past. */}
+      {selected && selected >= today && (
+        <NextLink
+          href={`/meetings/new?date=${selected}`}
+          className="inline-flex min-h-11 items-center gap-2 self-start rounded-xl px-3 text-sm font-semibold text-primary-ink hover:bg-sunken [&_svg]:size-4"
+        >
+          <Plus aria-hidden />
+          {t('calendar.newMeeting')}
+        </NextLink>
+      )}
+    </>
   );
 
   return (
@@ -130,7 +140,12 @@ export function MonthView({
       </Card>
       {/* Wide screens: the day beside the month. */}
       <Card className={cn('hidden md:block md:w-80 md:shrink-0')}>
-        <CardContent className="pt-4">{dayPanel}</CardContent>
+        <CardContent className="flex flex-col gap-2 pt-4">
+          {selected && (
+            <h2 className="text-sm font-bold text-ink">{dayHeading(selected, today)}</h2>
+          )}
+          {dayBody}
+        </CardContent>
       </Card>
       {/* Phones: the day in a sheet. */}
       <Modal
@@ -138,11 +153,7 @@ export function MonthView({
         onOpenChange={setSheet}
         title={selected ? dayHeading(selected, today) : ''}
       >
-        {selectedItems.length ? (
-          <DayItems items={selectedItems} timeZone={timeZone} />
-        ) : (
-          <p className="py-2 text-sm text-ink-subtle">{t('calendar.emptyDay')}</p>
-        )}
+        <div className="flex flex-col gap-2">{dayBody}</div>
       </Modal>
     </div>
   );
