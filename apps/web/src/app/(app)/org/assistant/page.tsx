@@ -1,6 +1,7 @@
 'use client';
 
 import { CircleCheck, CircleOff, Sparkles } from 'lucide-react';
+import { useState } from 'react';
 
 import { t } from '@madar/i18n';
 import { Card, CardContent, CheckboxField, EmptyState, Skeleton, useToast } from '@madar/ui';
@@ -16,6 +17,8 @@ export default function AssistantSettingsPage() {
   const { data: status } = useAiStatus();
   const save = useSaveAiSettings();
   const { toast } = useToast();
+  // Set in the click itself so the switch never flickers back while the request is in flight.
+  const [pending, setPending] = useState<boolean | null>(null);
   return (
     <>
       <PageHeader title={t('assistant.settingsTitle')} subtitle={t('assistant.settingsSubtitle')} />
@@ -43,11 +46,13 @@ export default function AssistantSettingsPage() {
             </div>
             <CheckboxField
               label={t('assistant.toggle')}
-              checked={status.enabled}
+              checked={pending ?? status.enabled}
               disabled={!status.available}
-              onChange={(e) =>
+              onChange={(e) => {
+                const enabled = e.target.checked;
+                setPending(enabled);
                 save.mutate(
-                  { enabled: e.target.checked },
+                  { enabled },
                   {
                     onSuccess: (next) =>
                       toast({
@@ -55,9 +60,10 @@ export default function AssistantSettingsPage() {
                         title: next.enabled ? t('assistant.toggledOn') : t('assistant.toggledOff'),
                       }),
                     onError: (error) => toast({ tone: 'error', title: errorMessage(error) }),
+                    onSettled: () => setPending(null),
                   },
-                )
-              }
+                );
+              }}
             />
             <p className="flex items-start gap-2 text-sm text-ink-muted [&_svg]:mt-0.5 [&_svg]:size-4 [&_svg]:shrink-0">
               <Sparkles aria-hidden className="text-accent-ink" />
