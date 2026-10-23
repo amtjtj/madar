@@ -30,3 +30,4 @@ Template: Status · Date · Context · Decision · Alternatives considered · Co
 | 0022 | Internal chat | Accepted |
 | 0023 | Meetings, minutes and decisions | Accepted |
 | 0024 | Calendar (personal and team) | Accepted |
+| 0025 | AI assistant: stateless service, model gateway, data boundary | Accepted |

@@ -131,6 +131,7 @@ Requirements: Node 22.12+ (24 LTS recommended), pnpm 10 (`corepack enable`), Doc
 | Production: first settings / deploy or update / health (on the server; `docs/deploy.md`) | `scripts/deploy/init-env.sh <domain> <email> [--demo]` / `scripts/deploy/deploy.sh` / `scripts/deploy/status.sh` |
 | Production: backup now / restore / smoke-test a demo stack | `scripts/deploy/backup-now.sh` / `scripts/deploy/restore.sh <file>` / `scripts/deploy/smoke.sh [--restore]` |
 | The production stack on your own computer, with the demo company at https://localhost (`docs/local-demo.md`) | `scripts/deploy/local-demo.sh [update\|stop\|start\|reset\|remove]` (after new commits: `update`) |
+| AI service (apps/ai, Python; needs `uv`): run with the fake model / checks | `pnpm --filter @madar/ai dev:ai` (set `AI_SERVICE_URL=http://localhost:4200`) / its `test`, `lint`, `typecheck` run with `pnpm check` |
 | One package only | `pnpm --filter @madar/<name> <script>` (e.g. `pnpm --filter @madar/api test`) |
 
 Notes:
@@ -140,4 +141,5 @@ Notes:
 - Without Docker, any local Postgres 16+ and Redis 7+ work; point `DATABASE_URL`/`REDIS_URL` at them.
 - If Playwright cannot download its browser, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to a local Chromium.
 - Markdown files are not formatted by Prettier (Persian tables); keep them tidy by hand.
+- The assistant (ADR 0025) is off unless `AI_SERVICE_URL` is set and the company turns it on; `pnpm dev` does not start the AI service. In production it is the compose profile `ai` plus `llm-cpu` or `llm-gpu` (`docs/deploy.md` §11).
 - Production (ADR 0016): `docker/compose.prod.yml` behind Caddy, images from `docker/*.Dockerfile`. A new environment variable the API reads also goes into the `x-app-env` block there, `.env.example` and `scripts/deploy/init-env.sh`. The demo script for the pilot meeting is `docs/demo-script.md`.
