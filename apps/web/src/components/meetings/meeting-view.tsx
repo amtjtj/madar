@@ -244,21 +244,6 @@ export function MeetingView({ id }: { id: string }) {
                 </p>
               )}
             </div>
-            {meeting.can.respond && (
-              <div className="flex flex-col gap-1.5 border-t border-line pt-3">
-                <span className="font-semibold text-ink">{t('meetings.response.label')}</span>
-                <RsvpButtons
-                  value={meeting.myResponse ?? 'pending'}
-                  onChange={(response) =>
-                    respond.mutate(response, {
-                      onSuccess: () =>
-                        toast({ tone: 'success', title: t('meetings.response.saved') }),
-                      onError: (e) => toast({ tone: 'error', title: errorMessage(e) }),
-                    })
-                  }
-                />
-              </div>
-            )}
             {meeting.location && (
               <p className="flex items-center gap-1.5 text-ink [&_svg]:size-4 [&_svg]:text-ink-subtle">
                 <MapPin aria-hidden />
@@ -276,6 +261,21 @@ export function MeetingView({ id }: { id: string }) {
                 <ExternalLink aria-hidden />
                 {t('meetings.openLink')}
               </a>
+            )}
+            {meeting.can.respond && (
+              <div className="flex flex-col gap-1.5 border-t border-line pt-3">
+                <span className="font-semibold text-ink">{t('meetings.response.label')}</span>
+                <RsvpButtons
+                  value={meeting.myResponse ?? 'pending'}
+                  onChange={(response) =>
+                    respond.mutate(response, {
+                      onSuccess: () =>
+                        toast({ tone: 'success', title: t('meetings.response.saved') }),
+                      onError: (e) => toast({ tone: 'error', title: errorMessage(e) }),
+                    })
+                  }
+                />
+              </div>
             )}
           </CardContent>
         </Card>
