@@ -67,7 +67,7 @@ test("desktop: drag a due date across the week, and open a team member's calenda
   const handle = page.getByRole('button', { name: 'جابه‌جا کردن «گزارش هفتگی صف» به روز دیگر' });
   await expect(handle).toBeVisible();
   await dragTo(page, handle, page.locator(`[data-day="${monday}"]`).first());
-  await expect(page.getByText(/سررسید «گزارش هفتگی صف» به .* رفت/)).toBeVisible();
+  await expect(page.getByText(/سررسید «گزارش هفتگی صف» به .* رفت/).first()).toBeVisible();
   await page.reload();
   await expect(
     page.locator(`[data-day="${monday}"]`).getByRole('link', { name: 'گزارش هفتگی صف' }),
@@ -123,7 +123,7 @@ test('phone: the day view, a meeting on its hour, and «تغییر سررسید�
   const dialog = page.getByRole('dialog', { name: 'تغییر سررسید «پیگیری تیکت‌های امروز»' });
   await dialog.getByRole('button', { name: /سررسید تازه/ }).click();
   await page.getByRole('button', { name: 'فردا', exact: true }).click();
-  await expect(page.getByText(/سررسید «پیگیری تیکت‌های امروز» به .* رفت/)).toBeVisible();
+  await expect(page.getByText(/سررسید «پیگیری تیکت‌های امروز» به .* رفت/).first()).toBeVisible();
   await expect(page.getByRole('link', { name: 'پیگیری تیکت‌های امروز' })).toHaveCount(0);
   await page.goto(`/calendar?view=day&date=${tomorrow}`);
   await expect(page.getByRole('link', { name: /پیگیری تیکت‌های امروز/ })).toBeVisible();
