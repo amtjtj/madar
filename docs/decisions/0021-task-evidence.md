@@ -58,3 +58,7 @@ Plan: `docs/plans/phase-2-step-15c.md`. The product owner accepted pinning direc
 - **Letting any task viewer pin:** anyone could attach their correspondence to other people's work. Pinning is a statement about the work, so it belongs to those who edit it.
 - **A table per kind (`task_letters`, `task_minutes`, …):** three tables, three sets of routes and screens. The generic table with providers was planned in §10.4.
 - **Showing who read the letter on the card:** it would expose read receipts beyond the sender and referrer, against ADR 0020.
+
+## Minutes as evidence (step 13b)
+
+A third kind, `minutes` (subject: the meeting id), through `evidence/minutes-provider.ts`. Task viewers see the minutes' text and files only, never the meeting's people, replies or decisions; a one-on-one's minutes are never pinned. Their files open through an active pin (`minutesPinnedToVisibleTask`). Details in ADR 0023 (step 13b).

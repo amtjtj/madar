@@ -16,6 +16,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
@@ -60,6 +61,7 @@ import { NextLink } from '@/components/next-link';
 import { RecipientPicker, type Person } from '@/components/letters/recipient-picker';
 import { AttachmentList, FilePicker, PendingList } from '@/components/work/attachments';
 import { useUploads } from '@/hooks/files';
+import { meetingKeys } from '@/hooks/keys';
 import { useKeyResultOptions } from '@/hooks/goals';
 import {
   useAddDecision,
@@ -360,6 +362,7 @@ function MinutesPins({ meeting }: { meeting: Meeting }) {
   const [pinning, setPinning] = useState(false);
   const [listing, setListing] = useState(false);
   const { data, isPending } = useMinutesTasks(meeting.id, listing);
+  const client = useQueryClient();
   const count = meeting.minutes?.pinnedCount ?? 0;
   return (
     <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
@@ -369,6 +372,9 @@ function MinutesPins({ meeting }: { meeting: Meeting }) {
           subjectId={meeting.id}
           open={pinning}
           onOpenChange={setPinning}
+          onPinned={() =>
+            void client.invalidateQueries({ queryKey: meetingKeys.meeting(meeting.id) })
+          }
           trigger={
             <Button variant="secondary" size="sm" icon={<Stamp aria-hidden />}>
               {t('meetings.pinMinutes')}
