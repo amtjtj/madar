@@ -11,9 +11,10 @@ compose() {
   docker compose --env-file "$ENV_FILE" -f "$ROOT/docker/compose.prod.yml" -p "$PROJECT" "$@"
 }
 
-# Reads one variable from the env file without executing it.
+# Reads one variable from the env file without executing it; empty (not an error) when missing,
+# so `x=$(env_value KEY)` never stops a script running with `set -e -o pipefail`.
 env_value() {
-  grep -E "^$1=" "$ENV_FILE" 2>/dev/null | tail -n 1 | cut -d= -f2-
+  { grep -E "^$1=" "$ENV_FILE" 2>/dev/null || true; } | tail -n 1 | cut -d= -f2-
 }
 
 # The assistant's `ai` profile is on (COMPOSE_PROFILES in .env, comma-separated).

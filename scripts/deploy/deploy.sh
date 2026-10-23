@@ -53,6 +53,10 @@ if [ "$build" = 1 ]; then
 else
   docker image inspect "madar-api:$tag" "madar-web:$tag" "$POSTGRES_IMAGE" >/dev/null \
     || fail "images madar-api:$tag, madar-web:$tag and $POSTGRES_IMAGE are not loaded (docker load)"
+  if ai_enabled; then
+    docker image inspect "madar-ai:$tag" >/dev/null 2>&1 \
+      || fail "image madar-ai:$tag is not loaded (docker load), or remove ai from COMPOSE_PROFILES"
+  fi
 fi
 
 # Back up before touching anything, if the stack is already running.

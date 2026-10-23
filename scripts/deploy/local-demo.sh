@@ -40,6 +40,29 @@ wipe() {
   rm -f "$ROOT/.deploy/demo-seeded"
 }
 
+# The assistant (ADR 0025, 0026) with the fake model: «از مدار بپرس», summaries and suggestions work
+# with no model download (answers are marked as test answers). Added once to the settings file;
+# MADAR_AI=off skips it, and docs/local-demo.md says how to use a real model instead.
+ensure_ai() {
+  [ "${MADAR_AI:-on}" = off ] && return 0
+  grep -q '^LLM_PROVIDER=' "$ENV_FILE" && return 0
+  local profiles
+  profiles=$(env_value COMPOSE_PROFILES)
+  case ",$profiles," in *,ai,*) ;; *) profiles="${profiles:+$profiles,}ai" ;; esac
+  if grep -q '^COMPOSE_PROFILES=' "$ENV_FILE"; then
+    sed -i.bak "s|^COMPOSE_PROFILES=.*|COMPOSE_PROFILES=$profiles|" "$ENV_FILE"
+  else
+    echo "COMPOSE_PROFILES=$profiles" >> "$ENV_FILE"
+  fi
+  sed -i.bak "s|^AI_SERVICE_URL=.*|AI_SERVICE_URL=http://ai:4200|; s|^AI_ASK_MAX_DISTANCE=.*|AI_ASK_MAX_DISTANCE=0.9|" "$ENV_FILE"
+  grep -q '^AI_SERVICE_URL=' "$ENV_FILE" || echo "AI_SERVICE_URL=http://ai:4200" >> "$ENV_FILE"
+  grep -q '^AI_SERVICE_TOKEN=.\{16,\}' "$ENV_FILE" ||
+    echo "AI_SERVICE_TOKEN=$(openssl rand -hex 32 2>/dev/null || head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')" >> "$ENV_FILE"
+  grep -q '^AI_ASK_MAX_DISTANCE=' "$ENV_FILE" || echo "AI_ASK_MAX_DISTANCE=0.9" >> "$ENV_FILE"
+  printf '\n# The assistant with the fake model (local demo; docs/local-demo.md for a real model)\nLLM_PROVIDER=fake\n' >> "$ENV_FILE"
+  rm -f "$ENV_FILE.bak"
+}
+
 show() {
   say "Ready: https://localhost  (the browser warns once about the local certificate: accept it)"
   echo "    version: $(git -C "$ROOT" log -1 --format='%h  %cd  %s' --date=format:'%Y-%m-%d %H:%M')"
@@ -58,6 +81,7 @@ case "${1:-up}" in
       [ -n "${MADAR_NPM_REGISTRY:-}" ] && sed -i.bak "s|^NPM_REGISTRY=.*|NPM_REGISTRY=$MADAR_NPM_REGISTRY|" "$ENV_FILE"
       rm -f "$ENV_FILE.bak"
     fi
+    ensure_ai
     "$ROOT/scripts/deploy/deploy.sh" --no-pull
     show
     ;;
@@ -68,6 +92,7 @@ case "${1:-up}" in
     git -C "$ROOT" checkout main >/dev/null 2>&1 || fail "Could not switch to main (local changes? see git status)"
     git -C "$ROOT" pull --ff-only origin main ||
       fail "Could not update: there are local changes (git status). Keep them with 'git stash', or drop them with 'git checkout -- .'"
+    ensure_ai
     "$ROOT/scripts/deploy/deploy.sh" --no-pull
     say "Refreshing the demo data for the new version"
     compose exec -T demo node dist/scripts/demo-reset.js
