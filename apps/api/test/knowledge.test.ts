@@ -359,6 +359,22 @@ describe.skipIf(!hasDatabase)('knowledge index and «از مدار بپرس»', 
     expect(sent.sources.map((x) => x.n)).toEqual(res.body.sources.map((x: { n: number }) => x.n));
   });
 
+  it('a follow-up question searches with the question before it and sends the turns', async () => {
+    ai.requests.length = 0;
+    const history = [{ question: 'کارمزد خرید خرد', answer: 'پاسخ بر پایه [1].' }];
+    const res = await ali.c.post('/api/ai/ask', { question: 'کی اجرا می‌شود؟', history });
+    expect(res.status).toBe(201);
+    expect(res.body.sources.map((x: { id: string }) => x.id)).toContain(task.id);
+    const embedded = embedCalls().at(-1)?.body.texts as string[];
+    expect(embedded[0]).toBe('کارمزد خرید خرد\nکی اجرا می‌شود؟');
+    expect(answerCalls().at(-1)?.body.history).toEqual(history);
+    const tooMany = await ali.c.post('/api/ai/ask', {
+      question: 'کی؟؟',
+      history: [...history, ...history, ...history, ...history],
+    });
+    expect(tooMany.status).toBe(400);
+  });
+
   it('never answers from what the person cannot see', async () => {
     // Marketing sees no support task, letter, meeting or channel: nothing found, no model call.
     ai.requests.length = 0;

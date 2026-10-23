@@ -55,7 +55,11 @@ export class AskService {
     }
     this.limiter.take(ctx.tenantId, ctx.memberId);
 
-    const embedded = await this.client.embed([body.question], signal);
+    // A follow-up («کی؟») says little alone: the search also uses the question before it.
+    const history = body.history ?? [];
+    const previous = history.at(-1)?.question;
+    const searchText = previous ? `${previous}\n${body.question}` : body.question;
+    const embedded = await this.client.embed([searchText], signal);
     const vector = embedded.vectors[0] ?? [];
     const { found, anchors } = await this.db.run(ctx, async (tx) => {
       const found = await searchKnowledge(
@@ -77,6 +81,7 @@ export class AskService {
         question: body.question,
         today: formatCalendarDate(calendarDateIn(new Date(), timeZone), 'full'),
         sources: found.map((f, i) => ({ n: i + 1, kind: f.kind, title: f.title, text: f.text })),
+        ...(history.length > 0 ? { history } : {}),
       },
       signal,
     );

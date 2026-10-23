@@ -52,6 +52,32 @@ const answerReply = z.object({
   model: z.string().max(200),
 });
 
+const minutesReply = z.object({
+  text: z.string().min(1).max(8000),
+  decisions: z.array(z.string().min(1).max(200)).max(6),
+  model: z.string().max(200),
+});
+const letterReply = z.object({ text: z.string().min(1).max(8000), model: z.string().max(200) });
+
+/** What «مرتب کن با دستیار» sends: the meeting's facts and the writer's notes, no people. */
+export interface MinutesInput {
+  title: string;
+  kind: 'regular' | 'okr_review' | 'one_on_one';
+  date: string;
+  agenda: string;
+  notes: string;
+}
+
+/** What «پیش‌نویس پاسخ» sends: the letter, its visible thread, names for the salutation. */
+export interface LetterReplyInput {
+  subject: string;
+  body: string;
+  sender: string;
+  recipient: string;
+  thread: Array<{ sender: string; subject: string; body: string }>;
+  intent: string;
+}
+
 /** One numbered source for an answer: only what the asking person may see (ADR 0026). */
 export interface AnswerSource {
   n: number;
@@ -103,8 +129,21 @@ export class AiClient {
     return reply;
   }
 
+  minutes(input: MinutesInput, signal?: AbortSignal): Promise<z.infer<typeof minutesReply>> {
+    return this.post('/v1/minutes', input, minutesReply, signal);
+  }
+
+  letterReply(input: LetterReplyInput, signal?: AbortSignal): Promise<z.infer<typeof letterReply>> {
+    return this.post('/v1/letter-reply', input, letterReply, signal);
+  }
+
   answer(
-    input: { question: string; today: string; sources: AnswerSource[] },
+    input: {
+      question: string;
+      today: string;
+      sources: AnswerSource[];
+      history?: Array<{ question: string; answer: string }>;
+    },
     signal?: AbortSignal,
   ): Promise<z.infer<typeof answerReply>> {
     return this.post('/v1/answer', input, answerReply, signal);

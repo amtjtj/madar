@@ -56,8 +56,17 @@ export const KNOWLEDGE_KINDS = ['task', 'letter', 'meeting', 'channel'] as const
 export const knowledgeKind = z.enum(KNOWLEDGE_KINDS);
 export type KnowledgeKind = z.infer<typeof knowledgeKind>;
 
+/** Earlier turns of the same «از مدار بپرس» page: context for a follow-up, never stored (16c). */
+export const ASK_HISTORY_MAX = 3;
+export const askTurn = z.object({
+  question: z.string().trim().min(1).max(ASK_QUESTION_MAX),
+  answer: z.string().trim().min(1).max(1500),
+});
+export type AskTurn = z.infer<typeof askTurn>;
+
 export const askRequest = z.object({
   question: z.string().trim().min(3).max(ASK_QUESTION_MAX),
+  history: z.array(askTurn).max(ASK_HISTORY_MAX).optional(),
 });
 export type AskRequest = z.infer<typeof askRequest>;
 
@@ -91,3 +100,28 @@ export const knowledgeIndexStatus = z.object({
   pending: z.number().int().min(0),
 });
 export type KnowledgeIndexStatus = z.infer<typeof knowledgeIndexStatus>;
+
+/** «مرتب کن با دستیار» (plan phase-3-step-16c): the minute-taker's own notes, tidied. */
+export const MINUTES_NOTES_MAX = 8000;
+export const MINUTES_DECISIONS_MAX = 6;
+export const minutesDraftRequest = z.object({
+  meetingId: z.uuid(),
+  notes: z.string().trim().min(3).max(MINUTES_NOTES_MAX),
+});
+export type MinutesDraftRequest = z.infer<typeof minutesDraftRequest>;
+export const minutesDraftResponse = z.object({
+  /** Lite text («- » items), for the person to edit and save. */
+  text: z.string(),
+  /** Suggested decisions; each is added only when the person ticks it. */
+  decisions: z.array(z.string().max(200)).max(MINUTES_DECISIONS_MAX),
+});
+export type MinutesDraftResponse = z.infer<typeof minutesDraftResponse>;
+
+/** «پیش‌نویس پاسخ با دستیار»: a reply to a letter I received, from one line of intent. */
+export const letterReplyDraftRequest = z.object({
+  letterId: z.uuid(),
+  intent: z.string().trim().max(300).default(''),
+});
+export type LetterReplyDraftRequest = z.infer<typeof letterReplyDraftRequest>;
+export const letterReplyDraftResponse = z.object({ text: z.string() });
+export type LetterReplyDraftResponse = z.infer<typeof letterReplyDraftResponse>;
