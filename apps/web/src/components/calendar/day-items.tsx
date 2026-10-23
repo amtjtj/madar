@@ -1,34 +1,83 @@
 'use client';
 
+import { CalendarClock } from 'lucide-react';
+import type { ReactNode } from 'react';
+
 import { t } from '@madar/i18n';
 import type { CalendarItem } from '@madar/shared';
-import { Badge, CalendarItemRow } from '@madar/ui';
+import { Badge, Button, CalendarItemRow, DragItem } from '@madar/ui';
 
 import { NextLink } from '@/components/next-link';
-import { itemHref, itemLayer, itemTime, itemTitle, sortItems } from '@/lib/calendar';
+import {
+  dragKey,
+  itemHref,
+  itemLayer,
+  itemTime,
+  itemTitle,
+  movable,
+  sortItems,
+} from '@/lib/calendar';
 
-/** The items of one day (or the past-due list), meetings first. */
-export function DayItems({ items, timeZone }: { items: CalendarItem[]; timeZone?: string }) {
+import { useDueMoves } from './due-moves';
+
+/**
+ * The items of one day (or the past-due list), meetings first. `where` is the day (or «overdue»):
+ * inside `DueMovesProvider` a movable task gets a drag handle and «تغییر سررسید».
+ */
+export function DayItems({
+  items,
+  timeZone,
+  where = '',
+}: {
+  items: CalendarItem[];
+  timeZone?: string;
+  where?: string;
+}) {
+  const moves = useDueMoves();
   return (
     <ul className="flex flex-col">
-      {sortItems(items).map((item) => (
-        <li key={`${item.kind}:${item.id}`}>
-          <CalendarItemRow
-            layer={itemLayer(item)}
-            title={itemTitle(item)}
-            href={itemHref(item)}
-            Link={NextLink}
-            time={itemTime(item, timeZone)}
-            struck={item.meeting?.canceled}
-            faded={
-              item.meeting?.myResponse === 'declined' ||
-              item.task?.statusCategory === 'done' ||
-              item.task?.statusCategory === 'canceled'
-            }
-            tags={<ItemTags item={item} />}
-          />
-        </li>
-      ))}
+      {sortItems(items).map((item) => {
+        const row = (handle: ReactNode) => (
+          <div className="flex items-center gap-1">
+            {handle}
+            <CalendarItemRow
+              className="min-w-0 flex-1"
+              layer={itemLayer(item)}
+              title={itemTitle(item)}
+              href={itemHref(item)}
+              Link={NextLink}
+              time={itemTime(item, timeZone)}
+              struck={item.meeting?.canceled}
+              faded={
+                item.meeting?.myResponse === 'declined' ||
+                item.task?.statusCategory === 'done' ||
+                item.task?.statusCategory === 'canceled'
+              }
+              tags={<ItemTags item={item} />}
+            />
+            {moves && movable(item) && (
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={t('calendar.changeDueOf', { title: itemTitle(item) })}
+                icon={<CalendarClock aria-hidden />}
+                onClick={() => moves.pick(item)}
+              />
+            )}
+          </div>
+        );
+        return (
+          <li key={`${item.kind}:${item.id}`}>
+            {movable(item) ? (
+              <DragItem id={dragKey(where, item)} title={itemTitle(item)}>
+                {row}
+              </DragItem>
+            ) : (
+              row(null)
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }

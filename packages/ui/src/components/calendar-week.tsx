@@ -290,8 +290,11 @@ export function WeekGrid({
   const height = hours.length * HOUR_PX;
   return (
     <div className={cn('flex flex-col', className)}>
-      {/* Header */}
-      <div className="grid border-b border-line" style={columns}>
+      {/* Header (a single day is named by the page around it) */}
+      <div
+        className={cn('grid border-b border-line', days.length === 1 && 'sr-only')}
+        style={columns}
+      >
         <span aria-hidden />
         {days.map((day) => {
           const weekday = PERSIAN_WEEKDAYS[persianWeekdayOfCalendarDate(day.date)] ?? '';
@@ -448,15 +451,21 @@ export function TimedEvent({
     <Link
       href={href}
       className={cn(
-        'flex h-full flex-col overflow-hidden rounded-lg border-s-4 px-1.5 py-1 text-[0.6875rem] leading-4 text-ink transition-colors hover:brightness-95 focus-visible:outline-2 focus-visible:outline-focus',
+        // Wrapping row: a short meeting keeps its title on the one line it has room for.
+        'flex h-full flex-wrap content-start gap-x-1.5 overflow-hidden rounded-lg border-s-4 px-1.5 py-0.5 text-[0.6875rem] leading-[1.125rem] text-ink transition-colors hover:brightness-95 focus-visible:outline-2 focus-visible:outline-focus',
         eventChip[layer],
         faded && 'opacity-60',
       )}
     >
-      <span className={cn('truncate font-semibold', struck && 'text-ink-subtle line-through')}>
+      <span
+        className={cn(
+          'max-w-full truncate font-semibold',
+          struck && 'text-ink-subtle line-through',
+        )}
+      >
         {title}
       </span>
-      <span className="truncate text-ink-muted">{time}</span>
+      <span className="max-w-full truncate text-ink-muted">{time}</span>
     </Link>
   );
 }

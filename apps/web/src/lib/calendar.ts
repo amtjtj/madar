@@ -6,6 +6,7 @@ import {
   formatTime,
   type CalendarItem,
   type CalendarLayer,
+  type CalendarRange,
 } from '@madar/shared';
 import type { CalendarLayerKind } from '@madar/ui';
 
@@ -88,4 +89,71 @@ export function sortItems(items: CalendarItem[]): CalendarItem[] {
     const bt = b.meeting?.startsAt ?? '~';
     return at < bt ? -1 : at > bt ? 1 : 0;
   });
+}
+
+/** A task row the viewer may move to another day (drag or «تغییر سررسید»). */
+export function movable(item: CalendarItem): boolean {
+  const task = item.task;
+  return (
+    item.kind === 'task' &&
+    task !== null &&
+    task.editable &&
+    (task.due || task.overdue) &&
+    (task.statusCategory === 'todo' || task.statusCategory === 'in_progress')
+  );
+}
+
+/** The drag id of an item on a day (or in the past-due list): a task can be on two days. */
+export const dragKey = (where: string, item: CalendarItem) => `${where}|${item.id}`;
+
+/**
+ * A range after a task's due date moved to `date` (the optimistic update, plan phase-2-step-14b):
+ * its due item leaves its old day or the past-due list (a plan item stays, no longer due) and lands
+ * on `date`, or in the past-due list when `date` is before today.
+ */
+export function moveDueInRange(
+  range: CalendarRange,
+  taskId: string,
+  date: string,
+  today: string,
+): CalendarRange {
+  const found = [...range.overdue, ...range.days.flatMap((d) => d.items)].find(
+    (i) => i.kind === 'task' && i.id === taskId,
+  );
+  if (!found?.task) return range;
+  const base = found.task;
+  const strip = (items: CalendarItem[]) =>
+    items.flatMap((i) => {
+      if (i.kind !== 'task' || i.id !== taskId || !i.task) return [i];
+      return i.task.planned
+        ? [{ ...i, task: { ...i.task, due: false, overdue: false, dueOn: date } }]
+        : [];
+    });
+  const movedTask = {
+    ...base,
+    due: true,
+    planned: false,
+    overdue: date < today,
+    dueOn: date,
+    version: base.version + 1,
+  };
+  const moved: CalendarItem = { ...found, task: movedTask };
+  const holdsToday = range.days.some((d) => d.date === today);
+  const overdue = range.overdue.filter((i) => i.id !== taskId);
+  if (date < today && holdsToday) overdue.push(moved);
+  const days = range.days.map((day) => {
+    const items = strip(day.items);
+    if (day.date !== date || date < today) return { ...day, items };
+    const planned = items.find((i) => i.kind === 'task' && i.id === taskId);
+    if (planned?.task) {
+      return {
+        ...day,
+        items: items.map((i) =>
+          i === planned && i.task ? { ...i, task: { ...movedTask, planned: true } } : i,
+        ),
+      };
+    }
+    return { ...day, items: [...items, moved] };
+  });
+  return { ...range, days, overdue };
 }

@@ -100,8 +100,9 @@ export const meetingKeys = {
 /** The personal calendar (ADR 0024). */
 export const calendarKeys = {
   all: ['calendar'] as const,
-  range: (from: string, to: string, layers: string[]) =>
-    ['calendar', 'range', from, to, layers.join(',')] as const,
-  agenda: (today: string, layers: string[]) =>
-    ['calendar', 'agenda', today, layers.join(',')] as const,
+  range: (from: string, to: string, layers: string[], member = '') =>
+    ['calendar', 'range', from, to, layers.join(','), member] as const,
+  agenda: (today: string, layers: string[], member = '') =>
+    ['calendar', 'agenda', today, layers.join(','), member] as const,
+  people: ['calendar', 'people'] as const,
 };
