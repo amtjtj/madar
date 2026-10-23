@@ -24,7 +24,8 @@ export function ReportSummaryCard({
   const { data: status } = useAiStatus();
   const on = Boolean(status?.available && status.enabled) && !partial;
   const { data } = useReportSummary(scope, departmentId, week, on);
-  if (!on || !data) return null;
+  // An older report the assistant will not summarise: no card rather than «در حال آماده شدن».
+  if (!on || !data || (!data.summary && !data.pending)) return null;
   return (
     <Card className="print-avoid-break border-accent/40">
       <CardContent className="flex flex-col gap-2 pt-4">

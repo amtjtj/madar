@@ -123,3 +123,67 @@ def test_settings_come_from_the_environment(tmp_path, monkeypatch):
     monkeypatch.setenv("AI_SERVICE_TOKEN", "short")
     with pytest.raises(RuntimeError):
         Settings.from_env()
+
+
+def test_the_root_env_is_optional_outside_the_repo():
+    from pathlib import Path
+
+    from app.config import load_root_env, root_env
+
+    # The Docker image: /app/app/config.py has no repo root above it.
+    assert root_env(Path("/app/app/config.py")) is None
+    load_root_env(Path("/nonexistent/.env"))  # no error
+
+
+def test_keeps_usable_rows_of_a_loose_answer(make_client):
+    from app.llm import FakeModel
+
+    loose = json.dumps(
+        {
+            "tasks": [
+                {"title": "تعیین بودجه", "dueInDays": 3, "assignee": "x", "description": "y"},
+                {"title": "", "dueInDays": 2},
+                {"title": "طراحی بنر", "dueInDays": 900},
+                {"nope": True},
+            ]
+        },
+        ensure_ascii=False,
+    )
+    client, _ = make_client(FakeModel([loose]))
+    res = client.post("/v1/task-breakdown", json=BREAKDOWN, headers=AUTH)
+    assert res.status_code == 200
+    assert res.json()["tasks"] == [
+        {"title": "تعیین بودجه", "dueInDays": 3},
+        {"title": "طراحی بنر", "dueInDays": None},
+    ]
+
+
+def test_no_retry_when_the_budget_is_spent():
+    import asyncio
+
+    import pytest
+
+    from app.llm import FakeModel
+    from app.schemas import TaskBreakdownRequest
+    from app.service import ModelOutputError, task_breakdown
+
+    fake = FakeModel(["oops", '{"tasks": [{"title": "x"}]}'])
+    req = TaskBreakdownRequest.model_validate(BREAKDOWN)
+    with pytest.raises(ModelOutputError):
+        asyncio.run(task_breakdown(fake, req, budget=0))
+    assert len(fake.calls) == 1
+
+
+def test_a_reply_that_is_not_a_completion_is_ai_failed(monkeypatch):
+    import asyncio
+
+    import httpx
+    import pytest
+
+    from app.llm import ModelReplyError, OpenAICompatibleModel
+
+    model = OpenAICompatibleModel("http://llm.test/v1", "m", 5)
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, json={"oops": 1}))
+    model._client = httpx.AsyncClient(base_url="http://llm.test/v1", transport=transport)
+    with pytest.raises(ModelReplyError):
+        asyncio.run(model.complete("report_summary", "s", "u", as_json=False, max_tokens=5))

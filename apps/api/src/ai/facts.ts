@@ -2,13 +2,17 @@ import { formatCalendarDate, type WeeklyReport } from '@madar/shared';
 
 import type { ReportFacts } from './ai-client.js';
 
-const text = (value: string) => value.slice(0, 200);
-
 /**
  * The facts of a weekly report the assistant may see (ADR 0025): counts, goals, projects at risk
- * and the titles of important finished work. Never who did it: highlight assignees are dropped.
+ * and the titles of important finished work. Never who did it: highlight assignees are dropped,
+ * and a member's name inside a title is masked.
  */
-export function reportFacts(report: WeeklyReport, companyName: string): ReportFacts {
+export function reportFacts(
+  report: WeeklyReport,
+  companyName: string,
+  names: readonly string[] = [],
+): ReportFacts {
+  const text = (value: string) => maskNames(value, names).slice(0, 200);
   return {
     scope: report.scope,
     name: text(report.department?.name ?? companyName),
@@ -38,6 +42,16 @@ export function reportFacts(report: WeeklyReport, companyName: string): ReportFa
     highlights: report.highlights.slice(0, 10).map((h) => text(h.title)),
     stuck: report.stuck.length,
   };
+}
+
+/** A text with every member's full name (three letters or more) replaced by «…». */
+export function maskNames(value: string, names: readonly string[]): string {
+  let masked = value;
+  for (const name of names) {
+    const trimmed = name.trim();
+    if (trimmed.length >= 3) masked = masked.split(trimmed).join('…');
+  }
+  return masked;
 }
 
 /** Whether a generated text names a member (a full name of three letters or more). */

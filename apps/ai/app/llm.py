@@ -20,6 +20,10 @@ class ModelUnavailableError(Exception):
     """The model server did not answer (down, timeout, refused)."""
 
 
+class ModelReplyError(Exception):
+    """The model server answered with something that is not a chat completion."""
+
+
 class ChatModel(Protocol):
     name: str
 
@@ -28,6 +32,8 @@ class ChatModel(Protocol):
     ) -> Completion: ...
 
     async def reachable(self) -> bool: ...
+
+    async def close(self) -> None: ...
 
 
 class OpenAICompatibleModel:
@@ -56,10 +62,16 @@ class OpenAICompatibleModel:
             response.raise_for_status()
         except httpx.HTTPError as error:
             raise ModelUnavailableError(type(error).__name__) from error
-        data = response.json()
-        text = str(data["choices"][0]["message"]["content"] or "")
-        tokens = int((data.get("usage") or {}).get("total_tokens") or 0)
+        try:
+            data = response.json()
+            text = str(data["choices"][0]["message"]["content"] or "")
+            tokens = int((data.get("usage") or {}).get("total_tokens") or 0)
+        except (ValueError, KeyError, IndexError, TypeError) as error:
+            raise ModelReplyError(type(error).__name__) from error
         return Completion(text=text, tokens=tokens)
+
+    async def close(self) -> None:
+        await self._client.aclose()
 
     async def reachable(self) -> bool:
         try:
@@ -105,3 +117,6 @@ class FakeModel:
 
     async def reachable(self) -> bool:
         return self._available
+
+    async def close(self) -> None:
+        return None

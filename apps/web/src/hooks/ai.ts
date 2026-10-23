@@ -22,6 +22,16 @@ export function useAiStatus() {
   });
 }
 
+/** Admins: whether the service and its model answer right now. */
+export function useAiHealth(enabled: boolean) {
+  return useQuery({
+    queryKey: ['ai', 'health'],
+    queryFn: () => api<{ reachable: boolean; modelReachable: boolean }>('/api/ai/health'),
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
 export function useSaveAiSettings() {
   const client = useQueryClient();
   return useMutation({

@@ -1,4 +1,5 @@
 import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
+import { z } from 'zod';
 
 import { ENV } from '../config/config.module.js';
 import type { Env } from '../config/env.js';
@@ -25,6 +26,19 @@ export interface ReportFacts {
   stuck: number;
 }
 
+const summaryReply = z.object({ text: z.string().min(1).max(4000), model: z.string().max(200) });
+const breakdownReply = z.object({
+  tasks: z
+    .array(
+      z.object({
+        title: z.string().min(1).max(200),
+        dueInDays: z.number().int().min(0).max(365).nullable().optional(),
+      }),
+    )
+    .max(10),
+  model: z.string().max(200),
+});
+
 export interface BreakdownInput {
   sentence: string;
   department: string;
@@ -46,17 +60,36 @@ export class AiClient {
   }
 
   reportSummary(facts: ReportFacts): Promise<{ text: string; model: string }> {
-    return this.post('/v1/report-summary', facts);
+    return this.post('/v1/report-summary', facts, summaryReply);
   }
 
   taskBreakdown(
     input: BreakdownInput,
     signal?: AbortSignal,
-  ): Promise<{ tasks: Array<{ title: string; dueInDays: number | null }>; model: string }> {
-    return this.post('/v1/task-breakdown', input, signal);
+  ): Promise<z.infer<typeof breakdownReply>> {
+    return this.post('/v1/task-breakdown', input, breakdownReply, signal);
   }
 
-  private async post<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
+  /** The service and its model answer (admins' status page); never throws. */
+  async health(): Promise<{ reachable: boolean; modelReachable: boolean }> {
+    if (!this.available) return { reachable: false, modelReachable: false };
+    try {
+      const response = await fetch(`${this.env.AI_SERVICE_URL.replace(/\/$/, '')}/health`, {
+        signal: AbortSignal.timeout(4000),
+      });
+      const body = z.object({ modelReachable: z.boolean() }).safeParse(await response.json());
+      return { reachable: response.ok, modelReachable: body.success && body.data.modelReachable };
+    } catch {
+      return { reachable: false, modelReachable: false };
+    }
+  }
+
+  private async post<T>(
+    path: string,
+    body: unknown,
+    reply: z.ZodType<T>,
+    signal?: AbortSignal,
+  ): Promise<T> {
     if (!this.available) {
       throw new ApiError(HttpStatus.SERVICE_UNAVAILABLE, 'ai_unavailable', 'No AI service');
     }
@@ -80,7 +113,13 @@ export class AiClient {
         'AI service unreachable',
       );
     }
-    if (response.ok) return (await response.json()) as T;
+    if (response.ok) {
+      // The service's answer is checked like any input before it is used.
+      const parsed = reply.safeParse(await response.json().catch(() => null));
+      if (parsed.success) return parsed.data;
+      this.logger.warn(`${path}: malformed reply`);
+      throw new ApiError(HttpStatus.BAD_GATEWAY, 'ai_failed', 'AI service answered badly');
+    }
     this.logger.warn(`${path}: ${response.status}`);
     if (response.status === 503 || response.status === 401) {
       throw new ApiError(

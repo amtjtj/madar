@@ -633,7 +633,7 @@ describe('assistant', () => {
       />,
     );
     expect(screen.getAllByRole('listitem')).toHaveLength(2);
-    fireEvent.change(screen.getAllByRole('textbox', { name: 'عنوان کار' })[0] as HTMLElement, {
+    fireEvent.change(screen.getByRole('textbox', { name: 'عنوان کار ۱' }), {
       target: { value: 'تعیین بودجه کمپین' },
     });
     expect(onChange).toHaveBeenLastCalledWith([

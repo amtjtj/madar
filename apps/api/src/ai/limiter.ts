@@ -15,28 +15,30 @@ export class AiLimiter {
     private readonly windowMs = 60_000,
   ) {}
 
+  /** Counts the request only when both the person and the company are under their limit. */
   take(tenantId: string, memberId: string, now = Date.now()): void {
-    const member = this.bump(`m:${tenantId}:${memberId}`, now);
-    const tenant = this.bump(`t:${tenantId}`, now);
-    if (member > this.perMember || tenant > this.perTenant) {
+    const member = this.entry(`m:${tenantId}:${memberId}`, now);
+    const tenant = this.entry(`t:${tenantId}`, now);
+    if (member.count >= this.perMember || tenant.count >= this.perTenant) {
       throw new ApiError(
         HttpStatus.TOO_MANY_REQUESTS,
         'rate_limited',
         'Too many assistant requests',
       );
     }
+    member.count += 1;
+    tenant.count += 1;
   }
 
-  private bump(key: string, now: number): number {
-    const entry = this.hits.get(key);
+  private entry(key: string, now: number): { count: number; resetAt: number } {
+    let entry = this.hits.get(key);
     if (!entry || entry.resetAt <= now) {
-      this.hits.set(key, { count: 1, resetAt: now + this.windowMs });
+      entry = { count: 0, resetAt: now + this.windowMs };
+      this.hits.set(key, entry);
       if (this.hits.size > 10_000) {
         for (const [k, e] of this.hits) if (e.resetAt <= now) this.hits.delete(k);
       }
-      return 1;
     }
-    entry.count += 1;
-    return entry.count;
+    return entry;
   }
 }

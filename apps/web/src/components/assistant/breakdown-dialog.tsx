@@ -177,7 +177,9 @@ export function BreakdownDialog({ today }: { today: string }) {
       )}
       {stage === 'review' && (
         <div className="flex flex-col gap-4">
-          <p className="text-sm text-ink-muted">«{sentence.trim()}»</p>
+          <p className="text-sm text-ink-muted">
+            {t('assistant.quoted', { text: sentence.trim() })}
+          </p>
           {items.length ? (
             <SuggestionList
               label={t('assistant.suggestions')}
@@ -185,9 +187,9 @@ export function BreakdownDialog({ today }: { today: string }) {
               onChange={setItems}
               today={today}
               newKey={newKey}
-              extra={(item) => (
+              extra={(item, n) => (
                 <SelectField
-                  label={t('assistant.assignee')}
+                  label={t('assistant.assigneeOf', { n })}
                   value={assignees[item.key] ?? ''}
                   onChange={(e) => setAssignees({ ...assignees, [item.key]: e.target.value })}
                   options={[

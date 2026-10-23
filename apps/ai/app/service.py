@@ -3,15 +3,17 @@
 import json
 import logging
 import time
+from collections.abc import Awaitable, Callable
 
 from pydantic import ValidationError
 
 from .llm import ChatModel, Kind
 from .prompts import BREAKDOWN_SYSTEM, REPORT_SYSTEM, breakdown_message, report_message
 from .schemas import (
-    ModelBreakdown,
+    ModelTask,
     ReportSummaryRequest,
     ReportSummaryResponse,
+    SuggestedTask,
     TaskBreakdownRequest,
     TaskBreakdownResponse,
 )
@@ -45,19 +47,52 @@ async def report_summary(model: ChatModel, req: ReportSummaryRequest) -> ReportS
     return ReportSummaryResponse(text=text, model=model.name, tokens=completion.tokens)
 
 
-def _parse_breakdown(text: str) -> ModelBreakdown:
-    # Some servers wrap JSON in a code fence even when asked not to.
+def _parse_breakdown(text: str) -> list[SuggestedTask]:
+    """
+    The tasks in a model's answer. Some servers wrap JSON in a code fence even when asked not to;
+    a row that is not a usable task is skipped rather than failing the whole answer.
+    """
     start, end = text.find("{"), text.rfind("}")
     if start == -1 or end < start:
         raise ModelOutputError("no JSON object")
     try:
-        return ModelBreakdown.model_validate(json.loads(text[start : end + 1]))
-    except (json.JSONDecodeError, ValidationError) as error:
-        raise ModelOutputError("invalid breakdown") from error
+        data = json.loads(text[start : end + 1])
+    except json.JSONDecodeError as error:
+        raise ModelOutputError("invalid JSON") from error
+    rows = data.get("tasks") if isinstance(data, dict) else None
+    tasks: list[SuggestedTask] = []
+    for row in rows if isinstance(rows, list) else []:
+        try:
+            parsed = ModelTask.model_validate(row)
+        except ValidationError:
+            continue
+        title = " ".join(parsed.title.split())[:200]
+        due = parsed.due_in_days
+        if not title:
+            continue
+        tasks.append(
+            SuggestedTask(
+                title=title, due_in_days=due if due is not None and 0 <= due <= 365 else None
+            )
+        )
+    if not tasks:
+        raise ModelOutputError("no usable task")
+    return tasks[:MAX_TASKS]
 
 
-async def task_breakdown(model: ChatModel, req: TaskBreakdownRequest) -> TaskBreakdownResponse:
+async def task_breakdown(
+    model: ChatModel,
+    req: TaskBreakdownRequest,
+    *,
+    budget: float,
+    gone: Callable[[], Awaitable[bool]] | None = None,
+) -> TaskBreakdownResponse:
+    """
+    One retry on a malformed answer, only while at least half of the time budget is left and the
+    caller is still waiting (the API gives up after its own timeout, slightly above `budget`).
+    """
     tokens = 0
+    begun = time.monotonic()
     for attempt in range(2):
         started = time.monotonic()
         completion = await model.complete(
@@ -66,12 +101,11 @@ async def task_breakdown(model: ChatModel, req: TaskBreakdownRequest) -> TaskBre
         tokens += completion.tokens
         _record("task_breakdown", started, completion.tokens)
         try:
-            parsed = _parse_breakdown(completion.text)
+            tasks = _parse_breakdown(completion.text)
         except ModelOutputError:
-            if attempt == 1:
+            out_of_time = time.monotonic() - begun > budget / 2
+            if attempt == 1 or out_of_time or (gone is not None and await gone()):
                 raise
             continue
-        return TaskBreakdownResponse(
-            tasks=parsed.tasks[:MAX_TASKS], model=model.name, tokens=tokens
-        )
+        return TaskBreakdownResponse(tasks=tasks, model=model.name, tokens=tokens)
     raise ModelOutputError("unreachable")

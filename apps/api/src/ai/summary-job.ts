@@ -9,9 +9,12 @@ import { namesSomeone, reportFacts } from './facts.js';
 import { loadAiSettings } from './settings.js';
 
 /** Reports this recent get a summary when they lack one (also after the assistant is turned on). */
-const RECENT_DAYS = 21;
+export const SUMMARY_RECENT_DAYS = 21;
 /** Per company and run: a model on CPU takes a while for each. */
 const PER_RUN = 5;
+/** A report that keeps failing waits longer each time, and is left alone after this many tries. */
+const MAX_TRIES = 5;
+const BACKOFF_MS = 10 * 60_000;
 
 /**
  * Summaries of stored weekly reports (plan phase-3-step-16a, ADR 0025), on the worker's own queue
@@ -21,6 +24,11 @@ const PER_RUN = 5;
 @Injectable()
 export class ReportSummaryJob {
   private readonly logger = new Logger('ReportSummaries');
+  /**
+   * Failed tries per report (in memory: a worker restart gives each report a fresh start), so a
+   * report the model cannot summarise never holds the others back or keeps the model busy.
+   */
+  private readonly tries = new Map<string, { count: number; nextAt: number }>();
 
   constructor(
     @Inject(DB_HANDLE) private readonly handle: DbHandle,
@@ -60,30 +68,51 @@ export class ReportSummaryJob {
         .where(
           and(
             isNull(s.reportSummaries.id),
-            gt(s.weeklyReports.createdAt, new Date(now.getTime() - RECENT_DAYS * 86_400_000)),
+            gt(
+              s.weeklyReports.createdAt,
+              new Date(now.getTime() - SUMMARY_RECENT_DAYS * 86_400_000),
+            ),
           ),
         )
         .orderBy(desc(s.weeklyReports.createdAt))
-        .limit(PER_RUN);
+        .limit(PER_RUN * 4);
       const names = await tx.select({ name: s.members.displayName }).from(s.members);
       return { company: tenant?.name ?? '', reports, names: names.map((n) => n.name) };
     });
     if (!pending) return 0;
     let written = 0;
-    for (const report of pending.reports) {
+    const due = pending.reports
+      .filter((r) => (this.tries.get(`${tenantId}:${r.id}`)?.nextAt ?? 0) <= now.getTime())
+      .slice(0, PER_RUN);
+    const failed = (reportId: string) => {
+      const key = `${tenantId}:${reportId}`;
+      const count = (this.tries.get(key)?.count ?? 0) + 1;
+      const nextAt =
+        count >= MAX_TRIES ? Number.POSITIVE_INFINITY : now.getTime() + BACKOFF_MS * 2 ** count;
+      this.tries.set(key, { count, nextAt });
+    };
+    for (const report of due) {
       const parsed = weeklyReport.safeParse(report.data);
-      if (!parsed.success) continue;
-      let result: { text: string; model: string };
-      try {
-        result = await this.client.reportSummary(reportFacts(parsed.data, pending.company));
-      } catch {
-        continue; // AiClient logged what failed (never the content).
-      }
-      // The model was never told anyone's name; if one shows up anyway, the draft is dropped.
-      if (namesSomeone(result.text, pending.names)) {
-        this.logger.warn(`report ${report.id}: summary discarded (names a person)`);
+      if (!parsed.success) {
+        failed(report.id);
         continue;
       }
+      let result: { text: string; model: string };
+      try {
+        result = await this.client.reportSummary(
+          reportFacts(parsed.data, pending.company, pending.names),
+        );
+      } catch {
+        failed(report.id); // AiClient logged what failed (never the content).
+        continue;
+      }
+      // Names in titles were masked; if one shows up anyway, the draft is dropped.
+      if (namesSomeone(result.text, pending.names)) {
+        this.logger.warn(`report ${report.id}: summary discarded (names a person)`);
+        failed(report.id);
+        continue;
+      }
+      this.tries.delete(`${tenantId}:${report.id}`);
       const inserted = await withTenant(this.handle.db, { tenantId }, (tx) =>
         tx
           .insert(s.reportSummaries)

@@ -4,12 +4,18 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-#: The monorepo's one `.env` (development); real environment variables win.
-ROOT_ENV = Path(__file__).resolve().parents[3] / ".env"
+
+def root_env(module: Path = Path(__file__)) -> Path | None:
+    """The monorepo's one `.env` (apps/ai/app/config.py → repo root), or None outside the repo
+    (the Docker image puts the code at /app/app, where there is no such parent)."""
+    parents = module.resolve().parents
+    return parents[3] / ".env" if len(parents) > 3 else None
 
 
-def load_root_env(path: Path = ROOT_ENV) -> None:
-    if not path.is_file():
+def load_root_env(path: Path | None = None) -> None:
+    """Development only: fills unset variables from the root `.env`; real variables win."""
+    path = path if path is not None else root_env()
+    if path is None or not path.is_file():
         return
     for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()

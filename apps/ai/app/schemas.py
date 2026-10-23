@@ -75,11 +75,12 @@ class SuggestedTask(Body):
     due_in_days: int | None = Field(default=None, ge=0, le=365)
 
 
-class ModelBreakdown(Body):
-    """What the model must return; anything else is rejected."""
+class ModelTask(BaseModel):
+    """One task as a model writes it: extra keys ignored, a long title cut, a bad date dropped."""
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, extra="ignore")
-    tasks: list[SuggestedTask] = Field(min_length=1)
+    title: Annotated[str, Field(min_length=1)]
+    due_in_days: int | None = None
 
 
 class TaskBreakdownResponse(Body):

@@ -24,6 +24,12 @@ export class AiController {
     return this.ai.status(ctx);
   }
 
+  @Get('ai/health')
+  @RequirePermission('tenant.manage')
+  health(): Promise<{ reachable: boolean; modelReachable: boolean }> {
+    return this.ai.health();
+  }
+
   @Put('settings/ai')
   @RequirePermission('tenant.manage')
   setSettings(

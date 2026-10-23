@@ -2,13 +2,21 @@
 
 import hmac
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Header, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from .config import Settings
-from .llm import ChatModel, FakeModel, ModelUnavailableError, OpenAICompatibleModel
+from .llm import (
+    ChatModel,
+    FakeModel,
+    ModelReplyError,
+    ModelUnavailableError,
+    OpenAICompatibleModel,
+)
 from .schemas import (
     ReportSummaryRequest,
     ReportSummaryResponse,
@@ -32,7 +40,15 @@ def create_app(settings: Settings, model: ChatModel | None = None) -> FastAPI:
         if settings.provider == "fake"
         else OpenAICompatibleModel(settings.base_url, settings.model, settings.timeout)
     )
-    app = FastAPI(title="madar-ai", docs_url=None, redoc_url=None, openapi_url=None)
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        yield
+        await chat.close()
+
+    app = FastAPI(
+        title="madar-ai", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan
+    )
 
     def authorized(authorization: str = Header(default="")) -> None:
         expected = f"Bearer {settings.token}"
@@ -56,6 +72,10 @@ def create_app(settings: Settings, model: ChatModel | None = None) -> FastAPI:
     async def _failed(_: Request, __: Exception) -> JSONResponse:
         return _error(502, "ai_failed")
 
+    @app.exception_handler(ModelReplyError)
+    async def _bad_reply(_: Request, __: Exception) -> JSONResponse:
+        return _error(502, "ai_failed")
+
     @app.get("/health")
     async def health() -> dict[str, object]:
         return {"status": "ok", "model": chat.name, "modelReachable": await chat.reachable()}
@@ -75,8 +95,10 @@ def create_app(settings: Settings, model: ChatModel | None = None) -> FastAPI:
         response_model=TaskBreakdownResponse,
         response_model_by_alias=True,
     )
-    async def breakdown(req: TaskBreakdownRequest) -> TaskBreakdownResponse:
-        return await task_breakdown(chat, req)
+    async def breakdown(req: TaskBreakdownRequest, request: Request) -> TaskBreakdownResponse:
+        return await task_breakdown(
+            chat, req, budget=settings.timeout, gone=request.is_disconnected
+        )
 
     return app
 

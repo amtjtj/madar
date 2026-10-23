@@ -56,8 +56,8 @@ export interface SuggestionListProps {
   onChange: (items: Suggestion[]) => void;
   /** Today in the company's time zone (for the date pickers). */
   today: string;
-  /** Extra fields per row (e.g. the assignee), rendered under title and date. */
-  extra?: (item: Suggestion) => ReactNode;
+  /** Extra fields per row (e.g. the assignee), rendered under title and date; `n` is its number. */
+  extra?: (item: Suggestion, n: string) => ReactNode;
   /** Accessible name of the list. */
   label: string;
   newKey: () => string;
@@ -91,7 +91,7 @@ export function SuggestionList({
               </span>
               <TextField
                 className="min-w-0 flex-1"
-                label={t('ui.assistant.title')}
+                label={t('ui.assistant.title', { n: formatNumber(index + 1) })}
                 hideLabel
                 value={item.title}
                 maxLength={200}
@@ -111,12 +111,12 @@ export function SuggestionList({
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <DatePicker
-                label={t('ui.assistant.due')}
+                label={t('ui.assistant.due', { n: formatNumber(index + 1) })}
                 value={item.dueOn}
                 onChange={(dueOn) => update(item.key, { dueOn })}
                 today={today}
               />
-              {extra?.(item)}
+              {extra?.(item, formatNumber(index + 1))}
             </div>
           </li>
         ))}

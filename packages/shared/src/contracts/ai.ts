@@ -42,5 +42,7 @@ export type TaskBreakdownResponse = z.infer<typeof taskBreakdownResponse>;
 /** The assistant's summary of a stored weekly report; null while not made (or when off). */
 export const reportSummary = z.object({
   summary: z.object({ text: z.string(), createdAt: z.iso.datetime() }).nullable(),
+  /** No summary yet, but the assistant will still write one (a recent report). */
+  pending: z.boolean(),
 });
 export type ReportSummary = z.infer<typeof reportSummary>;

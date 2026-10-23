@@ -1,13 +1,13 @@
 'use client';
 
-import { CircleCheck, CircleOff, Sparkles } from 'lucide-react';
+import { CircleAlert, CircleCheck, CircleOff, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 
 import { t } from '@madar/i18n';
 import { Card, CardContent, CheckboxField, EmptyState, Skeleton, useToast } from '@madar/ui';
 
 import { PageHeader } from '@/components/app-shell';
-import { useAiStatus, useSaveAiSettings } from '@/hooks/ai';
+import { useAiHealth, useAiStatus, useSaveAiSettings } from '@/hooks/ai';
 import { useCan } from '@/hooks/queries';
 import { errorMessage } from '@/lib/errors';
 
@@ -15,6 +15,11 @@ import { errorMessage } from '@/lib/errors';
 export default function AssistantSettingsPage() {
   const can = useCan();
   const { data: status } = useAiStatus();
+  const { data: health, isPending: checking } = useAiHealth(
+    Boolean(status?.available) && can('tenant.manage'),
+  );
+  // Three states: not installed, installed and answering, installed but not answering.
+  const working = Boolean(health?.reachable && health.modelReachable);
   const save = useSaveAiSettings();
   const { toast } = useToast();
   // Set in the click itself so the switch never flickers back while the request is in flight.
@@ -32,15 +37,23 @@ export default function AssistantSettingsPage() {
         <Card>
           <CardContent className="flex flex-col gap-4 pt-4">
             <div className="flex items-start gap-3 rounded-xl bg-sunken p-3 text-sm [&_svg]:mt-0.5 [&_svg]:size-5 [&_svg]:shrink-0">
-              {status.available ? (
+              {status.available && working ? (
                 <CircleCheck aria-hidden className="text-success-ink" />
+              ) : status.available && !checking ? (
+                <CircleAlert aria-hidden className="text-warning-ink" />
               ) : (
                 <CircleOff aria-hidden className="text-ink-subtle" />
               )}
-              <div className="flex flex-col gap-0.5">
+              <div className="flex flex-col gap-0.5" role="status">
                 <span className="font-semibold text-ink">{t('assistant.status')}</span>
                 <span className="text-ink-muted">
-                  {status.available ? t('assistant.installed') : t('assistant.notInstalled')}
+                  {!status.available
+                    ? t('assistant.notInstalled')
+                    : checking
+                      ? t('assistant.checking')
+                      : working
+                        ? t('assistant.installed')
+                        : t('assistant.unreachable')}
                 </span>
               </div>
             </div>

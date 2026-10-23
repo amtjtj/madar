@@ -241,10 +241,11 @@ scripts/deploy/smoke.sh --restore  # به‌علاوه تمرین کامل با�
    ```bash
    mkdir -p models && scp qwen2.5-7b-instruct-q4_k_m.gguf server:/opt/madar/models/
    ```
-2. در `.env`:
+2. در `.env` (سرورهایی که قبل از این نسخه نصب شده‌اند `AI_SERVICE_TOKEN` ندارند؛ با `openssl rand -hex 32` یکی بسازید و اضافه کنید):
    ```bash
    COMPOSE_PROFILES=ai,llm-cpu          # روی سرور دمو: demo,ai,llm-cpu
    AI_SERVICE_URL=http://ai:4200
+   AI_SERVICE_TOKEN=<openssl rand -hex 32>
    LLM_MODEL_FILE=qwen2.5-7b-instruct-q4_k_m.gguf
    LLM_THREADS=4                        # تعداد هسته‌هایی که مدل می‌گیرد
    ```

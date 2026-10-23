@@ -56,8 +56,8 @@ export const fa = {
     assistant: {
       badge: 'پیش‌نویس دستیار',
       thinking: 'دستیار در حال فکر کردن…',
-      title: 'عنوان کار',
-      due: 'سررسید',
+      title: 'عنوان کار {n}',
+      due: 'سررسید کار {n}',
       remove: 'حذف «{title}»',
       removeEmpty: 'حذف این ردیف',
       add: 'افزودن ردیف',
@@ -1182,7 +1182,12 @@ export const fa = {
     toggledOff: 'دستیار خاموش شد.',
     status: 'وضعیت سرویس',
     notInstalled: 'دستیار روی این سرور نصب نشده است. راهنمای نصب در مستندات استقرار آمده است.',
-    installed: 'سرویس دستیار روی این سرور نصب است.',
+    installed: 'سرویس دستیار و مدل در دسترس‌اند.',
+    unreachable:
+      'سرویس دستیار نصب است ولی الان جواب نمی‌دهد (یا مدل در دسترس نیست). وضعیت را با scripts/deploy/status.sh ببینید.',
+    checking: 'در حال بررسی سرویس…',
+    quoted: '«{text}»',
+    assigneeOf: 'مسئول کار {n}',
     whatItSees:
       'دستیار فقط چیزهایی را می‌بیند که خود کاربر اجازه دیدنشان را دارد، نام و عملکرد افراد را نمی‌گیرد، و هیچ چیزی را خودش نمی‌سازد.',
   },
@@ -1630,6 +1635,7 @@ export const fa = {
     /** Keyed by audit action with '.' replaced by '_' (t() treats dots as nesting). */
     actions: {
       priority_weights_updated: 'تغییر وزن‌های اولویت‌بندی',
+      ai_settings_updated: 'روشن یا خاموش کردن دستیار',
       project_members_updated: 'تغییر اعضای پروژه',
       attachment_deleted: 'حذف فایل پیوست',
       letter_sent: 'ارسال نامه',

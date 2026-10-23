@@ -162,6 +162,42 @@ describe.skipIf(!hasDatabase)('assistant', () => {
     ).toBe(400);
   });
 
+  it('masks a member named in a title, and treats a malformed reply as a failure', async () => {
+    const { reportFacts, maskNames } = await import('../src/ai/facts.js');
+    expect(maskNames('پیگیری حقوق علی رضایی', ['علی رضایی', 'ab'])).toBe('پیگیری حقوق …');
+    const facts = reportFacts(
+      {
+        version: 1,
+        scope: 'department',
+        department: { id: support.id, name: 'پشتیبانی' },
+        weekStart: lastWeek,
+        weekEnd: addDays(lastWeek, 6),
+        generatedAt: new Date().toISOString(),
+        partial: false,
+        totals: { done: 1, created: 1, overdue: 0 },
+        previous: { done: 0, created: 0, overdue: null },
+        departments: [],
+        goals: [],
+        keyResults: [],
+        atRiskProjects: [],
+        highlights: [
+          {
+            id: support.id,
+            title: 'تماس با مریم احمدی',
+            weight: 1,
+            department: { id: support.id, name: 'پشتیبانی' },
+            assignee: { id: head.memberId, displayName: 'مریم احمدی' },
+          },
+        ],
+        stuck: [],
+      },
+      'زرین',
+      ['مریم احمدی'],
+    );
+    expect(facts.highlights).toEqual(['تماس با …']);
+    expect(JSON.stringify(facts)).not.toContain('مریم');
+  });
+
   it('says when the service is down or answers badly, and when this server has none', async () => {
     ai.state.mode = 'down';
     const down = await breakdown(agent.c);
@@ -206,12 +242,23 @@ describe.skipIf(!hasDatabase)('assistant', () => {
     const job = new ReportSummaryJob(handle, app.get(AiClient));
 
     // A draft that names someone is dropped.
+    const now = new Date();
     ai.state.summary = 'علی رضایی این هفته کم کار کرد.';
-    expect(await job.runForTenant(tenantId)).toBe(0);
+    expect(await job.runForTenant(tenantId, now)).toBe(0);
+    // Pending meanwhile: a recent report the assistant will still summarise.
+    const pendingQuery = `scope=department&departmentId=${support.id}&week=${lastWeek}`;
+    expect((await head.c.get(`/api/reports/weekly/summary?${pendingQuery}`)).body).toEqual({
+      summary: null,
+      pending: true,
+    });
     ai.state.summary = 'این هفته کارها خوب پیش رفت.';
     ai.requests.length = 0;
-    expect(await job.runForTenant(tenantId)).toBe(2);
-    expect(await job.runForTenant(tenantId)).toBe(0);
+    // A dropped draft waits before the next try.
+    expect(await job.runForTenant(tenantId, now)).toBe(0);
+    expect(ai.requests).toHaveLength(0);
+    const later = new Date(now.getTime() + 60 * 60_000);
+    expect(await job.runForTenant(tenantId, later)).toBe(2);
+    expect(await job.runForTenant(tenantId, later)).toBe(0);
     for (const sent of ai.requests) {
       expect(sent.path).toBe('/v1/report-summary');
       const raw = JSON.stringify(sent.body);
@@ -241,11 +288,21 @@ describe.skipIf(!hasDatabase)('assistant', () => {
     await owner.put('/api/settings/ai', { enabled: false });
     expect((await head.c.get(`/api/reports/weekly/summary?${query}`)).body).toEqual({
       summary: null,
+      pending: false,
     });
   });
 });
 
 describe('assistant limiter', () => {
+  it('never counts a refused request against the company', async () => {
+    const { AiLimiter } = await import('../src/ai/limiter.js');
+    const limiter = new AiLimiter(2, 3);
+    limiter.take('t', 'spammer', 0);
+    limiter.take('t', 'spammer', 0);
+    for (let i = 0; i < 5; i++) expect(() => limiter.take('t', 'spammer', 0)).toThrow();
+    expect(() => limiter.take('t', 'other', 0)).not.toThrow();
+  });
+
   it('allows ten a minute per person and sixty per company', async () => {
     const { AiLimiter } = await import('../src/ai/limiter.js');
     const limiter = new AiLimiter(10, 60);

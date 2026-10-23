@@ -22,7 +22,7 @@ test('the owner turns the assistant on; a manager turns a sentence into confirme
   const ownerPage = await browser.newPage({ viewport: page.viewportSize() ?? undefined });
   await signInOwner(ownerPage, ownerLogin);
   await ownerPage.goto('/org/assistant');
-  await expect(ownerPage.getByText('سرویس دستیار روی این سرور نصب است.')).toBeVisible();
+  await expect(ownerPage.getByText('سرویس دستیار و مدل در دسترس‌اند.')).toBeVisible();
   await ownerPage.getByLabel('دستیار برای همه شرکت روشن باشد').check();
   await expect(ownerPage.getByText('دستیار روشن شد.').first()).toBeVisible();
   await ownerPage.close();
@@ -33,14 +33,14 @@ test('the owner turns the assistant on; a manager turns a sentence into confirme
   const dialog = page.getByRole('dialog', { name: 'تقسیم یک هدف به کارها' });
   await dialog.getByLabel('چه کاری باید انجام شود؟').fill(SENTENCE);
   await dialog.getByRole('button', { name: 'پیشنهاد بده' }).click();
-  const titles = dialog.getByRole('textbox', { name: 'عنوان کار' });
+  const titles = dialog.getByRole('textbox', { name: /^عنوان کار/ });
   await expect(titles).toHaveCount(4);
   await expect(titles.first()).toHaveValue(`برنامه‌ریزی: ${SENTENCE}`);
 
   await dialog.getByRole('button', { name: `حذف «اجرا: ${SENTENCE}»` }).click();
   await expect(titles).toHaveCount(3);
   await titles.first().fill('تعیین بودجه کمپین یلدا');
-  await dialog.getByLabel('مسئول').nth(1).selectOption({ label: 'علی رضایی' });
+  await dialog.getByLabel('مسئول کار ۲').selectOption({ label: 'علی رضایی' });
   await dialog.getByRole('button', { name: 'ساختن ۳ کار' }).click();
   await expect(page.getByText('۳ کار ساخته شد.').first()).toBeVisible();
   await expect(dialog).toHaveCount(0);

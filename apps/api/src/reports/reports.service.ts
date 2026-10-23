@@ -17,6 +17,7 @@ import { TenantDb } from '../database/tenant-db.service.js';
 import { loadWorkCalendar } from '../notifications/calendar.js';
 import { readsReport } from '../work/access.js';
 import { loadAiSettings } from '../ai/settings.js';
+import { SUMMARY_RECENT_DAYS } from '../ai/summary-job.js';
 import { buildWeeklyReport } from './builder.js';
 
 /** Weekly reports: the company one for company-wide readers, a department's for its managers too. */
@@ -60,15 +61,20 @@ export class ReportsService {
     this.authorize(ctx, query);
     return this.db.run(ctx, async (tx) => {
       await this.department(tx, query);
-      if (!(await loadAiSettings(tx, ctx.tenantId)).enabled) return { summary: null };
+      if (!(await loadAiSettings(tx, ctx.tenantId)).enabled)
+        return { summary: null, pending: false };
       const { timeZone } = await loadWorkCalendar(tx, ctx.tenantId);
       const current = weekStartOf(calendarDateIn(new Date(), timeZone));
       const week = query.week ? weekStartOf(query.week) : current;
-      if (week >= current) return { summary: null };
+      if (week >= current) return { summary: null, pending: false };
       const [row] = await tx
-        .select({ text: s.reportSummaries.text, createdAt: s.reportSummaries.createdAt })
+        .select({
+          createdAt: s.weeklyReports.createdAt,
+          text: s.reportSummaries.text,
+          summarizedAt: s.reportSummaries.createdAt,
+        })
         .from(s.weeklyReports)
-        .innerJoin(
+        .leftJoin(
           s.reportSummaries,
           and(
             eq(s.reportSummaries.tenantId, s.weeklyReports.tenantId),
@@ -76,9 +82,16 @@ export class ReportsService {
           ),
         )
         .where(this.where(query, week));
-      return {
-        summary: row ? { text: row.text, createdAt: row.createdAt.toISOString() } : null,
-      };
+      if (!row) return { summary: null, pending: false };
+      if (row.text !== null && row.summarizedAt !== null) {
+        return {
+          summary: { text: row.text, createdAt: row.summarizedAt.toISOString() },
+          pending: false,
+        };
+      }
+      // The worker only summarises recent reports; an older one will not get a summary.
+      const recent = Date.now() - row.createdAt.getTime() < SUMMARY_RECENT_DAYS * 86_400_000;
+      return { summary: null, pending: recent };
     });
   }
 

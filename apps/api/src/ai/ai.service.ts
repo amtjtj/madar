@@ -41,6 +41,11 @@ export class AiService {
     }));
   }
 
+  /** Admins' status page: whether the service and its model answer right now. */
+  health(): Promise<{ reachable: boolean; modelReachable: boolean }> {
+    return this.client.health();
+  }
+
   setSettings(ctx: TenantContext, body: AiSettings): Promise<AiSettings> {
     return this.db.run(ctx, async (tx) => {
       const before = await loadAiSettings(tx, ctx.tenantId);
@@ -95,7 +100,7 @@ export class AiService {
       tasks: result.tasks.slice(0, 10).map((task) => ({
         title: task.title.slice(0, 200),
         dueOn:
-          task.dueInDays === null
+          task.dueInDays === null || task.dueInDays === undefined
             ? null
             : workingDayAfter(prepared.loaded.calendar, prepared.today, task.dueInDays),
       })),
