@@ -10,6 +10,7 @@ export const NOTIFICATION_SUBJECTS = [
   'letter',
   'conversation',
   'meeting',
+  'request',
 ] as const;
 export type NotificationSubject = (typeof NOTIFICATION_SUBJECTS)[number];
 
@@ -33,6 +34,8 @@ export const NOTIFICATION_KINDS = [
   'meeting_reminder',
   'key_result_checkin_due',
   'weekly_report_ready',
+  'request_waiting',
+  'request_decided',
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 

@@ -266,6 +266,43 @@ export async function createTenantFixture(handle: DbHandle, label = 't'): Promis
       createdBy: member.id,
     });
     await tx.insert(s.meetingDecisions).values({ meetingId, text: 'بی‌کار', createdBy: member.id });
+    // A leave request, approved, with its leave; and an open expense.
+    const leaveRequestId = uuidv7();
+    await tx.insert(s.approvalRequests).values({
+      id: leaveRequestId,
+      kind: 'leave',
+      requesterId: member.id,
+      departmentId: department.id,
+      title: 'مرخصی',
+      data: { kind: 'daily', startsOn: '2026-10-27', endsOn: '2026-10-28', note: '' },
+      status: 'approved',
+      currentStep: 1,
+      snapshot: { approvers: [member.id] },
+      decidedAt: new Date('2026-10-23T08:00:00Z'),
+    });
+    await tx.insert(s.approvalSteps).values({
+      requestId: leaveRequestId,
+      stepIndex: 0,
+      approverId: member.id,
+      decidedBy: member.id,
+      decision: 'approved',
+    });
+    await tx.insert(s.leaves).values({
+      memberId: member.id,
+      requestId: leaveRequestId,
+      kind: 'daily',
+      startsOn: '2026-10-27',
+      endsOn: '2026-10-28',
+    });
+    await tx.insert(s.approvalRequests).values({
+      kind: 'expense',
+      requesterId: member.id,
+      departmentId: department.id,
+      title: 'هزینه',
+      data: { amountToman: 1_000_000, category: 'other', description: 'خرید' },
+      amountRial: 10_000_000,
+      snapshot: { approvers: [member.id] },
+    });
     await tx.insert(s.pushSubscriptions).values({
       memberId: member.id,
       endpoint: `https://fcm.googleapis.com/fcm/send/${suffix}`,

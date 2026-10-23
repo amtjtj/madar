@@ -36,7 +36,7 @@ export const calendarQuery = z
 export type CalendarQuery = z.infer<typeof calendarQuery>;
 
 export const calendarItem = z.object({
-  kind: z.enum(['task', 'meeting', 'project', 'period']),
+  kind: z.enum(['task', 'meeting', 'project', 'period', 'leave']),
   id: z.uuid(),
   /** Null for a goal period (the web names it from its year and quarter). */
   title: z.string().nullable(),
@@ -67,6 +67,15 @@ export const calendarItem = z.object({
     .nullable(),
   project: z.object({ color: z.string().nullable() }).nullable(),
   period: z.object({ year: z.number().int(), quarter: z.number().int() }).nullable(),
+  /** An approved leave: daily, or hourly with its times. */
+  leave: z
+    .object({
+      kind: z.enum(['daily', 'hourly']),
+      startsAt: z.iso.datetime().nullable(),
+      endsAt: z.iso.datetime().nullable(),
+    })
+    .nullable()
+    .default(null),
 });
 export type CalendarItem = z.infer<typeof calendarItem>;
 

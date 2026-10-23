@@ -9,6 +9,7 @@ export * from './contracts/evidence.js';
 export * from './contracts/chat.js';
 export * from './contracts/meetings.js';
 export * from './contracts/ai.js';
+export * from './contracts/requests.js';
 export * from './contracts/calendar.js';
 export * from './calendar.js';
 export * from './meetings.js';

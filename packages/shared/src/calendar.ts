@@ -16,6 +16,8 @@ export const CALENDAR_LAYERS = [
   'projects',
   'periods',
   'holidays',
+  /** Approved leaves (plan phase-3-step-17b). */
+  'leaves',
 ] as const;
 export type CalendarLayer = (typeof CALENDAR_LAYERS)[number];
 

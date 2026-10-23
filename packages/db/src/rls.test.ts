@@ -69,6 +69,9 @@ const DATA_PLANE = [
   'weekly_reports',
   'report_summaries',
   'knowledge_chunks',
+  'approval_requests',
+  'approval_steps',
+  'leaves',
 ] as const;
 
 /** Tables the app may only append to (no UPDATE/DELETE grant). */
@@ -79,6 +82,8 @@ const APPEND_ONLY = [
   'key_result_checkins',
   'weekly_reports',
   'report_summaries',
+  'approval_steps',
+  'leaves',
 ];
 /** Tables the app may update but never delete from. */
 const NO_DELETE = [
@@ -99,6 +104,7 @@ const NO_DELETE = [
   'meetings',
   'meeting_minutes',
   'meeting_series',
+  'approval_requests',
 ];
 
 describe.skipIf(!hasDatabase)('tenant isolation (RLS)', () => {
@@ -466,6 +472,51 @@ describe.skipIf(!hasDatabase)('tenant isolation (RLS)', () => {
         ),
       ),
     ).rejects.toThrow();
+  });
+
+  it("requests never take another company's people; decided requests and decisions stay as they were", async () => {
+    await withTenant(app.db, { tenantId: a.tenantId }, async (tx) => {
+      const [open] = await tx
+        .select()
+        .from(s.approvalRequests)
+        .where(sql`status = 'pending'`)
+        .limit(1);
+      await expect(
+        tx.transaction((inner) =>
+          inner.insert(s.approvalSteps).values({
+            requestId: open?.id ?? '',
+            stepIndex: 0,
+            approverId: b.memberId,
+            decidedBy: b.memberId,
+            decision: 'approved',
+          }),
+        ),
+      ).rejects.toThrow();
+      // An expense carries an amount; nothing else does.
+      await expect(
+        tx.transaction((inner) =>
+          inner.execute(
+            sql`update approval_requests set amount_rial = null where kind = 'expense'`,
+          ),
+        ),
+      ).rejects.toThrow();
+      // A decided request is not changed, not even by the app role directly.
+      const decided = await tx.execute(
+        sql`update approval_requests set title = 'x' where status <> 'pending'`,
+      );
+      expect(decided.rowCount).toBe(0);
+      const pending = await tx.execute(
+        sql`update approval_requests set status = 'canceled', decided_at = now() where status = 'pending'`,
+      );
+      expect(pending.rowCount).toBe(1);
+      // A leave for another company's member.
+      const [leave] = await tx.select().from(s.leaves).limit(1);
+      await expect(
+        tx.transaction((inner) =>
+          inner.insert(s.leaves).values({ ...leave!, id: uuidv7(), memberId: b.memberId }),
+        ),
+      ).rejects.toThrow();
+    });
   });
 
   it('transaction-local settings do not leak to the next query on the same connection', async () => {

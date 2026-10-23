@@ -10,3 +10,4 @@ export * from './evidence.js';
 export * from './chat.js';
 export * from './meetings.js';
 export * from './knowledge.js';
+export * from './requests.js';
