@@ -11,6 +11,7 @@ import {
 import type { ReactNode } from 'react';
 
 import { cn } from '../lib/cn.js';
+import { DropDay } from './calendar-week.js';
 import type { LinkComponent } from './navigation.js';
 
 /** What a calendar item is, for its colour and icon (ADR 0024). */
@@ -168,60 +169,62 @@ export function CalendarMonth({
               const more = cell.items.length - shown.length;
               return (
                 <td key={cell.date} className="border border-line p-0 align-top">
-                  <button
-                    type="button"
-                    onClick={() => onSelect(cell.date)}
-                    aria-label={dayLabel(cell)}
-                    aria-pressed={selected === cell.date}
-                    aria-current={cell.today ? 'date' : undefined}
-                    className={cn(
-                      'flex h-16 w-full flex-col items-stretch gap-1 p-1 text-start transition-colors hover:bg-sunken focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus md:h-28 md:p-1.5',
-                      cell.off && 'bg-sunken/60',
-                      !cell.inMonth && 'opacity-45',
-                      selected === cell.date && 'bg-primary-soft',
-                    )}
-                  >
-                    <span
+                  <DropDay date={cell.date}>
+                    <button
+                      type="button"
+                      onClick={() => onSelect(cell.date)}
+                      aria-label={dayLabel(cell)}
+                      aria-pressed={selected === cell.date}
+                      aria-current={cell.today ? 'date' : undefined}
                       className={cn(
-                        'grid size-6 place-items-center self-start rounded-full text-xs font-semibold',
-                        cell.today
-                          ? 'bg-primary text-on-primary'
-                          : cell.off
-                            ? 'text-danger-ink'
-                            : 'text-ink',
+                        'flex h-16 w-full flex-col items-stretch gap-1 p-1 text-start transition-colors hover:bg-sunken focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus md:h-28 md:p-1.5',
+                        cell.off && 'bg-sunken/60',
+                        !cell.inMonth && 'opacity-45',
+                        selected === cell.date && 'bg-primary-soft',
                       )}
                     >
-                      {toPersianDigits(String(jalaliOfCalendarDate(cell.date).jd))}
-                    </span>
-                    {/* Narrow: coloured dots. */}
-                    <span className="flex flex-wrap gap-0.5 md:hidden" aria-hidden>
-                      {cell.items.slice(0, 4).map((item, i) => (
-                        <span
-                          key={i}
-                          className={cn('size-1.5 rounded-full', layerDot[item.layer])}
-                        />
-                      ))}
-                    </span>
-                    {/* Wide: short labels and «+n». */}
-                    <span className="hidden min-w-0 flex-col gap-0.5 md:flex" aria-hidden>
-                      {shown.map((item, i) => (
-                        <span
-                          key={i}
-                          className={cn(
-                            'truncate rounded px-1 text-[0.6875rem] leading-5',
-                            layerChip[item.layer],
-                          )}
-                        >
-                          {item.title}
-                        </span>
-                      ))}
-                      {more > 0 && (
-                        <span dir="ltr" className="self-end px-1 text-[0.6875rem] text-ink-muted">
-                          {t('ui.calendar.more', { count: toPersianDigits(String(more)) })}
-                        </span>
-                      )}
-                    </span>
-                  </button>
+                      <span
+                        className={cn(
+                          'grid size-6 place-items-center self-start rounded-full text-xs font-semibold',
+                          cell.today
+                            ? 'bg-primary text-on-primary'
+                            : cell.off
+                              ? 'text-danger-ink'
+                              : 'text-ink',
+                        )}
+                      >
+                        {toPersianDigits(String(jalaliOfCalendarDate(cell.date).jd))}
+                      </span>
+                      {/* Narrow: coloured dots. */}
+                      <span className="flex flex-wrap gap-0.5 md:hidden" aria-hidden>
+                        {cell.items.slice(0, 4).map((item, i) => (
+                          <span
+                            key={i}
+                            className={cn('size-1.5 rounded-full', layerDot[item.layer])}
+                          />
+                        ))}
+                      </span>
+                      {/* Wide: short labels and «+n». */}
+                      <span className="hidden min-w-0 flex-col gap-0.5 md:flex" aria-hidden>
+                        {shown.map((item, i) => (
+                          <span
+                            key={i}
+                            className={cn(
+                              'truncate rounded px-1 text-[0.6875rem] leading-5',
+                              layerChip[item.layer],
+                            )}
+                          >
+                            {item.title}
+                          </span>
+                        ))}
+                        {more > 0 && (
+                          <span dir="ltr" className="self-end px-1 text-[0.6875rem] text-ink-muted">
+                            {t('ui.calendar.more', { count: toPersianDigits(String(more)) })}
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                  </DropDay>
                 </td>
               );
             })}

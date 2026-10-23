@@ -55,6 +55,18 @@ export const fa = {
     },
     calendar: {
       more: '+{count}',
+      allDay: 'تمام‌روز',
+      now: 'اکنون',
+      hours: 'ساعت‌ها',
+      drag: {
+        handle: 'جابه‌جا کردن «{title}» به روز دیگر',
+        picked:
+          '«{title}» برداشته شد. با کلیدهای جهت روز را انتخاب کنید و با فاصله رها کنید؛ Escape لغو می‌کند.',
+        over: 'روی {day}',
+        dropped: '«{title}» روی {day} گذاشته شد.',
+        outside: '«{title}» جایی گذاشته نشد.',
+        canceled: 'جابه‌جایی «{title}» لغو شد.',
+      },
     },
     datePicker: {
       placeholder: 'انتخاب تاریخ',

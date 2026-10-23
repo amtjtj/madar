@@ -117,6 +117,20 @@ export {
   type LayerToggleProps,
 } from './components/calendar.js';
 export {
+  CalendarDnd,
+  DayStrip,
+  DragItem,
+  DropDay,
+  TimedEvent,
+  WeekGrid,
+  type CalendarDndProps,
+  type DayStripDay,
+  type TimedEventProps,
+  type WeekGridDay,
+  type WeekGridEvent,
+  type WeekGridProps,
+} from './components/calendar-week.js';
+export {
   DecisionItem,
   MeetingRow,
   MeetingTypeBadge,

@@ -14,6 +14,13 @@ import { LetterRow, LiteText, RecipientChip, UrgencyBadge } from './components/l
 import { AudienceNote, EvidenceCard, MinutesEvidenceCard } from './components/evidence.js';
 import { CalendarItemRow, CalendarMonth, LayerToggle } from './components/calendar.js';
 import {
+  CalendarDnd,
+  DayStrip,
+  DragItem,
+  TimedEvent,
+  WeekGrid,
+} from './components/calendar-week.js';
+import {
   DecisionItem,
   MeetingRow,
   MeetingTypeBadge,
@@ -518,5 +525,81 @@ describe('calendar', () => {
     render(<LayerToggle layer="task" label="سررسید کارها" checked onChange={onChange} />);
     fireEvent.click(screen.getByRole('switch', { name: 'سررسید کارها' }));
     expect(onChange).toHaveBeenCalledWith(false);
+  });
+});
+
+describe('week calendar', () => {
+  const days = ['2026-10-24', '2026-10-25'].map((date, i) => ({
+    date,
+    today: i === 0,
+    off: false,
+  }));
+
+  it('places all-day items, timed events and the now line', () => {
+    render(
+      <WeekGrid
+        days={days}
+        startHour={9}
+        endHour={12}
+        allDay={(d) => <span>{`سررسید ${d.date}`}</span>}
+        events={[
+          {
+            id: 'm1',
+            date: '2026-10-25',
+            start: 600,
+            end: 660,
+            column: 0,
+            columns: 1,
+            node: <TimedEvent title="بررسی صف" time="۱۰:۰۰ تا ۱۱:۰۰" href="/meetings/1" />,
+          },
+        ]}
+        nowMinutes={610}
+        dayLabel={(d) => `ستون ${d.date}`}
+      />,
+    );
+    expect(screen.getByText('سررسید 2026-10-24')).toBeTruthy();
+    expect(screen.getByRole('link', { name: /بررسی صف/ }).getAttribute('href')).toBe('/meetings/1');
+    expect(screen.getByText('اکنون')).toBeTruthy();
+    expect(screen.getByLabelText('ستون 2026-10-25')).toBeTruthy();
+  });
+
+  it('picks a day from the strip', () => {
+    const onSelect = vi.fn();
+    render(
+      <DayStrip
+        days={days.map((d) => ({ ...d, busy: true }))}
+        selected="2026-10-24"
+        onSelect={onSelect}
+        dayLabel={(d) => `روز ${d.date}`}
+        label="روزهای هفته"
+      />,
+    );
+    expect(
+      screen.getByRole('button', { name: 'روز 2026-10-24' }).getAttribute('aria-current'),
+    ).toBe('date');
+    fireEvent.click(screen.getByRole('button', { name: 'روز 2026-10-25' }));
+    expect(onSelect).toHaveBeenCalledWith('2026-10-25');
+  });
+
+  it('gives a drag handle only inside CalendarDnd', () => {
+    const row = (
+      <DragItem id="t1" title="گزارش">
+        {(handle) => (
+          <div>
+            {handle}
+            <span>گزارش</span>
+          </div>
+        )}
+      </DragItem>
+    );
+    const { unmount } = render(row);
+    expect(screen.queryByRole('button', { name: /جابه‌جا کردن/ })).toBeNull();
+    unmount();
+    render(
+      <CalendarDnd onMove={vi.fn()} itemTitle={() => 'گزارش'} dayLabel={(d) => d}>
+        {row}
+      </CalendarDnd>,
+    );
+    expect(screen.getByRole('button', { name: 'جابه‌جا کردن «گزارش» به روز دیگر' })).toBeTruthy();
   });
 });
