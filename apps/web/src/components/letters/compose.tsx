@@ -16,6 +16,7 @@ import {
   type Upload,
 } from '@madar/shared';
 import {
+  AssistantBadge,
   Button,
   Card,
   CardContent,
@@ -43,6 +44,7 @@ import {
 } from '@/hooks/letters';
 import { useMe } from '@/hooks/use-me';
 import { errorMessage } from '@/lib/errors';
+import { dropReplyDraft, peekReplyDraft } from '@/lib/assistant-drafts';
 import { applyMark, joinNames, replyRecipients, replySubject } from '@/lib/letters';
 
 import { RecipientPicker, type Person } from './recipient-picker';
@@ -57,6 +59,8 @@ interface Initial {
   confidential: boolean;
   text: string;
   attachments: Attachment[];
+  /** The body was drafted by the assistant on the letter page (plan phase-3-step-16c). */
+  assisted?: boolean;
 }
 
 function fromDraft(letter: Letter): Initial {
@@ -76,15 +80,21 @@ function fromDraft(letter: Letter): Initial {
   };
 }
 
-function fromReply(letter: Letter, all: boolean, me: string | undefined): Initial {
+function fromReply(
+  letter: Letter,
+  all: boolean,
+  me: string | undefined,
+  drafted: string | null,
+): Initial {
   return {
     replyTo: letter,
     ...replyRecipients(letter, all, me),
     subject: replySubject(letter.subject),
     urgency: 'normal',
     confidential: letter.confidential,
-    text: '',
+    text: drafted ?? '',
     attachments: [],
+    assisted: drafted !== null,
   };
 }
 
@@ -97,6 +107,11 @@ export function Compose() {
   const { data: me } = useMe();
   const draft = useLetter(draftParam);
   const reply = useLetter(draftParam ? undefined : replyParam);
+  // Read once on arrival (the strict-mode double render reads the same value), cleared after.
+  const [drafted] = useState(() => (replyParam && !draftParam ? peekReplyDraft(replyParam) : null));
+  useEffect(() => {
+    if (replyParam && drafted !== null) dropReplyDraft(replyParam);
+  }, [replyParam, drafted]);
   const memberId = me?.member?.id;
   const router = useRouter();
   // `?draft=` of a letter that was sent meanwhile: show the letter instead of a blank form.
@@ -118,7 +133,7 @@ export function Compose() {
     draft.data && draft.data.can.edit
       ? fromDraft(draft.data)
       : reply.data
-        ? fromReply(reply.data, all, memberId)
+        ? fromReply(reply.data, all, memberId, drafted)
         : {
             to: [],
             cc: [],
@@ -262,7 +277,10 @@ function ComposeForm({ initial, memberId }: { initial: Initial; memberId?: strin
 
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-sm font-semibold text-ink">{t('letters.compose.body')}</span>
+              <span className="flex flex-wrap items-center gap-2 text-sm font-semibold text-ink">
+                {t('letters.compose.body')}
+                {initial.assisted && <AssistantBadge />}
+              </span>
               <div className="flex items-center gap-2">
                 {mode === 'write' && (
                   <div className="flex gap-1">

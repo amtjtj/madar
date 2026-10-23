@@ -31,6 +31,7 @@ import {
   useToast,
 } from '@madar/ui';
 
+import { ReplyDraft } from '@/components/assistant/reply-draft';
 import { NextLink } from '@/components/next-link';
 import { AttachmentList } from '@/components/work/attachments';
 import { useArchiveLetter, useLetter } from '@/hooks/letters';
@@ -242,6 +243,7 @@ export function LetterView({ id }: { id: string }) {
               {t('letters.replyAll')}
             </Button>
           )}
+          <ReplyDraft letter={letter} />
           {letter.can.refer && <ReferDialog letter={letter} />}
           {letter.can.pin && <PinToTask letter={letter} />}
           {sentAt && (

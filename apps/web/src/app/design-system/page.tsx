@@ -18,6 +18,8 @@ import {
   AnswerCard,
   AssistantBadge,
   AssistantThinking,
+  DraftCard,
+  LiteText,
   SourceList,
   Badge,
   CalendarItemRow,
@@ -611,6 +613,19 @@ export default function DesignSystemPage() {
                   ]}
                 />
               </AnswerCard>
+              <DraftCard
+                title={t('assistant.minutes.draftTitle')}
+                actions={
+                  <>
+                    <Button size="sm">{t('assistant.minutes.replace')}</Button>
+                    <Button variant="ghost" size="sm">
+                      {t('assistant.minutes.discard')}
+                    </Button>
+                  </>
+                }
+              >
+                <LiteText text={t('designSystem.assistant.minutes')} />
+              </DraftCard>
               <SuggestionDemo today={calendarDateIn(new Date())} />
             </div>
           </Panel>

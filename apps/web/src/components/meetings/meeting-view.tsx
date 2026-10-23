@@ -56,6 +56,7 @@ import {
   useToast,
 } from '@madar/ui';
 
+import { MinutesAssist } from '@/components/assistant/minutes-assist';
 import { PinToTaskDialog } from '@/components/evidence/pin-to-task';
 import { NextLink } from '@/components/next-link';
 import { RecipientPicker, type Person } from '@/components/letters/recipient-picker';
@@ -485,6 +486,7 @@ function MinutesSection({ meeting, timeZone }: { meeting: Meeting; timeZone?: st
                 maxLength={LITE_TEXT_MAX}
                 rows={10}
               />
+              <MinutesAssist meetingId={meeting.id} notes={text} onReplace={setText} />
               <ul className="flex flex-col gap-2">
                 {(minutes?.attachments ?? []).map((a) => (
                   <li key={a.id}>

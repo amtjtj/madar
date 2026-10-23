@@ -5,6 +5,9 @@ import type {
   AiSettings,
   AiStatus,
   AskResponse,
+  AskTurn,
+  LetterReplyDraftResponse,
+  MinutesDraftResponse,
   KnowledgeIndexStatus,
   ReportScope,
   ReportSummary,
@@ -124,8 +127,20 @@ export function useReportSummary(
 /** «از مدار بپرس»: an answer from what I may see; `signal` cancels a slow model. */
 export function useAsk() {
   return useMutation({
-    mutationFn: ({ question, signal }: { question: string; signal: AbortSignal }) =>
-      api<AskResponse>('/api/ai/ask', { method: 'POST', body: { question }, signal }),
+    mutationFn: ({
+      question,
+      history,
+      signal,
+    }: {
+      question: string;
+      history: AskTurn[];
+      signal: AbortSignal;
+    }) =>
+      api<AskResponse>('/api/ai/ask', {
+        method: 'POST',
+        body: history.length > 0 ? { question, history } : { question },
+        signal,
+      }),
   });
 }
 
@@ -136,5 +151,45 @@ export function useKnowledgeIndex(enabled: boolean) {
     queryFn: () => api<KnowledgeIndexStatus>('/api/ai/index-status'),
     enabled,
     refetchInterval: (query) => ((query.state.data?.pending ?? 0) > 0 ? 15_000 : false),
+  });
+}
+
+/** «مرتب کن با دستیار»: a draft of the minutes and suggested decisions; nothing is saved. */
+export function useMinutesDraft() {
+  return useMutation({
+    mutationFn: ({
+      meetingId,
+      notes,
+      signal,
+    }: {
+      meetingId: string;
+      notes: string;
+      signal: AbortSignal;
+    }) =>
+      api<MinutesDraftResponse>('/api/ai/minutes-draft', {
+        method: 'POST',
+        body: { meetingId, notes },
+        signal,
+      }),
+  });
+}
+
+/** «پیش‌نویس پاسخ با دستیار»: reply text for the composer; the person edits and sends it. */
+export function useLetterReplyDraft() {
+  return useMutation({
+    mutationFn: ({
+      letterId,
+      intent,
+      signal,
+    }: {
+      letterId: string;
+      intent: string;
+      signal: AbortSignal;
+    }) =>
+      api<LetterReplyDraftResponse>('/api/ai/letter-reply', {
+        method: 'POST',
+        body: { letterId, intent },
+        signal,
+      }),
   });
 }

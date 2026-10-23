@@ -270,3 +270,32 @@ export function SourceList({
     </div>
   );
 }
+
+export interface DraftCardProps {
+  title: string;
+  /** The draft itself (rendered by the caller, e.g. with LiteText). */
+  children: ReactNode;
+  /** «جایگزین متن», «کنار گذاشتن» and the like. */
+  actions?: ReactNode;
+  className?: string;
+}
+
+/** Something the assistant drafted for a person to use or drop (ADR 0025); never saved by itself. */
+export function DraftCard({ title, children, actions, className }: DraftCardProps) {
+  return (
+    <section
+      aria-label={title}
+      className={cn(
+        'flex flex-col gap-3 rounded-2xl border border-accent-soft bg-surface p-4',
+        className,
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-bold text-ink">{title}</span>
+        <AssistantBadge />
+      </div>
+      <div className="text-ink">{children}</div>
+      {actions && <div className="flex flex-wrap gap-2 border-t border-line pt-3">{actions}</div>}
+    </section>
+  );
+}
