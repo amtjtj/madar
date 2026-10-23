@@ -11,8 +11,14 @@ import { ProgressBar } from './components/progress.js';
 import { Slider } from './components/slider.js';
 import { ThemeToggle } from './components/theme.js';
 import { LetterRow, LiteText, RecipientChip, UrgencyBadge } from './components/letter.js';
-import { AudienceNote, EvidenceCard } from './components/evidence.js';
-import { DecisionItem, MeetingRow, MeetingTypeBadge } from './components/meeting.js';
+import { AudienceNote, EvidenceCard, MinutesEvidenceCard } from './components/evidence.js';
+import {
+  DecisionItem,
+  MeetingRow,
+  MeetingTypeBadge,
+  ResponseBadge,
+  RsvpButtons,
+} from './components/meeting.js';
 import {
   ConversationRow,
   MentionSuggestions,
@@ -426,5 +432,58 @@ describe('meetings', () => {
     rerender(<DecisionItem text="بررسی روزانه" task={{ title: null }} />);
     expect(screen.queryByRole('link')).toBeNull();
     expect(screen.getByText('از این مصوبه کار ساخته شده است')).toBeTruthy();
+  });
+});
+
+describe('meeting replies and minutes evidence', () => {
+  it('presses the current reply and reports a change only', () => {
+    const onChange = vi.fn();
+    render(<RsvpButtons value="accepted" onChange={onChange} />);
+    const yes = screen.getByRole('button', { name: 'می‌آیم' });
+    const no = screen.getByRole('button', { name: 'نمی‌آیم' });
+    expect(yes.getAttribute('aria-pressed')).toBe('true');
+    fireEvent.click(yes);
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.click(no);
+    expect(onChange).toHaveBeenCalledWith('declined');
+  });
+
+  it('names a reply', () => {
+    render(<ResponseBadge response="pending" />);
+    expect(screen.getByText('بی‌پاسخ')).toBeTruthy();
+  });
+
+  it('shows the meeting title and excerpt, never people', () => {
+    render(
+      <MinutesEvidenceCard
+        minutes={{
+          meeting: { title: 'بررسی هفتگی', type: 'regular' },
+          date: '2026-10-24T05:30:00.000Z',
+          excerpt: 'صف بررسی شد',
+          attachmentCount: 1,
+        }}
+        date="۲ آبان"
+      />,
+    );
+    expect(screen.getByText('صورت‌جلسه «بررسی هفتگی»، ۲ آبان')).toBeTruthy();
+    expect(screen.getByText('صف بررسی شد')).toBeTruthy();
+  });
+
+  it('marks a weekly meeting and one I declined', () => {
+    render(
+      <MeetingRow
+        href="#"
+        title="هماهنگی"
+        type="regular"
+        time="ساعت ۹:۰۰"
+        participantCount={3}
+        hasMinutes={false}
+        canceled={false}
+        weekly
+        declined
+      />,
+    );
+    expect(screen.getByText('هفتگی')).toBeTruthy();
+    expect(screen.getByText('نمی‌آیم')).toBeTruthy();
   });
 });

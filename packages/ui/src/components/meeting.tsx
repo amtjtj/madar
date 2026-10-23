@@ -1,6 +1,16 @@
 import { t } from '@madar/i18n';
-import { formatNumber, type MeetingType } from '@madar/shared';
-import { CheckSquare, FileText, Gavel, Target, UserRound, Users } from 'lucide-react';
+import { formatNumber, type MeetingResponse, type MeetingType } from '@madar/shared';
+import {
+  Check,
+  CheckSquare,
+  FileText,
+  Gavel,
+  Repeat,
+  Target,
+  UserRound,
+  Users,
+  X,
+} from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { cn } from '../lib/cn.js';
@@ -32,6 +42,10 @@ export interface MeetingRowProps {
   canceled: boolean;
   /** Under way right now. */
   live?: boolean;
+  /** Part of a weekly series. */
+  weekly?: boolean;
+  /** The viewer said they are not coming. */
+  declined?: boolean;
   Link?: LinkComponent;
   className?: string;
 }
@@ -48,6 +62,8 @@ export function MeetingRow({
   hasMinutes,
   canceled,
   live = false,
+  weekly = false,
+  declined = false,
   Link = DefaultLink,
   className,
 }: MeetingRowProps) {
@@ -85,6 +101,15 @@ export function MeetingRow({
             </Badge>
           )}
           {canceled && <Badge tone="danger">{t('meetings.canceled')}</Badge>}
+          {weekly && (
+            <Badge tone="neutral">
+              <Repeat aria-hidden />
+              {t('meetings.weekly')}
+            </Badge>
+          )}
+          {declined && !canceled && (
+            <Badge tone="warning">{t('meetings.response.declinedMine')}</Badge>
+          )}
           {hasMinutes && (
             <Badge tone="primary">
               <FileText aria-hidden />
@@ -171,6 +196,68 @@ export function DecisionItem({
           {actions}
         </div>
       )}
+    </div>
+  );
+}
+
+const responseTone = { accepted: 'success', declined: 'warning', pending: 'neutral' } as const;
+
+/** «می‌آید», «نمی‌آید» or «بی‌پاسخ» next to a person. */
+export function ResponseBadge({
+  response,
+  className,
+}: {
+  response: MeetingResponse;
+  className?: string;
+}) {
+  return (
+    <Badge tone={responseTone[response]} className={className}>
+      {response === 'accepted' && <Check aria-hidden />}
+      {response === 'declined' && <X aria-hidden />}
+      {t(`meetings.response.${response}`)}
+    </Badge>
+  );
+}
+
+export interface RsvpButtonsProps {
+  value: MeetingResponse;
+  onChange: (response: 'accepted' | 'declined') => void;
+  disabled?: boolean;
+  className?: string;
+}
+
+/** «می‌آیم» / «نمی‌آیم»: two toggle buttons, the current reply pressed. */
+export function RsvpButtons({ value, onChange, disabled, className }: RsvpButtonsProps) {
+  const option = (response: 'accepted' | 'declined') => {
+    const on = value === response;
+    return (
+      <button
+        type="button"
+        aria-pressed={on}
+        disabled={disabled}
+        onClick={() => !on && onChange(response)}
+        className={cn(
+          'flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border text-sm font-semibold transition-colors disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-focus [&_svg]:size-4',
+          on
+            ? response === 'accepted'
+              ? 'border-success bg-success-soft text-success-ink'
+              : 'border-warning bg-warning-soft text-warning-ink'
+            : 'border-line bg-surface text-ink-muted hover:bg-sunken hover:text-ink',
+        )}
+      >
+        {response === 'accepted' ? <Check aria-hidden /> : <X aria-hidden />}
+        {t(`meetings.response.${response === 'accepted' ? 'yes' : 'no'}`)}
+      </button>
+    );
+  };
+  return (
+    <div
+      role="group"
+      aria-label={t('meetings.response.label')}
+      className={cn('flex gap-2', className)}
+    >
+      {option('accepted')}
+      {option('declined')}
     </div>
   );
 }

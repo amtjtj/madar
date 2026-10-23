@@ -4,8 +4,9 @@ import {
   type EvidenceAudience,
   type EvidenceSummary,
   type MessageEvidenceSummary,
+  type MinutesEvidenceSummary,
 } from '@madar/shared';
-import { Check, Clock, Eye, Mail, MessageSquare, Paperclip, X } from 'lucide-react';
+import { Check, Clock, Eye, FileText, Mail, MessageSquare, Paperclip, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 import { cn } from '../lib/cn.js';
@@ -202,6 +203,98 @@ export function MessageEvidenceCard({
           type="button"
           onClick={onOpen}
           aria-label={t('evidence.openMessage', { place })}
+          className="flex min-w-0 flex-1 flex-col gap-0.5 rounded-lg text-start focus-visible:outline-2 focus-visible:outline-focus"
+        >
+          {body}
+        </button>
+      ) : (
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">{body}</span>
+      )}
+      {unpin}
+    </div>
+  );
+}
+
+export interface MinutesEvidenceCardProps {
+  /** Null when the minutes are no longer available. */
+  minutes: MinutesEvidenceSummary | null;
+  /** The meeting's date, already formatted. */
+  date?: string;
+  meta?: string;
+  onOpen?: () => void;
+  onUnpin?: () => void;
+  className?: string;
+}
+
+/**
+ * Minutes pinned to a task (plan phase-2-step-13b): the meeting's title and date and the start
+ * of the text; never its people or decisions.
+ */
+export function MinutesEvidenceCard({
+  minutes,
+  date = '',
+  meta,
+  onOpen,
+  onUnpin,
+  className,
+}: MinutesEvidenceCardProps) {
+  const title = minutes?.meeting.title ?? '';
+  const unpin = onUnpin && (
+    <button
+      type="button"
+      onClick={onUnpin}
+      aria-label={t('evidence.unpinMinutes', { title })}
+      className="grid size-11 shrink-0 place-items-center rounded-full text-ink-subtle hover:bg-sunken hover:text-danger-ink focus-visible:outline-2 focus-visible:outline-focus [&_svg]:size-4"
+    >
+      <X aria-hidden />
+    </button>
+  );
+  if (!minutes) {
+    return (
+      <div
+        className={cn(
+          'flex items-center gap-3 rounded-xl border border-dashed border-line bg-sunken p-3 text-sm text-ink-muted',
+          className,
+        )}
+      >
+        <FileText aria-hidden className="size-5 shrink-0" />
+        <span className="flex-1">{t('evidence.unavailable')}</span>
+        {unpin}
+      </div>
+    );
+  }
+  const body: ReactNode = (
+    <>
+      <span className="truncate text-sm font-semibold text-ink">
+        {t('evidence.minutesFrom', { title, date })}
+      </span>
+      {minutes.excerpt && (
+        <span className="line-clamp-2 text-sm text-ink-muted">{minutes.excerpt}</span>
+      )}
+      {minutes.attachmentCount > 0 && (
+        <span className="inline-flex items-center gap-0.5 text-xs text-ink-subtle [&_svg]:size-3.5">
+          <Paperclip aria-hidden />
+          {t('ui.letter.attachments', { count: formatNumber(minutes.attachmentCount) })}
+        </span>
+      )}
+      {meta && <span className="text-xs text-ink-subtle">{meta}</span>}
+    </>
+  );
+  return (
+    <div
+      className={cn(
+        'flex items-start gap-3 rounded-xl border border-line bg-surface p-3',
+        className,
+      )}
+    >
+      <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent-ink [&_svg]:size-5">
+        <FileText aria-hidden />
+      </span>
+      {onOpen ? (
+        <button
+          type="button"
+          onClick={onOpen}
+          aria-label={t('evidence.openMinutes', { title })}
           className="flex min-w-0 flex-1 flex-col gap-0.5 rounded-lg text-start focus-visible:outline-2 focus-visible:outline-focus"
         >
           {body}
