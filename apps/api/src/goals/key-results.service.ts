@@ -16,7 +16,7 @@ import { generateKeyBetween } from 'fractional-indexing';
 import type { TenantContext } from '../common/context.js';
 import { forbidden, notFound } from '../common/errors.js';
 import { TenantDb } from '../database/tenant-db.service.js';
-import { canEditGoal, visibleGoals } from './access.js';
+import { canCheckIn, canDefineGoal, visibleGoals } from './access.js';
 import { ensurePeriods, tenantToday } from './periods.js';
 import {
   archivedError,
@@ -119,7 +119,7 @@ export class KeyResultsService {
   /** Records progress: value, status and note; the goal chain is recomputed in the same transaction. */
   checkIn(ctx: TenantContext, id: string, input: CreateCheckinRequest): Promise<Checkin> {
     return this.db.run(ctx, async (tx) => {
-      const { kr } = await this.requireEditable(tx, ctx, id);
+      const { kr } = await this.requireEditable(tx, ctx, id, 'checkIn');
       if (kr.kind === 'boolean' && input.value !== 0 && input.value !== 1) {
         throw invalid('A done/not done key result takes 0 or 1');
       }
@@ -234,14 +234,21 @@ export class KeyResultsService {
    * Visible, editable and locked: concurrent check-ins and edits of one key result run one after
    * the other, so progress always matches the current value.
    */
-  private async requireEditable(tx: Tx, ctx: TenantContext, id: string) {
+  private async requireEditable(
+    tx: Tx,
+    ctx: TenantContext,
+    id: string,
+    action: 'define' | 'checkIn' = 'define',
+  ) {
     await tx
       .select({ id: s.keyResults.id })
       .from(s.keyResults)
       .where(eq(s.keyResults.id, id))
       .for('update');
     const row = await this.requireVisible(tx, ctx, id);
-    if (!canEditGoal(ctx.actor, row.goal)) throw forbidden();
+    // The owner records progress; only those who define the goal change its key results (17a).
+    const allowed = action === 'checkIn' ? canCheckIn : canDefineGoal;
+    if (!allowed(ctx.actor, row.goal)) throw forbidden();
     if (row.kr.archivedAt || row.goal.archivedAt) throw archivedError();
     return row;
   }

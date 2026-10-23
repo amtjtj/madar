@@ -16,6 +16,7 @@ import {
   commentBody,
   createCommentRequest,
   createTaskRequest,
+  listAssigneesQuery,
   listTasksQuery,
   moveTaskRequest,
   setCollaboratorsRequest,
@@ -26,6 +27,8 @@ import {
   type CommentBody,
   type CreateCommentRequest,
   type CreateTaskRequest,
+  type AssigneeOption,
+  type ListAssigneesQuery,
   type ListTasksQuery,
   type MoveTaskRequest,
   type SetCollaboratorsRequest,
@@ -57,6 +60,14 @@ export class TasksController {
     @Body(new ZodPipe(createTaskRequest)) body: CreateTaskRequest,
   ): Promise<Task> {
     return this.tasks.create(ctx, body);
+  }
+
+  @Get('assignees')
+  assignees(
+    @Tenant() ctx: TenantContext,
+    @Query(new ZodPipe(listAssigneesQuery)) query: ListAssigneesQuery,
+  ): Promise<AssigneeOption[]> {
+    return this.tasks.assignees(ctx, query.projectId);
   }
 
   @Get(':id')

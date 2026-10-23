@@ -13,6 +13,7 @@ import {
   mergeManualOrder,
   displayProgress,
   type Activity,
+  type AssigneeOption,
   type Attachment,
   type Comment,
   type CommentBody,
@@ -27,7 +28,7 @@ import {
   type Task,
   type UpdateTaskRequest,
 } from '@madar/shared';
-import { and, asc, desc, eq, ilike, inArray, isNull, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { generateKeyBetween, generateNKeysBetween } from 'fractional-indexing';
 
@@ -38,8 +39,11 @@ import { TenantDb } from '../database/tenant-db.service.js';
 import { keyResultRefs, requireLinkableKeyResult } from '../goals/links.js';
 import { visibleMeetings } from '../meetings/access.js';
 import {
+  canAssignOutsideProject,
   canCreateIn,
   canDeleteTask,
+  leadsCompany,
+  projectReachableBy,
   canEditTask,
   editableTasks,
   canSetWeight,
@@ -49,7 +53,7 @@ import {
 } from './access.js';
 import { attachmentRows, bindUploads, toAttachment } from '../files/attachments-db.js';
 import { hasSubtasks, recomputeParentProgress } from './progress.js';
-import { loadRanking, rankOf, sourceFor, type Ranking } from './ranking.js';
+import { loadRanking, managementChain, rankOf, sourceFor, type Ranking } from './ranking.js';
 
 type TaskRow = typeof s.tasks.$inferSelect;
 
@@ -194,7 +198,17 @@ export class TasksService {
     input: CreateTaskRequest,
     origin: { meeting?: boolean; keyResultId?: string | null } = {},
   ): Promise<Task> {
-    const departmentId = input.departmentId ?? (await this.primaryDepartment(tx, ctx));
+    // A subtask belongs to its parent's project, so it passes the same check (observers of a
+    // private project add no work to it, not even under an existing task).
+    const parent = input.parentId ? await this.requireVisible(tx, ctx, input.parentId) : null;
+    if (parent?.parentId) throw badRequest('Subtasks have no subtasks of their own');
+    if (parent && input.projectId !== undefined && input.projectId !== parent.projectId) {
+      throw badRequest("A subtask is in its parent's project");
+    }
+    const projectId = parent ? parent.projectId : (input.projectId ?? null);
+    const project = projectId ? await this.requireUsableProject(tx, ctx, projectId) : null;
+    const primary = await this.primaryDepartment(tx, ctx);
+    const departmentId = input.departmentId ?? project?.departmentId ?? primary;
     if (!departmentId) {
       throw new ApiError(
         HttpStatus.BAD_REQUEST,
@@ -203,7 +217,10 @@ export class TasksService {
       );
     }
     await this.requireActiveDepartment(tx, departmentId);
-    if (!canCreateIn(ctx.actor, departmentId)) {
+    // Everyone who adds work to a project may create its tasks, in the project's department,
+    // even from another department (plan phase-3-step-17a).
+    const throughProject = project !== null && departmentId === (project.departmentId ?? primary);
+    if (!canCreateIn(ctx.actor, departmentId) && !throughProject) {
       throw forbidden('You can create tasks in your own departments');
     }
     if (
@@ -213,16 +230,7 @@ export class TasksService {
     ) {
       throw forbidden('Only department managers set the weight');
     }
-    // A subtask belongs to its parent's project, so it passes the same check (observers of a
-    // private project add no work to it, not even under an existing task).
-    const parent = input.parentId ? await this.requireVisible(tx, ctx, input.parentId) : null;
-    if (parent?.parentId) throw badRequest('Subtasks have no subtasks of their own');
-    if (parent && input.projectId !== undefined && input.projectId !== parent.projectId) {
-      throw badRequest("A subtask is in its parent's project");
-    }
-    const projectId = parent ? parent.projectId : (input.projectId ?? null);
-    if (projectId) await this.requireUsableProject(tx, ctx, projectId);
-    if (input.assigneeId) await requireActiveMember(tx, input.assigneeId);
+    if (input.assigneeId) await this.requireAssignable(tx, ctx, input.assigneeId, projectId);
     if (origin.keyResultId) await requireLinkableKeyResult(tx, ctx.actor, origin.keyResultId);
 
     const status = statusFields(input.statusKey ?? 'todo');
@@ -341,7 +349,10 @@ export class TasksService {
         throw forbidden('Only department managers set the weight');
       }
       if (input.projectId) await this.requireUsableProject(tx, ctx, input.projectId);
-      if (input.assigneeId) await requireActiveMember(tx, input.assigneeId);
+      if (input.assigneeId && input.assigneeId !== current.assigneeId) {
+        const projectId = input.projectId === undefined ? current.projectId : input.projectId;
+        await this.requireAssignable(tx, ctx, input.assigneeId, projectId);
+      }
       if (input.keyResultId && input.keyResultId !== current.keyResultId) {
         await requireLinkableKeyResult(tx, ctx.actor, input.keyResultId);
       }
@@ -769,9 +780,82 @@ export class TasksService {
     return row;
   }
 
+  /**
+   * Who a task may go to (plan phase-3-step-17a): in a project, anyone who can see that project;
+   * outside one, myself, or someone in a department I manage (the leadership: anyone).
+   */
+  private async requireAssignable(
+    tx: Tx,
+    ctx: TenantContext,
+    assigneeId: string,
+    projectId: string | null,
+  ): Promise<void> {
+    await requireActiveMember(tx, assigneeId);
+    if (assigneeId === ctx.memberId) return;
+    const allowed = projectId
+      ? (
+          await tx
+            .select({ id: s.projects.id })
+            .from(s.projects)
+            .where(and(eq(s.projects.id, projectId), projectReachableBy(sql`${assigneeId}::uuid`)))
+        ).length > 0
+      : canAssignOutsideProject(ctx.actor, {
+          memberId: assigneeId,
+          departmentIds: (
+            await tx
+              .select({ id: s.departmentMemberships.departmentId })
+              .from(s.departmentMemberships)
+              .where(eq(s.departmentMemberships.memberId, assigneeId))
+          ).map((d) => d.id),
+          managers: await managementChain(tx, assigneeId),
+        });
+    if (!allowed) {
+      throw new ApiError(HttpStatus.FORBIDDEN, 'assignee_not_allowed', 'Cannot give work to them');
+    }
+  }
+
+  /** People I may give a task to, in a project or outside one (the form's assignee list). */
+  assignees(ctx: TenantContext, projectId?: string): Promise<AssigneeOption[]> {
+    return this.db.run(ctx, async (tx) => {
+      const me = sql`${s.members.id} = ${ctx.memberId}`;
+      let who: SQL;
+      if (projectId) {
+        await this.requireUsableProject(tx, ctx, projectId);
+        who = sql`exists (select 1 from projects where ${s.projects.id} = ${projectId}::uuid and ${projectReachableBy(sql`${s.members.id}`)})`;
+      } else if (leadsCompany(ctx.actor)) {
+        who = sql`true`;
+      } else {
+        const managed = ctx.actor.departments
+          .filter((d) => d.deptRole === 'head' || d.deptRole === 'manager')
+          .map((d) => d.id);
+        // My reporting line, at any depth, and the people of the departments I manage.
+        const reports = sql`${s.members.id} in (
+          with recursive reports (id, depth) as (
+            select m.id, 1 from members m where m.manager_id = ${ctx.memberId}
+            union all
+            select m.id, r.depth + 1 from members m join reports r on m.manager_id = r.id
+            where r.depth < 20
+          ) select id from reports)`;
+        who = managed.length
+          ? sql`(${reports} or exists (select 1 from department_memberships dm
+              where dm.member_id = ${s.members.id} and dm.department_id in (${sql.join(
+                managed.map((id) => sql`${id}::uuid`),
+                sql`, `,
+              )})))`
+          : reports;
+      }
+      return tx
+        .select({ id: s.members.id, displayName: s.members.displayName })
+        .from(s.members)
+        .where(and(eq(s.members.status, 'active'), or(me, who)))
+        .orderBy(asc(s.members.displayName))
+        .limit(500);
+    });
+  }
+
   private async requireUsableProject(tx: Tx, ctx: TenantContext, projectId: string) {
     const [row] = await tx
-      .select({ id: s.projects.id })
+      .select({ id: s.projects.id, departmentId: s.projects.departmentId })
       .from(s.projects)
       .where(
         and(
@@ -782,6 +866,7 @@ export class TasksService {
         ),
       );
     if (!row) throw notFound('Project');
+    return row;
   }
 
   private async requireActiveDepartment(tx: Tx, departmentId: string) {

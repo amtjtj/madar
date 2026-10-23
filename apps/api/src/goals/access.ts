@@ -2,7 +2,7 @@ import { schema as s } from '@madar/db';
 import { scopeFor, type Actor, type GoalLevel } from '@madar/shared';
 import { sql, type SQL } from 'drizzle-orm';
 
-import { isDepartmentManager, isDepartmentMember } from '../work/access.js';
+import { isDepartmentManager } from '../work/access.js';
 
 /**
  * Goal access (ADR 0013, plan phase-1-step-7 §2): company goals are visible to everyone;
@@ -48,25 +48,32 @@ export interface GoalForAccess {
   ownerId: string;
 }
 
-/** Edit, archive, manage key results and check in. */
-export function canEditGoal(actor: Actor, goal: GoalForAccess): boolean {
-  if (goal.ownerId === actor.memberId || managesCompanyGoals(actor)) return true;
+/**
+ * Define a goal: title, owner, parent, key results, archive (plan phase-3-step-17a). Only the
+ * leadership and the goal's department managers; the owner records progress but does not
+ * redefine the goal.
+ */
+export function canDefineGoal(actor: Actor, goal: GoalForAccess): boolean {
+  if (managesCompanyGoals(actor)) return true;
   return goal.level !== 'company' && goal.departmentId !== null
     ? isDepartmentManager(actor, goal.departmentId)
     : false;
 }
 
-/** Who may create a goal at this level, in this department, for this owner. */
+/** Record progress on a goal's key results: its owner and whoever defines it. */
+export function canCheckIn(actor: Actor, goal: GoalForAccess): boolean {
+  return goal.ownerId === actor.memberId || canDefineGoal(actor, goal);
+}
+
+/**
+ * Who may create a goal at this level, in this department: the leadership anywhere, a
+ * department's managers for that department and its people (17a; employees create none).
+ */
 export function canCreateGoal(
   actor: Actor,
   goal: { level: GoalLevel; departmentId: string | null; ownerId: string },
 ): boolean {
   if (managesCompanyGoals(actor)) return true;
   if (goal.level === 'company' || !goal.departmentId) return false;
-  if (isDepartmentManager(actor, goal.departmentId)) return true;
-  return (
-    goal.level === 'individual' &&
-    goal.ownerId === actor.memberId &&
-    isDepartmentMember(actor, goal.departmentId)
-  );
+  return isDepartmentManager(actor, goal.departmentId);
 }

@@ -156,7 +156,11 @@ describe.skipIf(!hasDatabase)('task progress, project progress and observers', (
       (await marketer.c.post('/api/tasks', { title: 'زیرکار ناظر', parentId: heavy.id })).status,
     ).toBe(404);
     const mine = (
-      await marketer.c.post('/api/projects', { name: 'پروژه خودم', visibility: 'tenant' })
+      await owner.post('/api/projects', {
+        name: 'پروژه خودم',
+        visibility: 'tenant',
+        memberIds: [marketer.memberId],
+      })
     ).body as Project;
     expect(
       (

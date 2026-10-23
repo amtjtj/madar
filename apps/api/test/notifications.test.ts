@@ -146,13 +146,16 @@ describe.skipIf(!hasDatabase)('notifications', () => {
   });
 
   it('never tells a manager about a private-project task they cannot see', async () => {
-    const project = (
-      await agent.c.post('/api/projects', {
-        name: 'محرمانه',
-        departmentId: support.id,
-        visibility: 'private',
-      })
-    ).body;
+    const project =
+      // The leadership sets up a private project with Agent on it (plan phase-3-step-17a).
+      (
+        await owner.post('/api/projects', {
+          name: 'محرمانه',
+          departmentId: support.id,
+          visibility: 'private',
+          memberIds: [agent.memberId],
+        })
+      ).body;
     const task = (
       await agent.c.post('/api/tasks', {
         title: 'کار محرمانه',
@@ -231,7 +234,8 @@ describe.skipIf(!hasDatabase)('notifications', () => {
     });
     await eventually(() => notificationsOf(colleague.memberId, 'project_member_added'));
     await settle();
-    expect(await notificationsOf(agent.memberId, 'project_member_added')).toHaveLength(1);
+    const added = await notificationsOf(agent.memberId, 'project_member_added');
+    expect(added.filter((n) => n.subjectId === project.id)).toHaveLength(1);
     expect(await notificationsOf(lead.memberId, 'project_member_added')).toHaveLength(0);
   });
 

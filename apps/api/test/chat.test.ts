@@ -470,7 +470,11 @@ describe.skipIf(!hasDatabase)('chat', () => {
 
   it('archived projects and departments keep a read-only channel', async () => {
     const project = (
-      await lead.c.post('/api/projects', { name: 'بایگانی', memberIds: [ali.memberId] })
+      await lead.c.post('/api/projects', {
+        name: 'بایگانی',
+        departmentId: support.id,
+        memberIds: [ali.memberId],
+      })
     ).body;
     const channel: ConversationSummary = (
       await ali.c.get(`/api/conversations/by-project/${project.id}`)
@@ -715,7 +719,11 @@ describe.skipIf(!hasDatabase)('chat', () => {
 
   it('observers and archived channels take no reactions; a read-only company neither', async () => {
     const project = (
-      await lead.c.post('/api/projects', { name: 'واکنش‌ها', memberIds: [ali.memberId] })
+      await lead.c.post('/api/projects', {
+        name: 'واکنش‌ها',
+        departmentId: support.id,
+        memberIds: [ali.memberId],
+      })
     ).body;
     await lead.c.put(`/api/projects/${project.id}/members`, {
       members: [
@@ -761,12 +769,17 @@ describe.skipIf(!hasDatabase)('chat', () => {
         uploadIds: [up.id],
       })
     ).body;
-    // The marketer is not in the channel; she gets the task.
+    // The marketer is not in the channel; she gets the task (Ali makes it for himself, the owner
+    // hands it over: work goes to another department's people only from the leadership, 17a).
     const made = await ali.c.post(`/api/messages/${sent.id}/task`, {
       title: 'درست کردن صفحه خطای پرداخت',
-      assigneeId: marketer.memberId,
     });
     expect(made.status).toBe(201);
+    const handed = await owner.patch(`/api/tasks/${made.body.id}`, {
+      version: made.body.version,
+      assigneeId: marketer.memberId,
+    });
+    expect(handed.status).toBe(200);
     const task: Task = made.body;
     const pins: Evidence[] = (await marketer.c.get(`/api/tasks/${task.id}/evidence`)).body;
     expect(pins).toHaveLength(1);
@@ -797,8 +810,13 @@ describe.skipIf(!hasDatabase)('chat', () => {
       404,
     );
     // A pin on a task the reader does not see is only counted.
-    const secret = (await lead.c.post('/api/projects', { name: 'محرمانه', visibility: 'private' }))
-      .body;
+    const secret = (
+      await lead.c.post('/api/projects', {
+        name: 'محرمانه',
+        departmentId: support.id,
+        visibility: 'private',
+      })
+    ).body;
     const hiddenTask: Task = (
       await lead.c.post('/api/tasks', { title: 'کار پنهان', projectId: secret.id })
     ).body;
@@ -905,18 +923,19 @@ describe.skipIf(!hasDatabase)('chat', () => {
   });
 
   it('message evidence: deleted messages refused, direct talks unnamed, others kept out, one notification', async () => {
+    // The manager makes a task from a direct talk with Maryam, for Ali (who is not in it).
     const dm: Conversation = (
-      await ali.c.post('/api/conversations/direct', { memberId: maryam.memberId })
+      await lead.c.post('/api/conversations/direct', { memberId: maryam.memberId })
     ).body;
     const said: Message = (await send(maryam, dm.id, 'گزارش روزانه را بفرست')).body;
     const task: Task = (
-      await ali.c.post(`/api/messages/${said.id}/task`, {
+      await lead.c.post(`/api/messages/${said.id}/task`, {
         title: 'فرستادن گزارش روزانه',
-        assigneeId: lead.memberId,
+        assigneeId: ali.memberId,
       })
     ).body;
     expect(task.evidenceCount).toBe(1);
-    const pins: Evidence[] = (await lead.c.get(`/api/tasks/${task.id}/evidence`)).body;
+    const pins: Evidence[] = (await ali.c.get(`/api/tasks/${task.id}/evidence`)).body;
     expect(pins[0]?.message?.conversation).toEqual({ kind: 'direct', title: null });
     await settle();
     const kinds = await withTenant(handle.db, { tenantId }, (tx) =>
@@ -925,7 +944,7 @@ describe.skipIf(!hasDatabase)('chat', () => {
         .from(s.notifications)
         .where(
           and(
-            eq(s.notifications.recipientId, lead.memberId),
+            eq(s.notifications.recipientId, ali.memberId),
             eq(s.notifications.subjectId, task.id),
           ),
         ),
@@ -947,9 +966,9 @@ describe.skipIf(!hasDatabase)('chat', () => {
     // A deleted message is neither made into a task nor pinned.
     const gone: Message = (await send(maryam, dm.id, 'اشتباه')).body;
     await maryam.c.delete(`/api/messages/${gone.id}`);
-    expect((await ali.c.post(`/api/messages/${gone.id}/task`, { title: 'x' })).status).toBe(404);
+    expect((await lead.c.post(`/api/messages/${gone.id}/task`, { title: 'x' })).status).toBe(404);
     expect(
-      (await ali.c.post(`/api/tasks/${task.id}/evidence`, { kind: 'message', subjectId: gone.id }))
+      (await lead.c.post(`/api/tasks/${task.id}/evidence`, { kind: 'message', subjectId: gone.id }))
         .status,
     ).toBe(404);
   });

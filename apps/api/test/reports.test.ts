@@ -120,11 +120,13 @@ describe.skipIf(!hasDatabase)('weekly reports', () => {
       value: 5,
       status: 'at_risk',
     });
+    // The head sets Agent's personal goal; Agent records its progress (plan phase-3-step-17a).
     const personal = (
-      await agent.c.post('/api/goals', {
+      await head.c.post('/api/goals', {
         periodId,
         level: 'individual',
         departmentId: support.id,
+        ownerId: agent.memberId,
         title: 'هدف شخصی',
         keyResults: [{ title: 'نتیجه شخصی', kind: 'number', startValue: 0, targetValue: 10 }],
       })

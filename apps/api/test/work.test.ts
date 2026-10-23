@@ -94,8 +94,15 @@ describe.skipIf(!hasDatabase)('work: projects, tasks, comments, activity', () =>
     const edit = await director.c.patch(`/api/tasks/${task.id}`, { version: 1, title: 'تغییر' });
     expect(edit.status).toBe(403);
 
-    // Assigning across departments makes the task visible to the assignee.
-    const assigned = await colleague.c.patch(`/api/tasks/${task.id}`, {
+    // A member gives work outside a project only to themselves (plan phase-3-step-17a)…
+    const refused = await colleague.c.patch(`/api/tasks/${task.id}`, {
+      version: 1,
+      assigneeId: marketer.memberId,
+    });
+    expect(refused.status).toBe(403);
+    expect(refused.body.error.code).toBe('assignee_not_allowed');
+    // …the leadership to anyone; assigning across departments makes the task visible.
+    const assigned = await owner.patch(`/api/tasks/${task.id}`, {
       version: 1,
       assigneeId: marketer.memberId,
     });
@@ -105,14 +112,14 @@ describe.skipIf(!hasDatabase)('work: projects, tasks, comments, activity', () =>
   });
 
   it('keeps private projects private, even from oversight', async () => {
-    const project = await agent.c.post('/api/projects', {
+    const project = await lead.c.post('/api/projects', {
       name: 'پروژه محرمانه',
       departmentId: support.id,
       visibility: 'private',
-      memberIds: [marketer.memberId],
+      memberIds: [agent.memberId, marketer.memberId],
     });
     expect(project.status).toBe(201);
-    expect(project.body.members).toHaveLength(2);
+    expect(project.body.members).toHaveLength(3);
     const task = (
       await agent.c.post('/api/tasks', { title: 'کار محرمانه', projectId: project.body.id })
     ).body;
@@ -126,6 +133,90 @@ describe.skipIf(!hasDatabase)('work: projects, tasks, comments, activity', () =>
     );
     expect(ids(projectTasks)).toEqual([task.id]);
     expect(ids(await colleague.c.get('/api/projects'))).not.toContain(project.body.id);
+  });
+
+  it('projects come from managers and the leadership; project work goes to who sees the project', async () => {
+    // Plan phase-3-step-17a.
+    const create = (c: Client, departmentId?: string) =>
+      c.post('/api/projects', { name: 'پروژه تازه', departmentId, visibility: 'private' });
+    expect((await create(agent.c, support.id)).status).toBe(403);
+    expect((await create(lead.c, marketing.id)).status).toBe(403);
+    expect((await create(lead.c)).status).toBe(403);
+    expect((await create(owner)).status).toBe(201);
+    const project = (
+      await lead.c.post('/api/projects', {
+        name: 'درگاه تازه',
+        departmentId: support.id,
+        visibility: 'private',
+        memberIds: [agent.memberId, marketer.memberId],
+      })
+    ).body;
+
+    // A member from another department creates work in it, for another project member…
+    const made = await marketer.c.post('/api/tasks', {
+      title: 'متن صفحه پرداخت',
+      projectId: project.id,
+      assigneeId: agent.memberId,
+    });
+    expect(made.status).toBe(201);
+    expect(made.body.department.id).toBe(support.id);
+    // …but not for someone who cannot see the project, and not into another department.
+    const outsider = await marketer.c.post('/api/tasks', {
+      title: 'کار',
+      projectId: project.id,
+      assigneeId: colleague.memberId,
+    });
+    expect(outsider.status).toBe(403);
+    expect(outsider.body.error.code).toBe('assignee_not_allowed');
+    expect(
+      (
+        await marketer.c.post('/api/tasks', {
+          title: 'کار',
+          projectId: project.id,
+          departmentId: management.id,
+        })
+      ).status,
+    ).toBe(403);
+    const reassign = await agent.c.patch(`/api/tasks/${made.body.id}`, {
+      version: 1,
+      assigneeId: colleague.memberId,
+    });
+    expect(reassign.body.error?.code).toBe('assignee_not_allowed');
+
+    // Who the form offers: in the project its people; outside it me, or my department.
+    const names = async (c: Client, query = '') =>
+      ((await c.get(`/api/tasks/assignees${query}`)).body as Array<{ id: string }>).map(
+        (p) => p.id,
+      );
+    expect((await names(marketer.c, `?projectId=${project.id}`)).sort()).toEqual(
+      [lead.memberId, agent.memberId, marketer.memberId].sort(),
+    );
+    expect(await names(agent.c)).toEqual([agent.memberId]);
+    const team = await names(lead.c);
+    expect(team).toEqual(
+      expect.arrayContaining([lead.memberId, agent.memberId, colleague.memberId]),
+    );
+    expect(team).not.toContain(marketer.memberId);
+    expect((await colleague.c.get(`/api/tasks/assignees?projectId=${project.id}`)).status).toBe(
+      404,
+    );
+  });
+
+  it('outside a project, work goes to others only from their manager or the leadership', async () => {
+    const give = (c: Client, assigneeId: string) =>
+      c.post('/api/tasks', { title: 'پیگیری تیکت', assigneeId });
+    expect((await give(agent.c, colleague.memberId)).status).toBe(403);
+    expect((await give(agent.c, agent.memberId)).status).toBe(201);
+    expect((await give(lead.c, agent.memberId)).status).toBe(201);
+    expect((await give(lead.c, marketer.memberId)).status).toBe(403);
+    const fromOwner = await owner.post('/api/tasks', {
+      title: 'پیگیری کمپین',
+      departmentId: marketing.id,
+      assigneeId: marketer.memberId,
+    });
+    expect(fromOwner.status).toBe(201);
+    const unassigned = await agent.c.post('/api/tasks', { title: 'بدون مسئول', assigneeId: null });
+    expect(unassigned.status).toBe(201);
   });
 
   it('shows company-wide projects to everyone', async () => {

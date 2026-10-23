@@ -6,12 +6,18 @@ import { calendarDate } from './work.js';
 export const GOAL_LEVELS = ['company', 'department', 'individual'] as const;
 export type GoalLevel = (typeof GOAL_LEVELS)[number];
 
-/** The level a goal's parent must have; company goals have no parent. */
+/**
+ * The levels a goal's parent may have: the same level (a sub-goal) or above (plan
+ * phase-3-step-17a). Every goal may also stand alone.
+ */
 export const PARENT_LEVELS: Record<GoalLevel, readonly GoalLevel[]> = {
-  company: [],
-  department: ['company'],
-  individual: ['department', 'company'],
+  company: ['company'],
+  department: ['department', 'company'],
+  individual: ['individual', 'department', 'company'],
 };
+
+/** How many levels a goal chain may have, the goal itself included (the roll-up's bound). */
+export const GOAL_DEPTH_MAX = 5;
 
 /** `percent` is a number from 0 to 100; `boolean` is done or not done. */
 export const KEY_RESULT_KINDS = ['number', 'percent', 'boolean'] as const;
@@ -70,7 +76,8 @@ export const goalSummary = z.object({
   completedAt: z.iso.datetime().nullable(),
   keyResultCount: z.number().int(),
   childCount: z.number().int(),
-  can: z.object({ edit: z.boolean() }),
+  /** `edit`: define the goal and its key results; `checkIn`: record progress (the owner too). */
+  can: z.object({ edit: z.boolean(), checkIn: z.boolean() }),
 });
 export type GoalSummary = z.infer<typeof goalSummary>;
 

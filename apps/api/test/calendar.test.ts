@@ -147,9 +147,16 @@ describe.skipIf(!hasDatabase)('personal calendar', () => {
 
   it('shows the end of my projects and of the goal period', async () => {
     const dueOn = addDays(today(), 7);
-    const project = (
-      await ali.c.post('/api/projects', { name: 'راه‌اندازی پشتیبانی شبانه', dueOn })
-    ).body;
+    const project =
+      // Projects come from managers and the leadership (plan phase-3-step-17a); Ali is on it.
+      (
+        await owner.c.post('/api/projects', {
+          name: 'راه‌اندازی پشتیبانی شبانه',
+          departmentId: supportId,
+          dueOn,
+          memberIds: [ali.memberId],
+        })
+      ).body;
     expect(
       (await get(ali)).body.days
         .find((d: { date: string }) => d.date === dueOn)
@@ -204,7 +211,11 @@ describe.skipIf(!hasDatabase)('personal calendar', () => {
     expect((await ali.c.delete(`/api/tasks/${gone.id}`)).status).toBe(204);
     // A plan row for a task in Zahra's private project, which Ali cannot see.
     const project = (
-      await zahra.c.post('/api/projects', { name: 'پروژه خصوصی زهرا', visibility: 'private' })
+      await owner.c.post('/api/projects', {
+        name: 'پروژه خصوصی زهرا',
+        visibility: 'private',
+        memberIds: [zahra.memberId],
+      })
     ).body;
     const hidden = (
       await zahra.c.post('/api/tasks', {
@@ -270,7 +281,11 @@ describe.skipIf(!hasDatabase)('personal calendar', () => {
       await ali.c.post('/api/tasks', { title: 'کار علی برای مدیر', dueOn: day, addToToday: true })
     ).body;
     const secret = (
-      await ali.c.post('/api/projects', { name: 'پروژه خصوصی علی', visibility: 'private' })
+      await owner.c.post('/api/projects', {
+        name: 'پروژه خصوصی علی',
+        visibility: 'private',
+        memberIds: [ali.memberId],
+      })
     ).body;
     const hidden = (
       await ali.c.post('/api/tasks', { title: 'کار خصوصی علی', projectId: secret.id, dueOn: day })
@@ -380,7 +395,11 @@ describe.skipIf(!hasDatabase)('personal calendar', () => {
       })
     ).body;
     const otherProject = (
-      await stranger.c.post('/api/projects', { name: 'پروژه دیگر', dueOn: day })
+      await other.post('/api/projects', {
+        name: 'پروژه دیگر',
+        dueOn: day,
+        memberIds: [stranger.memberId],
+      })
     ).body;
     const otherHoliday = addDays(today(), 8);
     await other.put('/api/work-calendar', { ...DEFAULT_WORK_CALENDAR, holidays: [otherHoliday] });

@@ -72,19 +72,25 @@ export function rankOf(
  * assigned (from the assignee's management chain or the task's department managers; the CEO
  * marked) or a colleague's request.
  */
-export async function sourceFor(
-  tx: Tx,
-  input: { actorId: string; assigneeId: string; departmentId: string },
-): Promise<{ source: TaskSource; sourceMemberId: string; sourceCeo: boolean }> {
+/** Everyone above `memberId` in the reporting line (direct manager first). */
+export async function managementChain(tx: Tx, memberId: string): Promise<string[]> {
   const chain = await tx.execute<{ manager_id: string }>(sql`
     with recursive chain (manager_id, depth) as (
-      select m.manager_id, 1 from members m where m.id = ${input.assigneeId}
+      select m.manager_id, 1 from members m where m.id = ${memberId}
       union all
       select m.manager_id, c.depth + 1 from chain c
       join members m on m.id = c.manager_id
       where c.manager_id is not null and c.depth < 20
     )
     select manager_id from chain where manager_id is not null`);
+  return chain.rows.map((r) => r.manager_id);
+}
+
+export async function sourceFor(
+  tx: Tx,
+  input: { actorId: string; assigneeId: string; departmentId: string },
+): Promise<{ source: TaskSource; sourceMemberId: string; sourceCeo: boolean }> {
+  const assigneeManagers = await managementChain(tx, input.assigneeId);
   const departmentManagers = await tx
     .select({ id: s.departmentMemberships.memberId })
     .from(s.departmentMemberships)
@@ -113,7 +119,7 @@ export async function sourceFor(
   const { source, ceo } = deriveTaskSource({
     actorId: input.actorId,
     assigneeId: input.assigneeId,
-    assigneeManagers: chain.rows.map((r) => r.manager_id),
+    assigneeManagers,
     departmentManagers: departmentManagers.map((r) => r.id),
     actorIsTop: topRoles.length > 0,
   });

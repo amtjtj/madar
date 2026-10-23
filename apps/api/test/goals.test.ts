@@ -122,39 +122,99 @@ describe.skipIf(!hasDatabase)('goals', () => {
     expect(department.parent).toEqual({ id: company.id, title: company.title });
   });
 
-  it('lets a member create a personal goal in their department, aligned one level up', async () => {
-    // A personal goal cannot hang under another personal goal or skip into another period.
-    const res = await create(agent.c, {
+  it('only managers set personal goals; the owner records progress but does not redefine', async () => {
+    // Plan phase-3-step-17a: an employee creates no goal, not even their own.
+    expect(
+      (
+        await create(agent.c, {
+          level: 'individual',
+          departmentId: support.id,
+          parentId: department.id,
+          title: 'x',
+        })
+      ).status,
+    ).toBe(403);
+    const res = await create(head.c, {
       level: 'individual',
       departmentId: support.id,
+      ownerId: agent.memberId,
       parentId: department.id,
       title: 'یادگیری ابزار جدید پشتیبانی',
       keyResults: [{ title: 'دوره آموزشی', kind: 'percent' }],
     });
     expect(res.status).toBe(201);
     personal = res.body;
-    const bad = await create(agent.c, {
-      level: 'individual',
-      departmentId: support.id,
-      parentId: personal.id,
-      title: 'x',
-    });
-    expect(bad.status).toBe(400);
-    // Not for someone else, and not in a department they are not in.
+    expect(personal.owner.id).toBe(agent.memberId);
+    // The owner sees it may check in, not edit.
+    const forOwner: GoalDetail = (await agent.c.get(`/api/goals/${personal.id}`)).body;
+    expect(forOwner.can).toEqual({ edit: false, checkIn: true });
+    expect((await agent.c.patch(`/api/goals/${personal.id}`, { title: 'y' })).status).toBe(403);
     expect(
       (
-        await create(agent.c, {
-          level: 'individual',
-          departmentId: support.id,
-          ownerId: colleague.memberId,
-          title: 'x',
+        await agent.c.post(`/api/goals/${personal.id}/key-results`, {
+          title: 'نتیجه تازه',
+          kind: 'boolean',
         })
       ).status,
     ).toBe(403);
     expect(
-      (await create(agent.c, { level: 'individual', departmentId: marketing.id, title: 'x' }))
+      (await agent.c.patch(`/api/key-results/${personal.keyResults[0]?.id}`, { title: 'z' }))
         .status,
     ).toBe(403);
+    // Not in a department the head does not run, and not another period.
+    expect(
+      (await create(head.c, { level: 'individual', departmentId: marketing.id, title: 'x' }))
+        .status,
+    ).toBe(403);
+  });
+
+  it('a goal may have sub-goals at its own level, never under itself, at most five deep', async () => {
+    // A department goal under a department goal; a personal one under a personal one.
+    const sub = await create(head.c, {
+      level: 'department',
+      departmentId: support.id,
+      parentId: department.id,
+      title: 'زیرهدف: پاسخ شبانه',
+    });
+    expect(sub.status).toBe(201);
+    expect(sub.body.parent.id).toBe(department.id);
+    // A department goal never goes under a personal one.
+    const upward = await create(head.c, {
+      level: 'department',
+      departmentId: support.id,
+      parentId: personal.id,
+      title: 'x',
+    });
+    expect(upward.body.error.code).toBe('goal_parent_invalid');
+    // No cycles: the parent cannot move under its own sub-goal.
+    const cycle = await head.c.patch(`/api/goals/${department.id}`, { parentId: sub.body.id });
+    expect(cycle.status).toBe(400);
+    expect(cycle.body.error.code).toBe('goal_parent_invalid');
+    // company → department → sub → three more: the sixth level is refused.
+    let parentId = sub.body.id as string;
+    for (const n of [4, 5]) {
+      const next = await create(head.c, {
+        level: 'department',
+        departmentId: support.id,
+        parentId,
+        title: `سطح ${n}`,
+      });
+      expect(next.status).toBe(201);
+      parentId = next.body.id;
+    }
+    const tooDeep = await create(head.c, {
+      level: 'department',
+      departmentId: support.id,
+      parentId,
+      title: 'سطح ۶',
+    });
+    expect(tooDeep.body.error.code).toBe('goal_parent_invalid');
+    // Clean up so the roll-up numbers below stay as they were.
+    for (let id: string | null = parentId; id && id !== department.id;) {
+      const goal: GoalDetail = (await head.c.get(`/api/goals/${id}`)).body;
+      expect((await head.c.post(`/api/goals/${id}/archive`)).status).toBe(204);
+      id = goal.parent?.id ?? null;
+    }
   });
 
   it('shows each level only to the people the rules name', async () => {
@@ -244,9 +304,10 @@ describe.skipIf(!hasDatabase)('goals', () => {
 
   it('records goal.completed once, the first time a goal reaches 100 %', async () => {
     const goal = (
-      await create(agent.c, {
+      await create(head.c, {
         level: 'individual',
         departmentId: support.id,
+        ownerId: agent.memberId,
         title: 'هدف کوچک',
         keyResults: [{ title: 'انجام شد', kind: 'boolean' }],
       })
@@ -294,9 +355,10 @@ describe.skipIf(!hasDatabase)('goals', () => {
       await create(head.c, { level: 'department', departmentId: support.id, title: 'والد موقت' })
     ).body as GoalDetail;
     const child = (
-      await create(agent.c, {
+      await create(head.c, {
         level: 'individual',
         departmentId: support.id,
+        ownerId: agent.memberId,
         parentId: parent.id,
         title: 'فرزند',
         keyResults: [{ title: 'تمام', kind: 'boolean' }],
@@ -306,7 +368,9 @@ describe.skipIf(!hasDatabase)('goals', () => {
     const blocked = await head.c.post(`/api/goals/${parent.id}/archive`);
     expect(blocked.status).toBe(409);
     expect(blocked.body.error.code).toBe('goal_has_children');
-    expect((await agent.c.post(`/api/goals/${child.id}/archive`)).status).toBe(204);
+    // The owner does not archive it; the head does.
+    expect((await agent.c.post(`/api/goals/${child.id}/archive`)).status).toBe(403);
+    expect((await head.c.post(`/api/goals/${child.id}/archive`)).status).toBe(204);
     expect((await head.c.post(`/api/goals/${parent.id}/archive`)).status).toBe(204);
     // Archived: no edits, no key results, no check-ins.
     const edit = await head.c.patch(`/api/goals/${parent.id}`, { title: 'x' });

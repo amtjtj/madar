@@ -1,5 +1,5 @@
 import { emitEvent, schema as s, type Tx } from '@madar/db';
-import { goalProgress, worstStatus } from '@madar/shared';
+import { GOAL_DEPTH_MAX, goalProgress, worstStatus } from '@madar/shared';
 import { and, eq, isNull } from 'drizzle-orm';
 
 /**
@@ -13,7 +13,7 @@ export async function recomputeGoalChain(
   actorId: string | null,
 ): Promise<void> {
   let current: string | null = goalId;
-  for (let depth = 0; current && depth < 5; depth++) {
+  for (let depth = 0; current && depth < GOAL_DEPTH_MAX; depth++) {
     const [goal] = await tx
       .select({
         id: s.goals.id,

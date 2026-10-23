@@ -77,6 +77,27 @@ export function visibleProjects(actor: Actor): SQL {
 }
 
 /**
+ * SQL condition on `projects`: whether the member `memberId` (an SQL expression) sees the project.
+ * The same rule as `visibleProjects`, for someone other than the actor: a task in a project may go
+ * to anyone who sees it (plan phase-3-step-17a). Tenant-wide project readers are those with a
+ * tenant `project.read` grant or in an oversight department over projects.
+ */
+export function projectReachableBy(memberId: SQL): SQL {
+  return sql`(${s.projects.ownerId} = ${memberId}
+    or exists (select 1 from project_members pm where pm.project_id = ${s.projects.id} and pm.member_id = ${memberId})
+    or ${s.projects.visibility} = 'tenant'
+    or (${s.projects.visibility} = 'department' and (
+      exists (select 1 from department_memberships dm join departments d on d.id = dm.department_id
+        where dm.member_id = ${memberId} and d.archived_at is null
+          and dm.department_id = ${s.projects.departmentId})
+      or exists (select 1 from member_roles mr join role_grants rg on rg.role_id = mr.role_id
+        where mr.member_id = ${memberId} and rg.permission = 'project.read' and rg.scope = 'tenant')
+      or exists (select 1 from department_memberships dm join departments d on d.id = dm.department_id
+        where dm.member_id = ${memberId} and d.archived_at is null
+          and coalesce(d.oversight -> 'resources', '[]'::jsonb) ? 'project'))))`;
+}
+
+/**
  * SQL condition on `projects`: where the actor may add work. Observers of a private project see it
  * but add nothing (plan phase-2-step-10b); other projects follow their visibility.
  */
@@ -133,6 +154,36 @@ export function canDeleteTask(actor: Actor, task: TaskForAccess): boolean {
 
 export function canCreateIn(actor: Actor, departmentId: string): boolean {
   return isDepartmentMember(actor, departmentId) || managesAll(actor);
+}
+
+/**
+ * The company's leadership (plan phase-3-step-17a): owners (all work) and executives (company
+ * goals). They create projects anywhere and give work to anyone.
+ */
+export function leadsCompany(actor: Actor): boolean {
+  return managesAll(actor) || scopeFor(actor, 'goal.manage') === 'tenant';
+}
+
+/** Projects are created by a department's head or managers, or by the leadership (17a). */
+export function canCreateProject(actor: Actor, departmentId: string | null): boolean {
+  return leadsCompany(actor) || (departmentId !== null && isDepartmentManager(actor, departmentId));
+}
+
+/**
+ * Outside a project, work goes to someone else only from the leadership, a manager of one of that
+ * person's departments, or someone above them in the reporting line (17a). Inside a project the
+ * rule is project access instead.
+ */
+export function canAssignOutsideProject(
+  actor: Actor,
+  assignee: { memberId: string; departmentIds: readonly string[]; managers: readonly string[] },
+): boolean {
+  return (
+    assignee.memberId === actor.memberId ||
+    leadsCompany(actor) ||
+    assignee.managers.includes(actor.memberId) ||
+    assignee.departmentIds.some((id) => isDepartmentManager(actor, id))
+  );
 }
 
 export function canEditProject(

@@ -146,6 +146,14 @@ export const setCollaboratorsRequest = z.object({
 });
 export type SetCollaboratorsRequest = z.infer<typeof setCollaboratorsRequest>;
 
+/** Someone a task may be given to (plan phase-3-step-17a). */
+export const assigneeOption = z.object({ id: z.uuid(), displayName: z.string() });
+export type AssigneeOption = z.infer<typeof assigneeOption>;
+
+/** In a project: who sees it; outside one: me and the people in departments I manage. */
+export const listAssigneesQuery = z.object({ projectId: z.uuid().optional() });
+export type ListAssigneesQuery = z.infer<typeof listAssigneesQuery>;
+
 export const listTasksQuery = z.object({
   /** mine: assigned to me · department: my departments · project: one project · visible: everything I can see */
   view: z.enum(['mine', 'department', 'project', 'visible']).default('mine'),

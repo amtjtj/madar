@@ -93,7 +93,15 @@ describe.skipIf(!hasDatabase)('task source, priority and personal order', () => 
       by: { displayName: 'لیلا صادقی' },
     });
 
-    const fromColleague = await create(zahra.c, { title: 'درخواست', assigneeId: ali.memberId });
+    // A colleague asks for help inside a shared project (outside one only managers assign, 17a).
+    const shared = (
+      await head.c.post('/api/projects', { name: 'پروژه مشترک', departmentId: support.id })
+    ).body;
+    const fromColleague = await create(zahra.c, {
+      title: 'درخواست',
+      assigneeId: ali.memberId,
+      projectId: shared.id,
+    });
     expect(fromColleague.source).toMatchObject({ kind: 'request', by: { id: zahra.memberId } });
 
     // No assignee: no source until the first one; reassigning later keeps it.

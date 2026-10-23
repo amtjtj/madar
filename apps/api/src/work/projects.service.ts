@@ -18,7 +18,7 @@ import { TenantDb } from '../database/tenant-db.service.js';
 import { keyResultRefs, requireLinkableKeyResult } from '../goals/links.js';
 import { loadWorkCalendar } from '../notifications/calendar.js';
 import {
-  canCreateIn,
+  canCreateProject,
   canEditProject,
   managesAll,
   visibleProjects,
@@ -79,11 +79,10 @@ export class ProjectsService {
   create(ctx: TenantContext, input: CreateProjectRequest): Promise<Project> {
     return this.db.run(ctx, async (tx) => {
       const departmentId = input.departmentId ?? null;
-      if (departmentId) {
-        await requireActiveDepartment(tx, departmentId);
-        if (!canCreateIn(ctx.actor, departmentId)) {
-          throw forbidden('You can create projects in your own departments');
-        }
+      if (departmentId) await requireActiveDepartment(tx, departmentId);
+      // Projects come from a department's managers or the leadership (plan phase-3-step-17a).
+      if (!canCreateProject(ctx.actor, departmentId)) {
+        throw forbidden('Department managers and the leadership create projects');
       }
       const [row] = await tx
         .insert(s.projects)
@@ -123,7 +122,7 @@ export class ProjectsService {
       }
       if (input.departmentId && input.departmentId !== current.departmentId) {
         await requireActiveDepartment(tx, input.departmentId);
-        if (!canCreateIn(ctx.actor, input.departmentId)) throw forbidden();
+        if (!canCreateProject(ctx.actor, input.departmentId)) throw forbidden();
       }
       const visibility = input.visibility ?? current.visibility;
       await tx

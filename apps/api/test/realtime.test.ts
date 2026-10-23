@@ -161,10 +161,11 @@ describe.skipIf(!hasDatabase)('realtime (Socket.IO)', () => {
     const agentLive = await connect(await cookieFor(agent.username));
     const leadLive = await connect(await cookieFor(lead.username));
     const project = (
-      await agent.c.post('/api/projects', {
+      await ownerA.post('/api/projects', {
         name: 'خصوصی',
         departmentId: support.id,
         visibility: 'private',
+        memberIds: [agent.memberId],
       })
     ).body;
     await until(() => agentLive.events.includes(REALTIME_EVENTS.workChanged));

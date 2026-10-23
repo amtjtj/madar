@@ -2,6 +2,7 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { emitEvent, schema as s, type Tx } from '@madar/db';
 import {
   keyResultRange,
+  GOAL_DEPTH_MAX,
   PARENT_LEVELS,
   type CreateGoalRequest,
   type GoalDetail,
@@ -19,7 +20,7 @@ import type { TenantContext } from '../common/context.js';
 import { ApiError, forbidden, notFound } from '../common/errors.js';
 import { TenantDb } from '../database/tenant-db.service.js';
 import { visibleProjects, visibleTasks } from '../work/access.js';
-import { canCreateGoal, canEditGoal, visibleGoals } from './access.js';
+import { canCheckIn, canCreateGoal, canDefineGoal, visibleGoals } from './access.js';
 import { ensurePeriods, listPeriods, tenantToday } from './periods.js';
 import { recomputeGoalChain } from './rollup.js';
 
@@ -31,6 +32,9 @@ export const archivedError = () =>
 
 export const invalid = (message: string) =>
   new ApiError(HttpStatus.BAD_REQUEST, 'validation_failed', message);
+
+const parentInvalid = (message: string) =>
+  new ApiError(HttpStatus.BAD_REQUEST, 'goal_parent_invalid', message);
 
 @Injectable()
 export class GoalsService {
@@ -152,7 +156,7 @@ export class GoalsService {
       }
       const parentChanged = input.parentId !== undefined && input.parentId !== goal.parentId;
       if (parentChanged && input.parentId) {
-        await this.requireParent(tx, ctx, input.parentId, goal.level, goal.periodId);
+        await this.requireParent(tx, ctx, input.parentId, goal.level, goal.periodId, goal.id);
       }
       await tx
         .update(s.goals)
@@ -219,7 +223,7 @@ export class GoalsService {
   async requireEditable(tx: Tx, ctx: TenantContext, id: string): Promise<GoalRow> {
     await tx.select({ id: s.goals.id }).from(s.goals).where(eq(s.goals.id, id)).for('update');
     const goal = await this.requireVisible(tx, ctx, id);
-    if (!canEditGoal(ctx.actor, goal)) throw forbidden();
+    if (!canDefineGoal(ctx.actor, goal)) throw forbidden();
     return goal;
   }
 
@@ -308,13 +312,18 @@ export class GoalsService {
     return current.id;
   }
 
-  /** The parent must be visible, active, in the same period and one level up. */
+  /**
+   * The parent must be visible, active, in the same period and at the same level or above
+   * (sub-goals, plan phase-3-step-17a). A goal never goes under itself or its own sub-goals, and
+   * the whole chain stays within `GOAL_DEPTH_MAX` levels (the progress roll-up's bound).
+   */
   private async requireParent(
     tx: Tx,
     ctx: TenantContext,
     parentId: string,
     level: GoalLevel,
     periodId: string,
+    childId?: string,
   ): Promise<void> {
     // Held until commit, so the parent cannot be archived under the new child.
     await tx.select({ id: s.goals.id }).from(s.goals).where(eq(s.goals.id, parentId)).for('share');
@@ -324,7 +333,34 @@ export class GoalsService {
       parent.periodId !== periodId ||
       !PARENT_LEVELS[level].includes(parent.level)
     ) {
-      throw invalid('Parent goal must be an active goal one level up in the same period');
+      throw parentInvalid('Parent goal must be an active goal at this level or above, same period');
+    }
+    // Ancestors of the new parent (itself included), and how deep the moved goal's subtree goes.
+    const chain = await tx.execute<{ id: string }>(sql`
+      with recursive up as (
+        select id, parent_id, 1 as depth from goals where id = ${parentId}
+        union all
+        select g.id, g.parent_id, up.depth + 1 from goals g join up on g.id = up.parent_id
+        where up.depth < ${GOAL_DEPTH_MAX + 1}
+      ) select id from up`);
+    if (childId && chain.rows.some((r) => r.id === childId)) {
+      throw parentInvalid('A goal cannot go under itself or its own sub-goals');
+    }
+    let below = 1;
+    if (childId) {
+      const [height] = (
+        await tx.execute<{ height: number }>(sql`
+          with recursive down as (
+            select id, 1 as depth from goals where id = ${childId}
+            union all
+            select g.id, down.depth + 1 from goals g join down on g.parent_id = down.id
+            where g.archived_at is null and down.depth < ${GOAL_DEPTH_MAX + 1}
+          ) select max(depth)::int as height from down`)
+      ).rows;
+      below = height?.height ?? 1;
+    }
+    if (chain.rows.length + below > GOAL_DEPTH_MAX) {
+      throw parentInvalid(`Goals nest at most ${GOAL_DEPTH_MAX} levels deep`);
     }
   }
 
@@ -380,7 +416,7 @@ export class GoalsService {
         completedAt: g.completedAt?.toISOString() ?? null,
         keyResultCount: krCounts.find((c) => c.goalId === g.id)?.n ?? 0,
         childCount: childCounts.find((c) => c.parentId === g.id)?.n ?? 0,
-        can: { edit: canEditGoal(ctx.actor, g) },
+        can: { edit: canDefineGoal(ctx.actor, g), checkIn: canCheckIn(ctx.actor, g) },
       };
     });
   }
