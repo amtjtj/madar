@@ -9,3 +9,6 @@ packages/db/drizzle/meta
 # Markdown docs are hand-formatted (Persian tables get padded badly)
 *.md
 next-env.d.ts
+
+# The Python AI service is formatted by ruff (its virtualenv and caches are not ours)
+apps/ai/

@@ -151,3 +151,13 @@ export function workdayStarted(
   const hours = hoursOn(calendar, local.date);
   return { date: local.date, started: hours !== null && local.minutes >= toMinutes(hours.start) };
 }
+
+/**
+ * The day `days` calendar days after `from`, moved forward to the next working day when it lands
+ * on a day off or holiday (a suggested due date never falls on a Friday). Gives up after 30 days.
+ */
+export function workingDayAfter(calendar: WorkCalendar, from: string, days: number): string {
+  let day = addDays(from, Math.max(0, days));
+  for (let i = 0; i < 30 && !isWorkingDay(calendar, day); i++) day = addDays(day, 1);
+  return day;
+}

@@ -7,6 +7,7 @@ import {
   nextWorkingStart,
   workdayStarted,
   workingDaysBetween,
+  workingDayAfter,
   zonedInstant,
 } from './work-calendar.js';
 
@@ -69,5 +70,16 @@ describe('work calendar', () => {
       started: true,
     });
     expect(workdayStarted(cal, tehran('2026-10-23', '10:00')).started).toBe(false);
+  });
+});
+
+describe('working day after', () => {
+  it('skips Fridays and holidays, never goes back', () => {
+    const withHoliday = { ...cal, holidays: ['2026-10-24'] };
+    // 2026-10-22 is a Thursday: two days later is Saturday the 24th, a holiday here.
+    expect(workingDayAfter(withHoliday, '2026-10-22', 2)).toBe('2026-10-25');
+    // One day later is a Friday.
+    expect(workingDayAfter(cal, '2026-10-22', 1)).toBe('2026-10-24');
+    expect(workingDayAfter(cal, '2026-10-22', -3)).toBe('2026-10-22');
   });
 });

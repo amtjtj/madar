@@ -73,3 +73,22 @@ describe('week grid helpers', () => {
     ).toBe(false);
   });
 });
+
+describe('assistant contracts', () => {
+  it('trims and bounds a sentence, and caps suggestions', async () => {
+    const { taskBreakdownRequest, taskBreakdownResponse, TASK_BREAKDOWN_MAX } =
+      await import('./contracts/ai.js');
+    const id = '00000000-0000-4000-8000-000000000001';
+    expect(
+      taskBreakdownRequest.parse({ sentence: '  کمپین یلدا  ', departmentId: id }).sentence,
+    ).toBe('کمپین یلدا');
+    expect(taskBreakdownRequest.safeParse({ sentence: 'ab', departmentId: id }).success).toBe(
+      false,
+    );
+    const many = Array.from({ length: TASK_BREAKDOWN_MAX + 1 }, () => ({
+      title: 'x',
+      dueOn: null,
+    }));
+    expect(taskBreakdownResponse.safeParse({ tasks: many }).success).toBe(false);
+  });
+});

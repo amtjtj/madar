@@ -152,12 +152,19 @@ export async function createTenantFixture(handle: DbHandle, label = 't'): Promis
     await tx
       .insert(s.keyResultCheckins)
       .values({ keyResultId: kr.id, value: 3, status: 'on_track', authorId: member.id });
-    await tx.insert(s.weeklyReports).values({
-      scope: 'department',
-      departmentId: department.id,
-      weekStart: '2026-10-10',
-      data: { version: 1 },
-    });
+    const [report] = await tx
+      .insert(s.weeklyReports)
+      .values({
+        scope: 'department',
+        departmentId: department.id,
+        weekStart: '2026-10-10',
+        data: { version: 1 },
+      })
+      .returning();
+    if (!report) throw new Error('weekly report insert failed');
+    await tx
+      .insert(s.reportSummaries)
+      .values({ reportId: report.id, text: 'خلاصه هفته', model: 'fake' });
     await tx.insert(s.attachments).values({
       subjectType: 'task',
       subjectId: task.id,

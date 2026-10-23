@@ -169,6 +169,13 @@
       "when": 1792713215941,
       "tag": "0023_meeting_series",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792760976589,
+      "tag": "0024_report_summaries",
+      "breakpoints": true
     }
   ]
 }

@@ -4,7 +4,17 @@
  * Data plane: tenant_id, forced RLS (drizzle/*_weekly_reports.sql) and composite (tenant_id, x) FKs.
  */
 import { sql } from 'drizzle-orm';
-import { check, date, foreignKey, jsonb, pgEnum, pgTable, unique, uuid } from 'drizzle-orm/pg-core';
+import {
+  check,
+  date,
+  foreignKey,
+  jsonb,
+  pgEnum,
+  pgTable,
+  text,
+  unique,
+  uuid,
+} from 'drizzle-orm/pg-core';
 
 import { createdAt, id, tenantId } from './columns.js';
 import { tenants } from './control.js';
@@ -38,6 +48,31 @@ export const weeklyReports = pgTable(
       name: 'weekly_reports_department_fk',
       columns: [t.tenantId, t.departmentId],
       foreignColumns: [departments.tenantId, departments.id],
+    }).onDelete('cascade'),
+  ],
+);
+
+/**
+ * The assistant's written summary of a weekly report (plan phase-3-step-16a, ADR 0025): made by
+ * the worker from the report's own facts, at most once per report, never changed. Readers are the
+ * report's readers.
+ */
+export const reportSummaries = pgTable(
+  'report_summaries',
+  {
+    id: id(),
+    tenantId: tenantId().references(() => tenants.id, { onDelete: 'cascade' }),
+    reportId: uuid('report_id').notNull(),
+    text: text('text').notNull(),
+    model: text('model').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique('report_summaries_report_key').on(t.tenantId, t.reportId),
+    foreignKey({
+      name: 'report_summaries_report_fk',
+      columns: [t.tenantId, t.reportId],
+      foreignColumns: [weeklyReports.tenantId, weeklyReports.id],
     }).onDelete('cascade'),
   ],
 );
