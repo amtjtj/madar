@@ -8,7 +8,7 @@ const aiEnv = {
   AI_SERVICE_URL: `http://localhost:${aiPort}`,
   AI_SERVICE_TOKEN: 'e2e-ai-token-0123456789',
   // The fake embedding is a bag of words: related texts sit further apart than with bge-m3.
-  AI_ASK_MAX_DISTANCE: '0.95',
+  AI_ASK_MAX_DISTANCE: '0.9',
 };
 const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || undefined;
 

@@ -86,7 +86,7 @@ const envSchema = z.object({
   AI_TIMEOUT_MS: z.coerce.number().int().min(1000).default(90_000),
   /**
    * «از مدار بپرس» (ADR 0026): cosine distance above which a chunk is unrelated to the question.
-   * 0.6 suits bge-m3; the fake embedding (tests, demos) needs about 0.95.
+   * 0.6 suits bge-m3; the fake embedding (tests, demos) needs about 0.9.
    */
   AI_ASK_MAX_DISTANCE: z.coerce.number().gt(0).max(2).default(0.6),
 });

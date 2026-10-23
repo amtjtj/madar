@@ -208,8 +208,9 @@ scripts/deploy/restore.sh backups/daily/madar_2026-10-18_0330.dump
    TAG=$(git rev-parse --short HEAD)
    docker build -f docker/api.Dockerfile -t madar-api:$TAG .
    docker build -f docker/web.Dockerfile -t madar-web:$TAG .
+   docker build -f docker/postgres.Dockerfile -t madar-postgres:18-pgvector0.8.1 .
    docker pull postgres:18-alpine && docker pull redis:8-alpine && docker pull caddy:2-alpine
-   docker save madar-api:$TAG madar-web:$TAG postgres:18-alpine redis:8-alpine caddy:2-alpine | gzip > madar-images.tar.gz
+   docker save madar-api:$TAG madar-web:$TAG madar-postgres:18-pgvector0.8.1 postgres:18-alpine redis:8-alpine caddy:2-alpine | gzip > madar-images.tar.gz
    ```
 2. **روی سرور:** (در `.env`: `BASE_REGISTRY=docker.io/library`)
    ```bash
@@ -260,6 +261,30 @@ scripts/deploy/smoke.sh --restore  # به‌علاوه تمرین کامل با�
 **عوض کردن مدل:** `LLM_MODEL` (نامی که سرور مدل اعلام می‌کند) و `LLM_MODEL_FILE` یا `LLM_MODEL_DIR`. هر سرور سازگار با OpenAI API روی شبکه داخلی کار می‌کند (`LLM_BASE_URL`).
 
 **اگر PyPI در دسترس نیست:** `PIP_INDEX_URL` را در `.env` به mirror داخلی بدهید (ساخت ایمیج `madar-ai`).
+
+### «از مدار بپرس» (ADR 0026)
+
+با `llm-cpu` یا `llm-gpu`، سرویس `embed` هم بالا می‌آید: مدل `bge-m3` روی CPU که متن کارها، نامه‌ها، صورت‌جلسه‌ها و کانال‌ها را برای جست‌وجو آماده می‌کند. فایل آن را یک بار کنار مدل اصلی بگذارید (حدود ۶۰۰ مگ؛ مثلاً `bge-m3-Q8_0.gguf` از مخزن‌های GGUF مدل bge-m3):
+```bash
+scp bge-m3-Q8_0.gguf server:/opt/madar/models/
+```
+و در `.env` (سرورهای قدیمی‌تر این خط‌ها را ندارند):
+```bash
+EMBED_MODEL_FILE=bge-m3-Q8_0.gguf
+EMBED_THREADS=2
+AI_ASK_MAX_DISTANCE=0.6
+```
+- بعد از روشن شدن دستیار، worker هر دقیقه بخشی از داده هر شرکت را آماده می‌کند؛ «سازمان ← دستیار» نشان می‌دهد چقدر مانده است. پیام‌های خصوصی و گروهی، نامه‌های محرمانه و پیش‌نویس‌ها هرگز وارد آن نمی‌شوند.
+- `status.sh` در بخش «Assistant» وضعیت `embeddings` را هم می‌نویسد.
+- اگر پاسخ‌ها بی‌ربط‌اند `AI_ASK_MAX_DISTANCE` را کم کنید (مثلاً ۰٫۵۵)؛ اگر زیاد «پیدا نکردم» می‌آید، کمی زیادش کنید.
+- عوض کردن مدل embedding (`EMBED_MODEL`) کل دانش را از نو می‌سازد؛ مدلی با اندازه برداری غیر از ۱۰۲۴ مایگریشن لازم دارد.
+
+### ارتقای Postgres به ایمیج pgvector (یک بار، با همین نسخه)
+
+از این نسخه، Postgres ایمیج خود مدار است (`madar-postgres:18-pgvector0.8.1`، ساخته‌شده از همان `postgres:18-alpine` به‌اضافه pgvector). `deploy.sh` آن را یک بار می‌سازد و Postgres را با همان داده دوباره بالا می‌آورد؛ dump یا بازسازی ایندکس لازم نیست و قبل از آن هم پشتیبان گرفته می‌شود. ساخت به دانلود کد pgvector از GitHub نیاز دارد؛ اگر در دسترس نیست، آدرس دیگری بدهید یا ایمیج را جای دیگری بسازید و منتقل کنید (بخش ۹):
+```bash
+docker build -f docker/postgres.Dockerfile --build-arg PGVECTOR_URL=<آدرس-آینه>/v0.8.1.tar.gz -t madar-postgres:18-pgvector0.8.1 .
+```
 
 ## ۱۲. چک‌لیست بعد از استقرار
 

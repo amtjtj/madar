@@ -116,7 +116,7 @@ describe.skipIf(!hasDatabase)('knowledge index and «از مدار بپرس»', 
     ({ app, env } = await createTestApp({
       AI_SERVICE_URL: `http://127.0.0.1:${port}`,
       AI_SERVICE_TOKEN: TOKEN,
-      AI_ASK_MAX_DISTANCE: 0.95,
+      AI_ASK_MAX_DISTANCE: 0.9,
     }));
     handle = app.get<DbHandle>(DB_HANDLE);
     job = new KnowledgeIndexJob(handle, app.get(AiClient));

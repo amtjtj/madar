@@ -142,4 +142,5 @@ Notes:
 - If Playwright cannot download its browser, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to a local Chromium.
 - Markdown files are not formatted by Prettier (Persian tables); keep them tidy by hand.
 - The assistant (ADR 0025) is off unless `AI_SERVICE_URL` is set and the company turns it on; `pnpm dev` does not start the AI service. In production it is the compose profile `ai` plus `llm-cpu` or `llm-gpu` (`docs/deploy.md` §11).
+- PostgreSQL needs the pgvector extension (ADR 0026): production and `pnpm db:up` build `madar-postgres:18-pgvector0.8.1` from `docker/postgres.Dockerfile`; a local Postgres needs its pgvector package (Ubuntu: `postgresql-16-pgvector`). With the AI service on, the worker indexes each company every minute (`knowledge-index` queue); `AI_ASK_MAX_DISTANCE=0.9` suits the fake embedding, 0.6 suits bge-m3.
 - Production (ADR 0016): `docker/compose.prod.yml` behind Caddy, images from `docker/*.Dockerfile`. A new environment variable the API reads also goes into the `x-app-env` block there, `.env.example` and `scripts/deploy/init-env.sh`. The demo script for the pilot meeting is `docs/demo-script.md`.

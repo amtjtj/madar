@@ -87,7 +87,7 @@ jobs:
           # The assistant's service in the real stack, with the fake model (no weights in CI).
           sed -i 's|^COMPOSE_PROFILES=demo|COMPOSE_PROFILES=demo,ai|; s|^AI_SERVICE_URL=.*|AI_SERVICE_URL=http://ai:4200|' .env
           echo 'LLM_PROVIDER=fake' >> .env
-          sed -i 's|^AI_ASK_MAX_DISTANCE=.*|AI_ASK_MAX_DISTANCE=0.95|' .env
+          sed -i 's|^AI_ASK_MAX_DISTANCE=.*|AI_ASK_MAX_DISTANCE=0.9|' .env
       - run: scripts/deploy/deploy.sh --no-pull
       - run: scripts/deploy/smoke.sh --restore
       - if: failure()
