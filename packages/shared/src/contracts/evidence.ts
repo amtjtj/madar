@@ -3,12 +3,13 @@ import { z } from 'zod';
 import { attachment } from '../files.js';
 import { CONVERSATION_KINDS } from './chat.js';
 import { letterBody, LETTER_URGENCIES } from './letters.js';
+import { MEETING_TYPES } from '../meetings.js';
 
 /**
  * «شاهد کار» (plan phase-2-step-12b, ADR 0021): a letter (later minutes or a message) pinned to a
  * task. Everyone who sees the task sees that one item read-only, never its thread.
  */
-export const EVIDENCE_KINDS = ['letter', 'message'] as const;
+export const EVIDENCE_KINDS = ['letter', 'message', 'minutes'] as const;
 export type EvidenceKind = (typeof EVIDENCE_KINDS)[number];
 
 const personRef = z.object({ id: z.uuid(), displayName: z.string() });
@@ -40,6 +41,18 @@ export const messageEvidenceSummary = z.object({
 });
 export type MessageEvidenceSummary = z.infer<typeof messageEvidenceSummary>;
 
+/**
+ * The card for pinned minutes (plan phase-2-step-13b; the subject is the meeting id): the meeting's
+ * title, type and date, never its people or decisions.
+ */
+export const minutesEvidenceSummary = z.object({
+  meeting: z.object({ title: z.string(), type: z.enum(MEETING_TYPES) }),
+  date: z.iso.datetime(),
+  excerpt: z.string(),
+  attachmentCount: z.number().int(),
+});
+export type MinutesEvidenceSummary = z.infer<typeof minutesEvidenceSummary>;
+
 export const evidence = z.object({
   id: z.uuid(),
   taskId: z.uuid(),
@@ -51,6 +64,8 @@ export const evidence = z.object({
   summary: evidenceSummary.nullable(),
   /** A message's card; null for other kinds or when the message was deleted. */
   message: messageEvidenceSummary.nullable(),
+  /** Minutes' card; null for other kinds or when the minutes are no longer available. */
+  minutes: minutesEvidenceSummary.nullable(),
   can: z.object({ unpin: z.boolean() }),
 });
 export type Evidence = z.infer<typeof evidence>;
@@ -63,6 +78,8 @@ export const evidenceDetail = evidence.extend({
   attachments: z.array(attachment),
   /** A message's full text, mentions as names (null for a letter). */
   messageText: z.string().nullable(),
+  /** The minutes' lite text (null for other kinds). */
+  minutesText: z.string().nullable(),
 });
 export type EvidenceDetail = z.infer<typeof evidenceDetail>;
 

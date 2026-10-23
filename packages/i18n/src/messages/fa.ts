@@ -745,8 +745,15 @@ export const fa = {
       'هر کسی که این کار را می‌بیند، متن و پیوست‌های همین نامه را (نه بقیه رشته را) فقط‌خواندنی می‌بیند:',
     audienceIntroMessage:
       'هر کسی که این کار را می‌بیند، متن و فایل‌های همین یک پیام را (نه بقیه گفت‌وگو را) فقط‌خواندنی می‌بیند:',
+    audienceIntroMinutes:
+      'هر کسی که این کار را می‌بیند، متن و فایل‌های همین صورت‌جلسه را (نه شرکت‌کنندگان و مصوبه‌ها را) فقط‌خواندنی می‌بیند:',
+    minutesFrom: 'صورت‌جلسه «{title}»، {date}',
+    minutesViewerNote:
+      'این صورت‌جلسه به‌عنوان شاهد این کار نمایش داده می‌شود؛ بقیه جلسه دیده نمی‌شود.',
     messageFrom: 'پیام {name} در {place}',
     pinMessageTitle: 'سنجاق این پیام به یک کار',
+    pinMinutesTitle: 'سنجاق این صورت‌جلسه به یک کار',
+    minutesPinned: 'صورت‌جلسه به‌عنوان شاهد سنجاق شد',
     messagePinned: 'پیام به‌عنوان شاهد سنجاق شد',
     messageViewerNote:
       'این پیام به‌عنوان شاهد این کار نمایش داده می‌شود؛ بقیه گفت‌وگو دیده نمی‌شود.',
@@ -1045,6 +1052,9 @@ export const fa = {
       meeting_changed: '{actor} زمان یا مکان جلسه «{title}» را تغییر داد ({date} ساعت {time})',
       meeting_canceled: '{actor} جلسه «{title}» را لغو کرد',
       meeting_minutes: '{actor} صورت‌جلسه «{title}» را ثبت کرد',
+      meeting_reminder: 'جلسه «{title}» تا ۱۰ دقیقه دیگر شروع می‌شود (ساعت {time})',
+      task_evidence_pinned_minutes: '{actor} برای «{title}» یک صورت‌جلسه به‌عنوان شاهد سنجاق کرد',
+      meeting_invited_series: '{actor} تو را به جلسه هفتگی «{title}» دعوت کرد',
       key_result_checkin_due: 'وقت ثبت پیشرفت هفتگی «{title}» است',
       weekly_report_ready: 'گزارش هفته {date} «{title}» آماده است',
     },
@@ -1070,6 +1080,7 @@ export const fa = {
       meeting_changed: 'زمان یا مکان جلسه‌ام تغییر کرد',
       meeting_canceled: 'جلسه‌ای که در آن بودم لغو شد',
       meeting_minutes: 'صورت‌جلسه جلسه‌ای که در آن بودم ثبت شد',
+      meeting_reminder: 'یادآوری ۱۰ دقیقه قبل از جلسه',
       key_result_checkin_due: 'یادآوری هفتگی ثبت پیشرفت اهدافم',
       weekly_report_ready: 'گزارش هفتگی آماده شد (صبح شنبه)',
     },
@@ -1135,6 +1146,7 @@ export const fa = {
         meeting_changed: 'زمان یا مکان یکی از جلسه‌هایت تغییر کرد',
         meeting_canceled: 'یکی از جلسه‌هایت لغو شد',
         meeting_minutes: 'صورت‌جلسه یکی از جلسه‌هایت ثبت شد',
+        meeting_reminder: 'یکی از جلسه‌هایت تا ۱۰ دقیقه دیگر شروع می‌شود',
         key_result_checkin_due: 'وقت ثبت پیشرفت هفتگی یکی از اهدافت است',
         weekly_report_ready: 'گزارش هفته گذشته آماده است',
       },

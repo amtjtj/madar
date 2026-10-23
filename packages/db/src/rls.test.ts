@@ -60,6 +60,8 @@ const DATA_PLANE = [
   'meeting_participants',
   'meeting_minutes',
   'meeting_decisions',
+  'meeting_series',
+  'meeting_series_participants',
   'goal_periods',
   'goals',
   'key_results',
@@ -93,6 +95,7 @@ const NO_DELETE = [
   'messages',
   'meetings',
   'meeting_minutes',
+  'meeting_series',
 ];
 
 describe.skipIf(!hasDatabase)('tenant isolation (RLS)', () => {
@@ -418,6 +421,48 @@ describe.skipIf(!hasDatabase)('tenant isolation (RLS)', () => {
       const without = await tx.execute(sql`delete from meeting_decisions where task_id is null`);
       expect(without.rowCount).toBe(1);
     });
+  });
+
+  it("a weekly series never takes another company's people and meets once a day at most", async () => {
+    await withTenant(app.db, { tenantId: a.tenantId }, async (tx) => {
+      const [series] = await tx.select().from(s.meetingSeries).limit(1);
+      const seriesId = series?.id ?? '';
+      await expect(
+        tx.transaction((inner) =>
+          inner.insert(s.meetingSeriesParticipants).values({ seriesId, memberId: b.memberId }),
+        ),
+      ).rejects.toThrow();
+      // The same series twice on one day.
+      await expect(
+        tx.transaction((inner) =>
+          inner.insert(s.meetings).values({
+            type: 'regular',
+            title: 'x',
+            startsAt: new Date('2026-10-24T05:30:00Z'),
+            endsAt: new Date('2026-10-24T06:00:00Z'),
+            organizerId: a.memberId,
+            departmentId: series?.departmentId ?? '',
+            seriesId,
+            occursOn: '2026-10-24',
+          }),
+        ),
+      ).rejects.toThrow();
+      await expect(
+        tx.transaction((inner) =>
+          inner.execute(sql`update meeting_series set end_time = start_time`),
+        ),
+      ).rejects.toThrow();
+    });
+    const [theirs] = await withTenant(app.db, { tenantId: b.tenantId }, (tx) =>
+      tx.select({ id: s.meetingSeries.id }).from(s.meetingSeries).limit(1),
+    );
+    await expect(
+      withTenant(app.db, { tenantId: a.tenantId }, (tx) =>
+        tx.execute(
+          sql`update meetings set series_id = ${theirs?.id ?? ''} where series_id is not null`,
+        ),
+      ),
+    ).rejects.toThrow();
   });
 
   it('transaction-local settings do not leak to the next query on the same connection', async () => {

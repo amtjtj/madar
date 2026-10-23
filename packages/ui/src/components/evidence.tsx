@@ -222,7 +222,7 @@ export function AudienceNote({
 }: {
   audience: EvidenceAudience;
   /** What is being pinned (the intro names it). */
-  kind?: 'letter' | 'message';
+  kind?: 'letter' | 'message' | 'minutes';
   className?: string;
 }) {
   return (
@@ -237,7 +237,15 @@ export function AudienceNote({
         <Eye aria-hidden />
         {t('evidence.audienceTitle')}
       </p>
-      <p>{t(kind === 'message' ? 'evidence.audienceIntroMessage' : 'evidence.audienceIntro')}</p>
+      <p>
+        {t(
+          kind === 'message'
+            ? 'evidence.audienceIntroMessage'
+            : kind === 'minutes'
+              ? 'evidence.audienceIntroMinutes'
+              : 'evidence.audienceIntro',
+        )}
+      </p>
       <ul className="flex flex-col gap-1 ps-5 marker:text-info-ink [list-style:disc]">
         {audience.people.map((p) => (
           <li key={p.id}>

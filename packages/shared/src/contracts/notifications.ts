@@ -30,6 +30,7 @@ export const NOTIFICATION_KINDS = [
   'meeting_changed',
   'meeting_canceled',
   'meeting_minutes',
+  'meeting_reminder',
   'key_result_checkin_due',
   'weekly_report_ready',
 ] as const;

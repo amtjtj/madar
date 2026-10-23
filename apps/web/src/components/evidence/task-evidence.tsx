@@ -322,7 +322,7 @@ export function ConfirmPin({
 }: {
   taskId: string;
   subject: string;
-  kind?: 'letter' | 'message';
+  kind?: 'letter' | 'message' | 'minutes';
   busy: boolean;
   onBack: () => void;
   onPin: () => void;

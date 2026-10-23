@@ -5,13 +5,16 @@
  */
 import { sql } from 'drizzle-orm';
 import {
+  boolean,
   check,
+  date,
   foreignKey,
   index,
   integer,
   pgEnum,
   pgTable,
   primaryKey,
+  smallint,
   text,
   timestamp,
   unique,
@@ -25,6 +28,77 @@ import { departments, members } from './org.js';
 import { tasks } from './work.js';
 
 export const meetingType = pgEnum('meeting_type', ['regular', 'okr_review', 'one_on_one']);
+export const meetingResponse = pgEnum('meeting_response', ['pending', 'accepted', 'declined']);
+
+/**
+ * A weekly meeting (step 13b): the rule and the defaults its meetings are made from, up to
+ * eight weeks ahead. Times are the company's wall clock; canceling is soft.
+ */
+export const meetingSeries = pgTable(
+  'meeting_series',
+  {
+    id: id(),
+    tenantId: tenantId().references(() => tenants.id, { onDelete: 'cascade' }),
+    type: meetingType('type').notNull(),
+    title: text('title').notNull(),
+    /** 0 = Saturday … 6 = Friday. */
+    weekday: smallint('weekday').notNull(),
+    startTime: text('start_time').notNull(),
+    endTime: text('end_time').notNull(),
+    startsOn: date('starts_on', { mode: 'string' }).notNull(),
+    untilOn: date('until_on', { mode: 'string' }),
+    location: text('location'),
+    link: text('link'),
+    agenda: text('agenda').notNull().default(''),
+    organizerId: uuid('organizer_id').notNull(),
+    departmentId: uuid('department_id').notNull(),
+    /** The last day meetings were made up to. */
+    generatedUntil: date('generated_until', { mode: 'string' }).notNull(),
+    canceledAt: timestamp('canceled_at', { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    unique('meeting_series_tenant_id_id_key').on(t.tenantId, t.id),
+    check('meeting_series_weekday', sql`${t.weekday} between 0 and 6`),
+    check('meeting_series_times', sql`${t.endTime} > ${t.startTime}`),
+    check('meeting_series_until', sql`${t.untilOn} is null or ${t.untilOn} >= ${t.startsOn}`),
+    foreignKey({
+      name: 'meeting_series_organizer_fk',
+      columns: [t.tenantId, t.organizerId],
+      foreignColumns: [members.tenantId, members.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'meeting_series_department_fk',
+      columns: [t.tenantId, t.departmentId],
+      foreignColumns: [departments.tenantId, departments.id],
+    }).onDelete('restrict'),
+  ],
+);
+
+/** The people of a series, the organizer included; copied to each meeting made from it. */
+export const meetingSeriesParticipants = pgTable(
+  'meeting_series_participants',
+  {
+    tenantId: tenantId().references(() => tenants.id, { onDelete: 'cascade' }),
+    seriesId: uuid('series_id').notNull(),
+    memberId: uuid('member_id').notNull(),
+    addedAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.seriesId, t.memberId] }),
+    foreignKey({
+      name: 'meeting_series_participants_series_fk',
+      columns: [t.tenantId, t.seriesId],
+      foreignColumns: [meetingSeries.tenantId, meetingSeries.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'meeting_series_participants_member_fk',
+      columns: [t.tenantId, t.memberId],
+      foreignColumns: [members.tenantId, members.id],
+    }).onDelete('restrict'),
+  ],
+);
 
 export const meetings = pgTable(
   'meetings',
@@ -43,11 +117,23 @@ export const meetings = pgTable(
     /** The organizer's primary department when it was made (oversight, decision tasks). */
     departmentId: uuid('department_id').notNull(),
     canceledAt: timestamp('canceled_at', { withTimezone: true }),
+    /** A meeting of a weekly series, on that calendar day (step 13b). */
+    seriesId: uuid('series_id'),
+    occursOn: date('occurs_on', { mode: 'string' }),
+    /** Edited on its own: later changes to the series leave it alone. */
+    detached: boolean('detached').notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
     unique('meetings_tenant_id_id_key').on(t.tenantId, t.id),
+    unique('meetings_series_day_key').on(t.tenantId, t.seriesId, t.occursOn),
+    check('meetings_series_day', sql`(${t.seriesId} is null) = (${t.occursOn} is null)`),
+    foreignKey({
+      name: 'meetings_series_fk',
+      columns: [t.tenantId, t.seriesId],
+      foreignColumns: [meetingSeries.tenantId, meetingSeries.id],
+    }).onDelete('restrict'),
     index('meetings_tenant_starts_idx').on(t.tenantId, t.startsAt),
     check('meetings_ends_after_start', sql`${t.endsAt} > ${t.startsAt}`),
     foreignKey({
@@ -71,6 +157,8 @@ export const meetingParticipants = pgTable(
     meetingId: uuid('meeting_id').notNull(),
     memberId: uuid('member_id').notNull(),
     addedAt: createdAt(),
+    response: meetingResponse('response').notNull().default('pending'),
+    respondedAt: timestamp('responded_at', { withTimezone: true }),
   },
   (t) => [
     primaryKey({ columns: [t.tenantId, t.meetingId, t.memberId] }),

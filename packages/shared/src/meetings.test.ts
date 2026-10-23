@@ -4,6 +4,7 @@ import { zonedInstant } from './locale/work-calendar.js';
 import {
   meetingTimeError,
   safeMeetingLink,
+  seriesDates,
   taskTitleFromDecision,
   upcomingGroup,
 } from './meetings.js';
@@ -61,5 +62,28 @@ describe('taskTitleFromDecision', () => {
   });
   it('cuts long text', () => {
     expect(taskTitleFromDecision('ا'.repeat(300))).toHaveLength(200);
+  });
+});
+
+describe('seriesDates', () => {
+  // 2026-10-24 is a Saturday (weekday 0).
+  const series = { startsOn: '2026-10-22', weekday: 0, untilOn: null };
+  it('meets every week on its weekday', () => {
+    expect(seriesDates(series, '2026-10-22', '2026-11-14')).toEqual([
+      '2026-10-24',
+      '2026-10-31',
+      '2026-11-07',
+      '2026-11-14',
+    ]);
+  });
+  it('skips holidays and stops at its last day', () => {
+    expect(
+      seriesDates({ ...series, untilOn: '2026-11-10' }, '2026-10-22', '2026-12-31', ['2026-10-31']),
+    ).toEqual(['2026-10-24', '2026-11-07']);
+  });
+  it('never starts before its first day', () => {
+    expect(seriesDates({ ...series, startsOn: '2026-11-01' }, '2026-10-01', '2026-11-08')).toEqual([
+      '2026-11-07',
+    ]);
   });
 });

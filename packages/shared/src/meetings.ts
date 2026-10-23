@@ -6,6 +6,7 @@ import {
   calendarDateIn,
   DEFAULT_TIME_ZONE,
   persianWeekdayIndex,
+  persianWeekdayOfCalendarDate,
 } from './locale/jalali.js';
 
 export const MEETING_TYPES = ['regular', 'okr_review', 'one_on_one'] as const;
@@ -59,4 +60,45 @@ export function upcomingGroup(
 export function taskTitleFromDecision(text: string): string {
   const line = text.trim().split('\n')[0]?.trim() ?? '';
   return line.length > 200 ? `${line.slice(0, 199)}…` : line;
+}
+
+/** Attendance replies (plan phase-2-step-13b); the organizer is always «accepted». */
+export const MEETING_RESPONSES = ['pending', 'accepted', 'declined'] as const;
+export type MeetingResponse = (typeof MEETING_RESPONSES)[number];
+
+/** Weekly meetings are made this many weeks ahead (at creation and every night). */
+export const SERIES_HORIZON_WEEKS = 8;
+/** «جلسه تا ۱۰ دقیقه دیگر». */
+export const MEETING_REMINDER_MINUTES = 10;
+
+/**
+ * The days a weekly series meets between `from` and `to` (inclusive, YYYY-MM-DD): its weekday
+ * (0 = Saturday), from its first day, up to its last day, skipping the company's holidays.
+ */
+export function seriesDates(
+  series: { startsOn: string; weekday: number; untilOn: string | null },
+  from: string,
+  to: string,
+  holidays: readonly string[] = [],
+): string[] {
+  let day = from > series.startsOn ? from : series.startsOn;
+  const last = series.untilOn && series.untilOn < to ? series.untilOn : to;
+  const shift = (series.weekday - persianWeekdayOfCalendarDate(day) + 7) % 7;
+  day = addDays(day, shift);
+  const off = new Set(holidays);
+  const dates: string[] = [];
+  for (; day <= last; day = addDays(day, 7)) {
+    if (!off.has(day)) dates.push(day);
+  }
+  return dates;
+}
+
+/** HH:MM (Latin digits) of an instant in `timeZone`. */
+export function wallClockIn(date: Date, timeZone = DEFAULT_TIME_ZONE): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(date);
 }

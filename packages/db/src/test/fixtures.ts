@@ -203,6 +203,30 @@ export async function createTenantFixture(handle: DbHandle, label = 't'): Promis
     await tx
       .insert(s.taskEvidence)
       .values({ taskId: task.id, kind: 'letter', subjectId: letterId, pinnedBy: member.id });
+    const seriesId = uuidv7();
+    await tx.insert(s.meetingSeries).values({
+      id: seriesId,
+      type: 'regular',
+      title: 'هماهنگی هفتگی',
+      weekday: 0,
+      startTime: '09:00',
+      endTime: '09:30',
+      startsOn: '2026-10-24',
+      organizerId: member.id,
+      departmentId: department.id,
+      generatedUntil: '2026-10-24',
+    });
+    await tx.insert(s.meetingSeriesParticipants).values({ seriesId, memberId: member.id });
+    await tx.insert(s.meetings).values({
+      type: 'regular',
+      title: 'هماهنگی هفتگی',
+      startsAt: new Date('2026-10-24T05:30:00Z'),
+      endsAt: new Date('2026-10-24T06:00:00Z'),
+      organizerId: member.id,
+      departmentId: department.id,
+      seriesId,
+      occursOn: '2026-10-24',
+    });
     const meetingId = uuidv7();
     await tx.insert(s.meetings).values({
       id: meetingId,

@@ -31,7 +31,7 @@ export function PinToTask({ letter }: { letter: Letter }) {
   );
 }
 
-/** Picking a task to pin a letter or a message to (plan phase-2-step-15c). */
+/** Picking a task to pin a letter, a message (plan 15c) or minutes (plan 13b) to. */
 export function PinToTaskDialog({
   kind,
   subjectId,
@@ -72,7 +72,13 @@ export function PinToTaskDialog({
     <Modal
       open={open}
       onOpenChange={(next) => (next ? setOpen(true) : close())}
-      title={t(kind === 'message' ? 'evidence.pinMessageTitle' : 'evidence.pinToTaskTitle')}
+      title={t(
+        kind === 'message'
+          ? 'evidence.pinMessageTitle'
+          : kind === 'minutes'
+            ? 'evidence.pinMinutesTitle'
+            : 'evidence.pinToTaskTitle',
+      )}
       trigger={trigger}
     >
       {chosen ? (
@@ -89,7 +95,13 @@ export function PinToTaskDialog({
                 onSuccess: () => {
                   toast({
                     tone: 'success',
-                    title: t(kind === 'message' ? 'evidence.messagePinned' : 'evidence.pinned'),
+                    title: t(
+                      kind === 'message'
+                        ? 'evidence.messagePinned'
+                        : kind === 'minutes'
+                          ? 'evidence.minutesPinned'
+                          : 'evidence.pinned',
+                    ),
                   });
                   onPinned?.();
                   close();

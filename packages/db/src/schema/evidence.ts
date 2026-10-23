@@ -19,7 +19,7 @@ import { tenants } from './control.js';
 import { members } from './org.js';
 import { tasks } from './work.js';
 
-export const evidenceKind = pgEnum('evidence_kind', ['letter', 'message']);
+export const evidenceKind = pgEnum('evidence_kind', ['letter', 'message', 'minutes']);
 
 export const taskEvidence = pgTable(
   'task_evidence',
