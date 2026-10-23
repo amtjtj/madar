@@ -12,6 +12,7 @@ import {
   EvidenceCard,
   LetterNumber,
   MessageEvidenceCard,
+  MinutesEvidenceCard,
   LiteText,
   Modal,
   Skeleton,
@@ -65,7 +66,18 @@ export function TaskEvidence({ taskId, canPin }: { taskId: string; canPin: boole
         <ul className="flex flex-col gap-2">
           {items.map((e) => (
             <li key={e.id}>
-              {e.kind === 'message' ? (
+              {e.kind === 'minutes' ? (
+                <MinutesEvidenceCard
+                  minutes={e.minutes}
+                  date={e.minutes ? letterDate(e.minutes.date, timeZone) : undefined}
+                  meta={t('evidence.pinnedBy', {
+                    name: e.pinnedBy.displayName,
+                    time: formatRelativeTime(new Date(e.pinnedAt)),
+                  })}
+                  onOpen={e.minutes ? () => setViewing(e.id) : undefined}
+                  onUnpin={e.can.unpin ? () => setRemoving(e) : undefined}
+                />
+              ) : e.kind === 'message' ? (
                 <MessageEvidenceCard
                   message={e.message}
                   date={e.message ? letterDate(e.message.date, timeZone) : undefined}
@@ -137,20 +149,36 @@ function EvidenceViewer({
   const { data: me } = useMe();
   const summary = data?.summary;
   const message = data?.message;
+  const minutes = data?.minutes;
   const place = message ? (message.conversation.title ?? t('ui.chat.directPlace')) : '';
+  const minutesDate = minutes ? letterDate(minutes.date, me?.tenant?.timezone) : '';
   return (
     <Modal
       open={id !== null}
       onOpenChange={(open) => !open && onClose()}
       title={
-        message
-          ? t('evidence.messageFrom', { name: message.author.displayName, place })
-          : (summary?.subject ?? t('evidence.title'))
+        minutes
+          ? t('evidence.minutesFrom', { title: minutes.meeting.title, date: minutesDate })
+          : message
+            ? t('evidence.messageFrom', { name: message.author.displayName, place })
+            : (summary?.subject ?? t('evidence.title'))
       }
       className="sm:max-w-2xl"
     >
       {isPending ? (
         <Skeleton className="h-48 rounded-xl" />
+      ) : data && minutes ? (
+        <div className="flex flex-col gap-4">
+          <p className="rounded-lg bg-info-soft px-3 py-2 text-xs text-info-ink">
+            {t('evidence.minutesViewerNote')}
+          </p>
+          {data.minutesText?.trim() && <LiteText text={data.minutesText} />}
+          {data.attachments.length > 0 && (
+            <section aria-label={t('letters.attachments')} className="border-t border-line pt-3">
+              <AttachmentList attachments={data.attachments} />
+            </section>
+          )}
+        </div>
       ) : data && message ? (
         <div className="flex flex-col gap-4">
           <p className="rounded-lg bg-info-soft px-3 py-2 text-xs text-info-ink">

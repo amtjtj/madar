@@ -5,9 +5,13 @@ import {
   formatJalaliDate,
   formatTime,
   meetingTimeError,
+  PERSIAN_WEEKDAYS,
+  toPersianDigits,
   safeMeetingLink,
   upcomingGroup,
   zonedInstant,
+  type Meeting,
+  type MeetingResponse,
   type MeetingSummary,
   type UpcomingGroup,
 } from '@madar/shared';
@@ -86,4 +90,35 @@ export function defaultSlot(timeZone?: string, now = new Date()): Omit<MeetingFo
   if (hour > 22) return { date: addDays(today, 1), start: '09:00', end: '10:00' };
   const pad = (n: number) => String(n).padStart(2, '0');
   return { date: today, start: `${pad(hour)}:00`, end: `${pad(hour + 1)}:00` };
+}
+
+/** The meeting as it looks after `memberId` replies (for the optimistic update). */
+export function withResponse(
+  meeting: Meeting,
+  memberId: string | undefined,
+  response: MeetingResponse,
+): Meeting {
+  const participants = meeting.participants.map((p) =>
+    p.id === memberId ? { ...p, response } : p,
+  );
+  const count = (r: MeetingResponse) => participants.filter((p) => p.response === r).length;
+  return {
+    ...meeting,
+    myResponse: response,
+    participants,
+    responses: {
+      accepted: count('accepted'),
+      declined: count('declined'),
+      pending: count('pending'),
+    },
+  };
+}
+
+/** «هر هفته، شنبه‌ها، ساعت ۹:۰۰ تا ۹:۳۰». */
+export function seriesText(series: NonNullable<Meeting['series']>): string {
+  return t('meetings.weeklyOn', {
+    weekday: PERSIAN_WEEKDAYS[series.weekday] ?? '',
+    start: toPersianDigits(series.startTime),
+    end: toPersianDigits(series.endTime),
+  });
 }

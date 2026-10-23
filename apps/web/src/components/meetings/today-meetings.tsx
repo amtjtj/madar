@@ -43,6 +43,8 @@ export function TodayMeetings() {
                 hasMinutes={m.hasMinutes}
                 canceled={false}
                 live={isLive(m)}
+                weekly={m.seriesId !== null}
+                declined={m.myResponse === 'declined'}
               />
             </li>
           ))}

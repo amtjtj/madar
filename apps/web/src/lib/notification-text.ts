@@ -1,4 +1,4 @@
-import { t } from '@madar/i18n';
+import { t, type MessageKey } from '@madar/i18n';
 import {
   formatCalendarDate,
   formatJalaliDate,
@@ -34,9 +34,21 @@ export function notificationText(n: Notification, timeZone?: string): string {
   if ((n.kind === 'letter_received' || n.kind === 'letter_referred') && n.data.confidential) {
     return t(`notifications.kinds.${n.kind}_confidential`, { actor });
   }
+  if (n.kind === 'task_evidence_pinned' && n.data.minutes) {
+    return t('notifications.kinds.task_evidence_pinned_minutes', { actor, title: n.title });
+  }
   if (typeof n.data.startsAt === 'string') {
     const startsAt = new Date(n.data.startsAt);
-    return t(`notifications.kinds.${n.kind}`, {
+    // A whole weekly series: one sentence for all its meetings.
+    const series =
+      n.data.series &&
+      (n.kind === 'meeting_invited' ||
+        n.kind === 'meeting_changed' ||
+        n.kind === 'meeting_canceled');
+    const key = (
+      series ? `notifications.kinds.${n.kind}_series` : `notifications.kinds.${n.kind}`
+    ) as MessageKey;
+    return t(key, {
       actor,
       title: n.title,
       date: formatJalaliDate(startsAt, 'full', timeZone),

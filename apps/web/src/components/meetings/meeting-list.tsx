@@ -74,6 +74,8 @@ export function MeetingList() {
                     hasMinutes={m.hasMinutes}
                     canceled={m.canceledAt !== null}
                     live={isLive(m)}
+                    weekly={m.seriesId !== null}
+                    declined={m.myResponse === 'declined'}
                   />
                 </li>
               ))}

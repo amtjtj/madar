@@ -36,6 +36,7 @@ const kindIcon: Partial<Record<Notification['kind'], typeof AlarmClock>> = {
   meeting_changed: CalendarClock,
   meeting_canceled: CalendarX,
   meeting_minutes: FileText,
+  meeting_reminder: AlarmClock,
 };
 
 /** Notification rows: tap marks it read and opens the task or project. */

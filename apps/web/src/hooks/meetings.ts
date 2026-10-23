@@ -8,12 +8,15 @@ import type {
   MeetingList,
   MeetingRange,
   MeetingSummary,
+  MinutesTasks,
   SaveMinutesRequest,
   Task,
   UpdateMeetingRequest,
+  UpdateSeriesRequest,
 } from '@madar/shared';
 
 import { api } from '@/lib/api';
+import { withResponse } from '@/lib/meetings';
 
 import { meetingKeys, workKeys } from './keys';
 
@@ -108,5 +111,51 @@ export function useDeleteMinutesFile(id: string) {
     mutationFn: (fileId: string) =>
       api<undefined>(`/api/attachments/${fileId}`, { method: 'DELETE' }),
     onSettled: () => client.invalidateQueries({ queryKey: meetingKeys.meeting(id) }),
+  });
+}
+
+/** «می‌آیم» / «نمی‌آیم», shown at once and rolled back if refused. */
+export function useRespond(id: string, memberId: string | undefined) {
+  const client = useQueryClient();
+  const key = meetingKeys.meeting(id);
+  return useMutation({
+    mutationFn: (response: 'accepted' | 'declined') =>
+      api<Meeting>(`/api/meetings/${id}/response`, { method: 'PUT', body: { response } }),
+    onMutate: (response) => {
+      const before = client.getQueryData<Meeting>(key);
+      if (before) client.setQueryData(key, withResponse(before, memberId, response));
+      return { before };
+    },
+    onError: (_error, _response, context) => client.setQueryData(key, context?.before),
+    onSuccess: (meeting) => client.setQueryData(key, meeting),
+    onSettled: () => client.invalidateQueries({ queryKey: meetingKeys.all }),
+  });
+}
+
+/** «این و جلسه‌های بعدی»: answers with the next meeting of the series (null when none is left). */
+export function useUpdateSeries() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ seriesId, body }: { seriesId: string; body: UpdateSeriesRequest }) =>
+      api<Meeting | null>(`/api/meeting-series/${seriesId}`, { method: 'PATCH', body }),
+    onSettled: () => client.invalidateQueries({ queryKey: meetingKeys.all }),
+  });
+}
+
+export function useCancelSeries() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (seriesId: string) =>
+      api<undefined>(`/api/meeting-series/${seriesId}/cancel`, { method: 'POST' }),
+    onSettled: () => client.invalidateQueries({ queryKey: meetingKeys.all }),
+  });
+}
+
+/** The tasks a meeting's minutes are pinned to (loaded when the list opens). */
+export function useMinutesTasks(id: string, enabled: boolean) {
+  return useQuery({
+    queryKey: [...meetingKeys.meeting(id), 'pin-tasks'],
+    enabled,
+    queryFn: () => api<MinutesTasks>(`/api/meetings/${id}/pin-tasks`),
   });
 }

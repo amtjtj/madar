@@ -3,12 +3,16 @@
 import {
   ArrowRight,
   Ban,
+  CalendarX,
+  CheckSquare,
   ExternalLink,
   FileText,
   MapPin,
   MoreVertical,
   Pencil,
   Plus,
+  Repeat,
+  Stamp,
   Trash2,
   X,
 } from 'lucide-react';
@@ -43,6 +47,7 @@ import {
   MeetingTypeBadge,
   Modal,
   RecipientChip,
+  RsvpButtons,
   SelectField,
   Skeleton,
   TextAreaField,
@@ -50,6 +55,7 @@ import {
   useToast,
 } from '@madar/ui';
 
+import { PinToTaskDialog } from '@/components/evidence/pin-to-task';
 import { NextLink } from '@/components/next-link';
 import { RecipientPicker, type Person } from '@/components/letters/recipient-picker';
 import { AttachmentList, FilePicker, PendingList } from '@/components/work/attachments';
@@ -58,16 +64,19 @@ import { useKeyResultOptions } from '@/hooks/goals';
 import {
   useAddDecision,
   useCancelMeeting,
+  useCancelSeries,
   useConvertDecision,
   useDeleteMinutesFile,
   useMeeting,
+  useMinutesTasks,
   useRemoveDecision,
+  useRespond,
   useSaveMinutes,
 } from '@/hooks/meetings';
 import { useMe } from '@/hooks/use-me';
 import { ApiClientError } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
-import { isLive, meetingTime } from '@/lib/meetings';
+import { isLive, meetingTime, seriesText } from '@/lib/meetings';
 
 import { LiteField } from './lite-field';
 
@@ -80,6 +89,9 @@ export function MeetingView({ id }: { id: string }) {
   const cancel = useCancelMeeting();
   const { toast } = useToast();
   const [canceling, setCanceling] = useState(false);
+  const [cancelingSeries, setCancelingSeries] = useState(false);
+  const cancelSeries = useCancelSeries();
+  const respond = useRespond(id, me?.member?.id);
 
   const back = (
     <Link
@@ -140,6 +152,14 @@ export function MeetingView({ id }: { id: string }) {
                 </Badge>
               )}
             </div>
+            {meeting.series && (
+              <p className="flex items-center gap-1.5 text-sm text-ink-muted [&_svg]:size-4">
+                <Repeat aria-hidden />
+                {meeting.series.canceled
+                  ? t('meetings.seriesCanceled')
+                  : seriesText(meeting.series)}
+              </p>
+            )}
           </div>
           {meeting.can.edit && (
             <Menu
@@ -160,11 +180,22 @@ export function MeetingView({ id }: { id: string }) {
                 },
                 {
                   key: 'cancel',
-                  label: t('meetings.cancel'),
+                  label: meeting.series ? t('meetings.cancelOne') : t('meetings.cancel'),
                   icon: <Ban aria-hidden />,
                   tone: 'danger',
                   onSelect: () => setCanceling(true),
                 },
+                ...(meeting.series && !meeting.series.canceled
+                  ? [
+                      {
+                        key: 'cancel-series',
+                        label: t('meetings.cancelSeries'),
+                        icon: <CalendarX aria-hidden />,
+                        tone: 'danger' as const,
+                        onSelect: () => setCancelingSeries(true),
+                      },
+                    ]
+                  : []),
               ]}
             />
           )}
@@ -194,10 +225,38 @@ export function MeetingView({ id }: { id: string }) {
               </span>
               <div className="flex flex-wrap gap-1.5">
                 {meeting.participants.map((p) => (
-                  <RecipientChip key={p.id} name={p.displayName} />
+                  <RecipientChip
+                    key={p.id}
+                    name={p.displayName}
+                    note={t(`meetings.response.${p.response}`)}
+                  />
                 ))}
               </div>
+              {meeting.participants.length > 1 && (
+                <p className="text-xs text-ink-subtle">
+                  {t('meetings.response.summary', {
+                    accepted: formatNumber(meeting.responses.accepted),
+                    declined: formatNumber(meeting.responses.declined),
+                    pending: formatNumber(meeting.responses.pending),
+                  })}
+                </p>
+              )}
             </div>
+            {meeting.can.respond && (
+              <div className="flex flex-col gap-1.5 border-t border-line pt-3">
+                <span className="font-semibold text-ink">{t('meetings.response.label')}</span>
+                <RsvpButtons
+                  value={meeting.myResponse ?? 'pending'}
+                  onChange={(response) =>
+                    respond.mutate(response, {
+                      onSuccess: () =>
+                        toast({ tone: 'success', title: t('meetings.response.saved') }),
+                      onError: (e) => toast({ tone: 'error', title: errorMessage(e) }),
+                    })
+                  }
+                />
+              </div>
+            )}
             {meeting.location && (
               <p className="flex items-center gap-1.5 text-ink [&_svg]:size-4 [&_svg]:text-ink-subtle">
                 <MapPin aria-hidden />
@@ -264,6 +323,97 @@ export function MeetingView({ id }: { id: string }) {
           </>
         }
       />
+      <Modal
+        open={cancelingSeries}
+        onOpenChange={setCancelingSeries}
+        title={t('meetings.cancelSeriesTitle')}
+        description={t('meetings.cancelSeriesBody')}
+        footer={
+          <>
+            <Button
+              variant="danger"
+              loading={cancelSeries.isPending}
+              onClick={() =>
+                cancelSeries.mutate(meeting.series?.id ?? '', {
+                  onSuccess: () => {
+                    setCancelingSeries(false);
+                    toast({ tone: 'success', title: t('meetings.seriesCanceledToast') });
+                  },
+                  onError: (e) => toast({ tone: 'error', title: errorMessage(e) }),
+                })
+              }
+            >
+              {t('meetings.cancelSeries')}
+            </Button>
+            <Button variant="ghost" onClick={() => setCancelingSeries(false)}>
+              {t('meetings.keep')}
+            </Button>
+          </>
+        }
+      />
+    </div>
+  );
+}
+
+/** «سنجاق به کار» for minutes, and the tasks they already back (plan phase-2-step-13b). */
+function MinutesPins({ meeting }: { meeting: Meeting }) {
+  const [pinning, setPinning] = useState(false);
+  const [listing, setListing] = useState(false);
+  const { data, isPending } = useMinutesTasks(meeting.id, listing);
+  const count = meeting.minutes?.pinnedCount ?? 0;
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
+      {meeting.can.pin && (
+        <PinToTaskDialog
+          kind="minutes"
+          subjectId={meeting.id}
+          open={pinning}
+          onOpenChange={setPinning}
+          trigger={
+            <Button variant="secondary" size="sm" icon={<Stamp aria-hidden />}>
+              {t('meetings.pinMinutes')}
+            </Button>
+          }
+        />
+      )}
+      {count > 0 && (
+        <Modal
+          open={listing}
+          onOpenChange={setListing}
+          title={t('meetings.pinnedTasksTitle')}
+          trigger={
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold text-primary-ink hover:bg-primary-soft [&_svg]:size-3.5"
+            >
+              <Stamp aria-hidden />
+              {t('meetings.pinnedTasks', { count: formatNumber(count) })}
+            </button>
+          }
+        >
+          {isPending ? (
+            <Skeleton className="h-16 rounded-xl" />
+          ) : (
+            <div className="flex flex-col gap-2">
+              {(data?.visible ?? []).map((task) => (
+                <Link
+                  key={task.id}
+                  href={`/tasks/${task.id}`}
+                  className="flex items-center gap-2 rounded-lg px-3 py-2 font-medium text-ink hover:bg-sunken [&_svg]:size-4"
+                >
+                  <CheckSquare aria-hidden className="text-primary-ink" />
+                  {task.title}
+                </Link>
+              ))}
+              {(data?.hidden ?? 0) > 0 && (
+                <p className="text-sm text-ink-muted">
+                  {t('meetings.pinnedHidden', { count: formatNumber(data?.hidden ?? 0) })}
+                </p>
+              )}
+            </div>
+          )}
+        </Modal>
+      )}
     </div>
   );
 }
@@ -424,6 +574,7 @@ function MinutesSection({ meeting, timeZone }: { meeting: Meeting; timeZone?: st
                     date: formatJalaliDate(new Date(minutes.updatedAt), 'long', timeZone),
                   })}`}
               </p>
+              {(meeting.can.pin || minutes.pinnedCount > 0) && <MinutesPins meeting={meeting} />}
             </>
           ) : (
             <p className="text-ink-subtle">{t('meetings.minutes.empty')}</p>

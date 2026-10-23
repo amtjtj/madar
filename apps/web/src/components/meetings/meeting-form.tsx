@@ -9,6 +9,8 @@ import {
   MEETING_TITLE_MAX,
   MEETING_TYPES,
   calendarDateIn,
+  PERSIAN_WEEKDAYS,
+  persianWeekdayOfCalendarDate,
   toPersianDigits,
   type Meeting,
   type MeetingType,
@@ -17,8 +19,10 @@ import {
   Button,
   Card,
   CardContent,
+  CheckboxField,
   DatePicker,
   EmptyState,
+  Modal,
   SelectField,
   Skeleton,
   TextField,
@@ -27,10 +31,10 @@ import {
 
 import { PageHeader } from '@/components/app-shell';
 import { RecipientPicker, type Person } from '@/components/letters/recipient-picker';
-import { useMeeting, useSaveMeeting } from '@/hooks/meetings';
+import { useMeeting, useSaveMeeting, useUpdateSeries } from '@/hooks/meetings';
 import { useMe } from '@/hooks/use-me';
 import { errorMessage } from '@/lib/errors';
-import { defaultSlot, meetingInstants, wallClock } from '@/lib/meetings';
+import { defaultSlot, meetingInstants, seriesText, wallClock } from '@/lib/meetings';
 
 import { LiteField } from './lite-field';
 
@@ -51,6 +55,16 @@ export function MeetingFormPage() {
       timeZone={me.tenant?.timezone}
     />
   );
+}
+
+interface MeetingFields {
+  title: string;
+  startsAt: string;
+  endsAt: string;
+  location: string | null;
+  link: string | null;
+  agenda: string;
+  participantIds: string[];
 }
 
 /** Every quarter hour, in Persian digits; an odd saved time stays selectable. */
@@ -94,17 +108,26 @@ function MeetingForm({
   const [link, setLink] = useState(meeting?.link ?? '');
   const [agenda, setAgenda] = useState(meeting?.agenda ?? '');
   const [problem, setProblem] = useState('');
+  const [repeat, setRepeat] = useState(false);
+  const [untilOn, setUntilOn] = useState<string | null>(null);
+  // A weekly meeting asks first: only this one, or this and the following ones.
+  const [askScope, setAskScope] = useState(false);
+  const updateSeries = useUpdateSeries();
+  const weekly = meeting?.series && !meeting.series.canceled ? meeting.series : null;
   const oneOnOne = type === 'one_on_one';
   const today = calendarDateIn(new Date(), timeZone);
 
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    if (!title.trim()) return setProblem(t('meetings.form.needsTitle'));
-    if (oneOnOne && people.length !== 1) return setProblem(t('meetings.form.needsOne'));
+  const fail = (message: string) => {
+    setProblem(message);
+    return null;
+  };
+  const fieldsOrProblem = (): MeetingFields | null => {
+    if (!title.trim()) return fail(t('meetings.form.needsTitle'));
+    if (oneOnOne && people.length !== 1) return fail(t('meetings.form.needsOne'));
     const when = meetingInstants({ date, start, end, link }, timeZone);
-    if ('error' in when) return setProblem(when.error);
+    if ('error' in when) return fail(when.error);
     setProblem('');
-    const fields = {
+    return {
       title: title.trim(),
       ...when,
       location: location.trim() || null,
@@ -112,16 +135,59 @@ function MeetingForm({
       agenda,
       participantIds: people.map((p) => p.id),
     };
-    save.mutate(
-      { id: meeting?.id, body: meeting ? fields : { type, ...fields } },
+  };
+
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    const fields = fieldsOrProblem();
+    if (!fields) return;
+    if (weekly) return setAskScope(true);
+    saveOne(fields);
+  };
+
+  const saved = (id: string) => {
+    toast({
+      tone: 'success',
+      title: meeting ? t('meetings.form.saved') : t('meetings.form.created'),
+    });
+    router.push(`/meetings/${id}`);
+  };
+
+  /** «این و جلسه‌های بعدی»: the series' rule from the form, for its meetings to come. */
+  const saveFollowing = () => {
+    const fields = fieldsOrProblem();
+    if (!fields || !weekly) return;
+    setAskScope(false);
+    updateSeries.mutate(
       {
-        onSuccess: (saved) => {
-          toast({
-            tone: 'success',
-            title: meeting ? t('meetings.form.saved') : t('meetings.form.created'),
-          });
-          router.push(`/meetings/${saved.id}`);
+        seriesId: weekly.id,
+        body: {
+          title: fields.title,
+          weekday: persianWeekdayOfCalendarDate(date),
+          startTime: start,
+          endTime: end,
+          location: fields.location,
+          link: fields.link,
+          agenda,
+          participantIds: fields.participantIds,
         },
+      },
+      {
+        onSuccess: (next) => (next ? saved(next.id) : router.push('/meetings')),
+        onError: (error) => setProblem(errorMessage(error)),
+      },
+    );
+  };
+
+  const saveOne = (fields: MeetingFields) => {
+    setAskScope(false);
+    save.mutate(
+      {
+        id: meeting?.id,
+        body: meeting ? fields : { type, ...fields, repeat: repeat ? { untilOn } : null },
+      },
+      {
+        onSuccess: (result) => saved(result.id),
         onError: (error) => setProblem(errorMessage(error)),
       },
     );
@@ -177,6 +243,37 @@ function MeetingForm({
                 options={timeOptions(end)}
               />
             </div>
+            {!meeting && (
+              <div className="flex flex-col gap-3 rounded-xl border border-line p-3">
+                <CheckboxField
+                  label={t('meetings.repeat.label')}
+                  description={
+                    repeat
+                      ? t('meetings.repeat.summary', {
+                          weekday: PERSIAN_WEEKDAYS[persianWeekdayOfCalendarDate(date)] ?? '',
+                          start: toPersianDigits(start),
+                          end: toPersianDigits(end),
+                        })
+                      : t('meetings.repeat.hint')
+                  }
+                  checked={repeat}
+                  onChange={(e) => setRepeat(e.target.checked)}
+                />
+                {repeat && (
+                  <DatePicker
+                    label={t('meetings.repeat.until')}
+                    value={untilOn}
+                    onChange={setUntilOn}
+                    today={date}
+                  />
+                )}
+              </div>
+            )}
+            {weekly && (
+              <p className="rounded-xl bg-sunken p-3 text-sm text-ink-muted">
+                {seriesText(weekly)}
+              </p>
+            )}
             <RecipientPicker
               label={oneOnOne ? t('meetings.form.onePerson') : t('meetings.form.people')}
               value={people}
@@ -214,7 +311,7 @@ function MeetingForm({
               </p>
             )}
             <div className="flex flex-wrap gap-2 border-t border-line pt-4">
-              <Button type="submit" loading={save.isPending}>
+              <Button type="submit" loading={save.isPending || updateSeries.isPending}>
                 {meeting ? t('meetings.form.save') : t('meetings.form.create')}
               </Button>
               <Button type="button" variant="ghost" onClick={() => router.back()}>
@@ -224,6 +321,21 @@ function MeetingForm({
           </form>
         </CardContent>
       </Card>
+      <Modal open={askScope} onOpenChange={setAskScope} title={t('meetings.scope.title')}>
+        <div className="flex flex-col gap-3">
+          <Button
+            variant="secondary"
+            onClick={() => {
+              const fields = fieldsOrProblem();
+              if (fields) saveOne(fields);
+            }}
+          >
+            {t('meetings.scope.one')}
+          </Button>
+          <Button onClick={saveFollowing}>{t('meetings.scope.following')}</Button>
+          <p className="text-sm text-ink-muted">{t('meetings.scope.followingHint')}</p>
+        </div>
+      </Modal>
     </>
   );
 }

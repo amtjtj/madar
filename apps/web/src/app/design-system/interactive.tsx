@@ -30,6 +30,7 @@ import {
   ReactionBar,
   ReactionPicker,
   LetterRow,
+  RsvpButtons,
   LiteText,
   RecipientChip,
   UploadProgress,
@@ -582,4 +583,9 @@ export function FilesDemo() {
       <UploadProgress fileName={t('designSystem.files.image')} progress={0.6} onCancel={() => {}} />
     </div>
   );
+}
+
+export function RsvpDemo() {
+  const [value, setValue] = useState<'pending' | 'accepted' | 'declined'>('pending');
+  return <RsvpButtons value={value} onChange={setValue} className="max-w-sm" />;
 }

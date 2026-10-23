@@ -38,6 +38,8 @@ import {
   DecisionItem,
   MeetingRow,
   MeetingTypeBadge,
+  MinutesEvidenceCard,
+  ResponseBadge,
 } from '@madar/ui';
 
 import {
@@ -48,6 +50,7 @@ import {
   SliderDemo,
   FilesDemo,
   LettersDemo,
+  RsvpDemo,
   ChatDemo,
   WorkDemo,
 } from './interactive';
@@ -476,6 +479,7 @@ export default function DesignSystemPage() {
                   participantCount={6}
                   hasMinutes
                   canceled={false}
+                  weekly
                 />
                 <MeetingRow
                   href="#meetings"
@@ -502,6 +506,21 @@ export default function DesignSystemPage() {
                 }}
               />
               <DecisionItem text={t('designSystem.meetings.decision2')} />
+              <RsvpDemo />
+              <div className="flex flex-wrap gap-2">
+                <ResponseBadge response="accepted" />
+                <ResponseBadge response="declined" />
+                <ResponseBadge response="pending" />
+              </div>
+              <MinutesEvidenceCard
+                minutes={{
+                  meeting: { title: t('designSystem.meetings.okr'), type: 'okr_review' },
+                  date: '2026-10-24T05:30:00.000Z',
+                  excerpt: t('designSystem.meetings.minutesExcerpt'),
+                  attachmentCount: 1,
+                }}
+                date={t('designSystem.meetings.minutesDate')}
+              />
             </div>
           </Panel>
         </Section>
