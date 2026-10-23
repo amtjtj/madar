@@ -32,7 +32,6 @@ export function pushSupported(): boolean {
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 }
 
-/** The browser's push subscription on this device, if any. */
 /** Where the service worker lives (offline page, push); registered on every app load. */
 export const SERVICE_WORKER = { url: '/sw.js', scope: '/' } as const;
 
@@ -51,6 +50,7 @@ export async function serviceWorkerReady(): Promise<ServiceWorkerRegistration> {
   return navigator.serviceWorker.ready;
 }
 
+/** The browser's push subscription on this device, if any. */
 export async function currentSubscription(): Promise<PushSubscription | null> {
   if (!pushSupported()) return null;
   const registration = await navigator.serviceWorker.getRegistration('/');

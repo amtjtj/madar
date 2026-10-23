@@ -260,7 +260,7 @@ export function SourceList({
                 </span>
                 <span className="text-xs text-ink-subtle">
                   {t(`ui.assistant.kinds.${item.kind}`)}
-                  {item.cited && <span className="sr-only">، {t('ui.assistant.cited')}</span>}
+                  {item.cited && <span className="sr-only">{t('ui.assistant.cited')}</span>}
                 </span>
               </span>
             </Link>

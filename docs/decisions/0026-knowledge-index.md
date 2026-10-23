@@ -26,8 +26,12 @@ Phase 3, step 16b (`docs/plans/phase-3-step-16b.md`). The brief's AI layer, prio
 - **Limits and logs.** 20 questions a minute per person and 120 per company (in memory), plus 60 a minute per address. Nothing of the question, the chunks or the answer is logged.
 - **The company switch rules it.** Turning the assistant off deletes the company's whole index in the same transaction; turning it on rebuilds it. Admins see what is indexed and how much is still waiting (`GET /api/ai/index-status`, `tenant.manage`).
 
+- **Deletes do not wait for the job.** Deleting or editing a message drops that channel day's chunks, and deleting or editing a comment drops its task's chunks, in the same transaction (`forgetKnowledge` in `@madar/db`); the next run rebuilds what is left. An edited or removed meeting decision moves the meeting's stamp (database clock). A run that finds the assistant off deletes the company's chunks, and its write transaction holds the company row `for share`, so turning the assistant off can never leave an index behind.
+- **The refusal of people-judging questions is best effort** (a question about one named person, or in English, can pass it); the model's instructions are the second line.
+
 ## Consequences
 - A new kind of source (for example attachments) adds a `knowledge_source` value, its stamp to `indexable()`, its text to `loadSources()`, its removal rule to `removeStaleChunks()`, and its visibility join to `searchKnowledge()`, all together. A source must never be indexed unless its own pages already decide who may see it.
 - The reconciliation queries scan every indexable source of a company each minute. That is fine for the pilot (hundreds of tasks, thousands of messages); a much larger company needs a change watermark or events to narrow it.
+- Stamps compare times written by the API (`updated_at`, `edited_at`) with times written by the database (`created_at`); with the API and database on one host, or synced clocks, that is safe. A renamed project, department or person changes no stamp, so old names can stay in chunk text until the source changes.
 - `AI_ASK_MAX_DISTANCE` and the answer quality must be checked by hand on bge-m3 and the chat model before the pilot (CI only runs the fake), and recorded here.
 - The first indexing of a large company on CPU takes time (bge-m3 embeds roughly 5–20 chunks a second on 2 threads); the settings page shows how much is still waiting.

@@ -297,8 +297,42 @@ describe.skipIf(!hasDatabase)('knowledge index and «از مدار بپرس»', 
     await job.runForTenant(tenantId);
     expect((await chunks()).some((c) => c.sourceId === conversation.id)).toBe(true);
     expect((await ali.c.delete(`/api/messages/${message.id}`)).status).toBe(204);
+    // Gone at once, not a minute later when the job runs.
+    expect((await chunks()).some((c) => c.sourceId === conversation.id)).toBe(false);
     await job.runForTenant(tenantId);
     expect((await chunks()).some((c) => c.sourceId === conversation.id)).toBe(false);
+  });
+
+  it('an edited or removed decision is reindexed; a deleted comment leaves at once', async () => {
+    const decisions = (await ali.c.get(`/api/meetings/${meeting.id}`)).body.decisions as Array<{
+      id: string;
+    }>;
+    const decisionId = decisions[0]?.id ?? '';
+    expect(
+      (
+        await ali.c.patch(`/api/meetings/${meeting.id}/decisions/${decisionId}`, {
+          text: 'پیامک به همه مشتریان',
+        })
+      ).status,
+    ).toBe(200);
+    await job.runForTenant(tenantId);
+    expect(await textOf(meeting.id)).toContain('- پیامک به همه مشتریان');
+    expect(await textOf(meeting.id)).not.toContain('اطلاع‌رسانی به مشتریان');
+    expect((await ali.c.delete(`/api/meetings/${meeting.id}/decisions/${decisionId}`)).status).toBe(
+      200,
+    );
+    await job.runForTenant(tenantId);
+    expect(await textOf(meeting.id)).not.toContain('پیامک به همه مشتریان');
+
+    const comment = (
+      await ali.c.post(`/api/tasks/${task.id}/comments`, { body: 'یادداشت حساس موقت' })
+    ).body;
+    await job.runForTenant(tenantId);
+    expect(await textOf(task.id)).toContain('یادداشت حساس موقت');
+    await ali.c.delete(`/api/comments/${comment.id}`);
+    expect(await textOf(task.id)).not.toContain('یادداشت حساس موقت');
+    await job.runForTenant(tenantId);
+    expect(await textOf(task.id)).not.toContain('یادداشت حساس موقت');
   });
 
   const ask = (p: { c: Client }, question: string) => p.c.post('/api/ai/ask', { question });
@@ -429,6 +463,21 @@ describe.skipIf(!hasDatabase)('knowledge index and «از مدار بپرس»', 
     expect(await chunks()).toHaveLength(0);
     expect(await chunks(other.tenantId)).toHaveLength(1);
     expect(await job.runForTenant(tenantId)).toBe(0);
+    // A chunk written while the assistant was off (a run racing the switch) is cleared by the next run.
+    await withTenant(handle.db, { tenantId }, (tx) =>
+      tx.insert(s.knowledgeChunks).values({
+        sourceType: 'task',
+        sourceId: task.id,
+        chunkNo: 0,
+        title: 'کار',
+        text: 'جامانده',
+        embedding: vectorOf('جامانده'),
+        model: 'fake-embed',
+        contentHash: 'x',
+      }),
+    );
+    await job.runForTenant(tenantId);
+    expect(await chunks()).toHaveLength(0);
     // A direct check through the owner role too: RLS keeps the other company's rows out.
     const visible = await withTenant(handle.db, { tenantId }, (tx) =>
       tx

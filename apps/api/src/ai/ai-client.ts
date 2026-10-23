@@ -1,4 +1,5 @@
 import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
+import type { KnowledgeKind } from '@madar/shared';
 import { z } from 'zod';
 
 import { schema } from '@madar/db';
@@ -54,7 +55,7 @@ const answerReply = z.object({
 /** One numbered source for an answer: only what the asking person may see (ADR 0026). */
 export interface AnswerSource {
   n: number;
-  kind: 'task' | 'letter' | 'meeting' | 'channel';
+  kind: KnowledgeKind;
   title: string;
   text: string;
 }

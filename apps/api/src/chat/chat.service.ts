@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { emitEvent, schema as s, uuidv7, type Tx } from '@madar/db';
+import { companyDay, emitEvent, forgetKnowledge, schema as s, uuidv7, type Tx } from '@madar/db';
 import {
   CHAT_SOCKET,
   REALTIME_EVENTS,
@@ -543,6 +543,7 @@ export class ChatService {
         .where(and(eq(s.messages.id, messageId), isNull(s.messages.deletedAt)))
         .returning();
       if (!updated) throw notFound('Message');
+      await forgetKnowledge(tx, 'channel', row.conversationId, companyDay(row.createdAt));
       // Mentions follow the new text; only people newly mentioned are told.
       const before = (
         await tx
@@ -611,6 +612,8 @@ export class ChatService {
           ),
         );
       await tx.delete(s.messageReactions).where(eq(s.messageReactions.messageId, messageId));
+      // Its channel day leaves the assistant's index now; the index job rebuilds the rest.
+      await forgetKnowledge(tx, 'channel', row.conversationId, companyDay(row.createdAt));
       const [message] = await this.present(tx, [updated]);
       return { message: message as Message, audience: await this.audience(tx, row.conversationId) };
     });

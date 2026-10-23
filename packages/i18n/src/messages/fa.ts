@@ -64,7 +64,7 @@ export const fa = {
       answer: 'پاسخ دستیار',
       sources: 'منبع‌ها',
       citation: 'منبع {n}',
-      cited: 'در پاسخ آمده',
+      cited: '، در پاسخ آمده',
       kinds: {
         task: 'کار',
         letter: 'نامه',

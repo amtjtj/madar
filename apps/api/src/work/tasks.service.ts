@@ -1,5 +1,12 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { emitEvent, recordActivity, schema as s, type ActivityChanges, type Tx } from '@madar/db';
+import {
+  emitEvent,
+  forgetKnowledge,
+  recordActivity,
+  schema as s,
+  type ActivityChanges,
+  type Tx,
+} from '@madar/db';
 import {
   calendarDateIn,
   categoryOf,
@@ -670,6 +677,8 @@ export class TasksService {
         .where(eq(s.comments.id, id))
         .returning();
       if (!row) throw notFound('Comment');
+      // The old text leaves the assistant's index now; the index job rebuilds the task.
+      await forgetKnowledge(tx, 'task', task.id);
       const [author] = await tx
         .select({ name: s.members.displayName })
         .from(s.members)

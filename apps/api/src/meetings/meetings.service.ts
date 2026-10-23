@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { emitEvent, schema as s, uuidv7, type Tx } from '@madar/db';
+import { dbNow, emitEvent, schema as s, uuidv7, type Tx } from '@madar/db';
 import {
   addDays,
   calendarDateIn,
@@ -380,6 +380,7 @@ export class MeetingsService {
         .update(s.meetingDecisions)
         .set({ text: body.text })
         .where(eq(s.meetingDecisions.id, decisionId));
+      await this.touch(tx, id);
       await this.changed(tx, ctx, id);
       return this.detail(tx, ctx, meeting);
     });
@@ -391,6 +392,7 @@ export class MeetingsService {
       const decision = await this.requireDecision(tx, id, decisionId);
       if (decision.taskId) throw hasTask();
       await tx.delete(s.meetingDecisions).where(eq(s.meetingDecisions.id, decisionId));
+      await this.touch(tx, id);
       await this.changed(tx, ctx, id);
       return this.detail(tx, ctx, meeting);
     });
@@ -885,6 +887,14 @@ export class MeetingsService {
       .from(s.meetingParticipants)
       .where(eq(s.meetingParticipants.meetingId, meetingId));
     return rows.map((r) => r.memberId);
+  }
+
+  /**
+   * An edited or removed decision changes no time the knowledge index reads (ADR 0026), so the
+   * meeting's own stamp moves, on the database clock like the decision times it is compared with.
+   */
+  private async touch(tx: Tx, meetingId: string): Promise<void> {
+    await tx.update(s.meetings).set({ updatedAt: dbNow() }).where(eq(s.meetings.id, meetingId));
   }
 
   /** A change that needs no notification, only a live refresh. */

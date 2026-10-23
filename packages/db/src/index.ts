@@ -17,5 +17,6 @@ export {
   type Tx,
 } from './tenant.js';
 export { NotADemoDatabaseError, truncateAllData } from './truncate.js';
+export { companyDay, dbNow, forgetKnowledge } from './knowledge.js';
 export { uuidv7 } from './schema/columns.js';
 export * as schema from './schema/index.js';

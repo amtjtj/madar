@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { listActiveTenants, schema as s, withTenant, type DbHandle } from '@madar/db';
-import { ne } from 'drizzle-orm';
+import { ne, sql } from 'drizzle-orm';
 
 import { DB_HANDLE } from '../database/tokens.js';
 import { loadWorkCalendar } from '../notifications/calendar.js';
@@ -62,7 +62,11 @@ export class KnowledgeIndexJob {
     do {
       const model = this.model;
       const round = await withTenant(this.handle.db, { tenantId }, async (tx) => {
-        if (!(await loadAiSettings(tx, tenantId)).enabled) return null;
+        if (!(await loadAiSettings(tx, tenantId)).enabled) {
+          // Off: nothing may stay indexed, including chunks a run wrote while it was turned off.
+          await tx.delete(s.knowledgeChunks);
+          return null;
+        }
         const { timeZone } = await loadWorkCalendar(tx, tenantId);
         await removeStaleChunks(tx, timeZone);
         // A new embedding model: older vectors cannot be compared, so their sources are due again.
@@ -101,6 +105,8 @@ export class KnowledgeIndexJob {
 
       const written = this.model;
       const done = await withTenant(this.handle.db, { tenantId }, async (tx) => {
+        // Turning the assistant off waits for this write (and its delete then sees these rows).
+        await tx.execute(sql`select 1 from tenants where id = ${tenantId} for share`);
         if (!(await loadAiSettings(tx, tenantId)).enabled) return false;
         for (const ref of touch) await touchChunks(tx, ref);
         for (const source of fresh) {
