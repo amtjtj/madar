@@ -78,6 +78,10 @@ AI_SERVICE_TOKEN=$(secret 32)
 LLM_MODEL=qwen2.5-7b-instruct
 LLM_MODEL_FILE=qwen2.5-7b-instruct-q4_k_m.gguf
 LLM_THREADS=4
+# Embeddings for «از مدار بپرس» (ADR 0026): bge-m3 in ./models, run by the `embed` service.
+EMBED_MODEL=bge-m3
+EMBED_MODEL_FILE=bge-m3-Q8_0.gguf
+EMBED_THREADS=2
 ENV
 
 if [ "$demo" = --demo ]; then

@@ -29,7 +29,13 @@ def test_health_is_open_and_says_whether_the_model_answers(make_client):
 
     client, _ = make_client(FakeModel(available=False))
     body = client.get("/health").json()
-    assert body == {"status": "ok", "model": "fake", "modelReachable": False}
+    assert body == {
+        "status": "ok",
+        "model": "fake",
+        "modelReachable": False,
+        "embedModel": "fake-embed",
+        "embedReachable": True,
+    }
 
 
 def test_rejects_invalid_input_without_echoing_it(make_client):

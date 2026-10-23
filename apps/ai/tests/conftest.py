@@ -2,6 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.config import Settings
+from app.embed import FakeEmbedder
 from app.llm import FakeModel
 from app.main import create_app
 
@@ -15,8 +16,10 @@ def settings() -> Settings:
 
 @pytest.fixture
 def make_client():
-    def make(model: FakeModel | None = None) -> tuple[TestClient, FakeModel]:
+    def make(
+        model: FakeModel | None = None, embedder: FakeEmbedder | None = None
+    ) -> tuple[TestClient, FakeModel]:
         fake = model or FakeModel()
-        return TestClient(create_app(settings(), fake)), fake
+        return TestClient(create_app(settings(), fake, embedder or FakeEmbedder())), fake
 
     return make

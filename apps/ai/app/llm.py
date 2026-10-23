@@ -7,7 +7,7 @@ from typing import Literal, Protocol
 
 import httpx
 
-Kind = Literal["report_summary", "task_breakdown"]
+Kind = Literal["report_summary", "task_breakdown", "answer"]
 
 
 @dataclass(frozen=True)
@@ -111,6 +111,12 @@ class FakeModel:
                 for i, step in enumerate(steps)
             ]
             return Completion(text=json.dumps({"tasks": tasks}, ensure_ascii=False), tokens=40)
+        if kind == "answer":
+            source = re.search(r"^\[(\d+)\] \(.+?\) (.+)$", user, re.MULTILINE)
+            if source is None:
+                return Completion(text="در منبع‌ها جوابی پیدا نکردم.", tokens=10)
+            text = f"پاسخ آزمایشی دستیار بر پایه «{source.group(2)}» [{source.group(1)}]."
+            return Completion(text=text, tokens=20)
         lines = [line for line in user.splitlines() if line.startswith("- ")][:2]
         text = "خلاصه آزمایشی دستیار: " + " ".join(line[2:] for line in lines)
         return Completion(text=text, tokens=30)

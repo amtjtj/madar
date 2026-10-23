@@ -37,6 +37,12 @@ class Settings:
     model: str
     #: Seconds before a model call gives up (a 7B model on CPU is slow).
     timeout: float
+    #: Embeddings (ADR 0026): `openai` or `fake`, defaulting to the chat provider.
+    embed_provider: str = "fake"
+    #: Base URL of the embedding server, e.g. `http://embed:8080/v1`.
+    embed_base_url: str = ""
+    #: Embedding model name (1024 dimensions, e.g. bge-m3).
+    embed_model: str = "bge-m3"
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -47,10 +53,16 @@ class Settings:
         provider = os.environ.get("LLM_PROVIDER", "openai")
         if provider not in ("openai", "fake"):
             raise RuntimeError("LLM_PROVIDER must be openai or fake")
+        embed_provider = os.environ.get("EMBED_PROVIDER", provider)
+        if embed_provider not in ("openai", "fake"):
+            raise RuntimeError("EMBED_PROVIDER must be openai or fake")
         return cls(
             token=token,
             provider=provider,
             base_url=os.environ.get("LLM_BASE_URL", "http://llm:8080/v1"),
             model=os.environ.get("LLM_MODEL", "qwen2.5-7b-instruct"),
             timeout=float(os.environ.get("LLM_TIMEOUT", "85")),
+            embed_provider=embed_provider,
+            embed_base_url=os.environ.get("EMBED_BASE_URL", "http://embed:8080/v1"),
+            embed_model=os.environ.get("EMBED_MODEL", "bge-m3"),
         )

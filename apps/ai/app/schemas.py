@@ -87,3 +87,38 @@ class TaskBreakdownResponse(Body):
     tasks: list[SuggestedTask]
     model: str
     tokens: int
+
+
+class EmbedRequest(Body):
+    """Texts to embed (ADR 0026): chunks of company knowledge, or one question."""
+
+    texts: list[Annotated[str, Field(min_length=1, max_length=4000)]] = Field(
+        min_length=1, max_length=64
+    )
+
+
+class EmbedResponse(Body):
+    vectors: list[list[float]]
+    model: str
+
+
+class AnswerSource(Body):
+    """One chunk the asking person may see, numbered for citations."""
+
+    n: int = Field(ge=1, le=20)
+    kind: Literal["task", "letter", "meeting", "channel"]
+    title: Text
+    text: Annotated[str, Field(min_length=1, max_length=2000)]
+
+
+class AnswerRequest(Body):
+    question: Annotated[str, Field(min_length=3, max_length=500)]
+    today: Text
+    sources: list[AnswerSource] = Field(min_length=1, max_length=8)
+
+
+class AnswerResponse(Body):
+    text: str
+    cited: list[int]
+    model: str
+    tokens: int

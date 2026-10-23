@@ -183,6 +183,10 @@ services:
       LLM_BASE_URL: ${LLM_BASE_URL:-http://llm:8080/v1}
       LLM_MODEL: ${LLM_MODEL:-qwen2.5-7b-instruct}
       LLM_TIMEOUT: ${LLM_TIMEOUT:-85}
+      # Embeddings for «از مدار بپرس» (ADR 0026); `fake` follows LLM_PROVIDER when unset.
+      EMBED_PROVIDER: ${EMBED_PROVIDER:-${LLM_PROVIDER:-openai}}
+      EMBED_BASE_URL: ${EMBED_BASE_URL:-http://embed:8080/v1}
+      EMBED_MODEL: ${EMBED_MODEL:-bge-m3}
       TZ: Asia/Tehran
     <<: *hardening
     networks: [ai]
@@ -219,6 +223,44 @@ services:
     networks:
       ai:
         aliases: [llm]
+    logging: *logging
+
+  # The embedding model for «از مدار بپرس» (ADR 0026): llama.cpp with bge-m3 on CPU, next to either
+  # chat model. Small (about 600 MB) and fast enough on CPU even when the chat model has a GPU.
+  embed:
+    image: ${LLM_CPU_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-b5350}
+    profiles: [llm-cpu, llm-gpu]
+    restart: unless-stopped
+    command:
+      - --model
+      - /models/${EMBED_MODEL_FILE:-bge-m3-Q8_0.gguf}
+      - --alias
+      - ${EMBED_MODEL:-bge-m3}
+      - --embeddings
+      - --pooling
+      - cls
+      - --host
+      - 0.0.0.0
+      - --port
+      - '8080'
+      - --ctx-size
+      - '8192'
+      - --batch-size
+      - '2048'
+      - --ubatch-size
+      - '2048'
+      - --threads
+      - '${EMBED_THREADS:-2}'
+    volumes:
+      - ../models:/models:ro
+    healthcheck:
+      test: ['CMD', 'curl', '-sf', 'http://127.0.0.1:8080/health']
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+    <<: *hardening
+    networks: [ai]
     logging: *logging
 
   # The model on a GPU (COMPOSE_PROFILES=ai,llm-gpu): vLLM, weights in ./models.

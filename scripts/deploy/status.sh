@@ -13,7 +13,7 @@ compose exec -T api node -e "fetch('http://127.0.0.1:4000/api/health').then(r=>r
 
 if ai_enabled; then
   say "Assistant"
-  compose exec -T ai python -c "import json,urllib.request;b=json.load(urllib.request.urlopen('http://127.0.0.1:4200/health',timeout=5));print('model',b['model'],'reachable' if b['modelReachable'] else 'NOT reachable')" \
+  compose exec -T ai python -c "import json,urllib.request;b=json.load(urllib.request.urlopen('http://127.0.0.1:4200/health',timeout=5));print('model',b['model'],'reachable' if b['modelReachable'] else 'NOT reachable');print('embeddings',b['embedModel'],'reachable' if b['embedReachable'] else 'NOT reachable')" \
     || echo "The AI service is not answering"
 fi
 

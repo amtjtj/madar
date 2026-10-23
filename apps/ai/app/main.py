@@ -10,6 +10,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from .config import Settings
+from .embed import Embedder, FakeEmbedder, OpenAICompatibleEmbedder
 from .llm import (
     ChatModel,
     FakeModel,
@@ -18,12 +19,16 @@ from .llm import (
     OpenAICompatibleModel,
 )
 from .schemas import (
+    AnswerRequest,
+    AnswerResponse,
+    EmbedRequest,
+    EmbedResponse,
     ReportSummaryRequest,
     ReportSummaryResponse,
     TaskBreakdownRequest,
     TaskBreakdownResponse,
 )
-from .service import ModelOutputError, report_summary, task_breakdown
+from .service import ModelOutputError, answer, embed, report_summary, task_breakdown
 
 
 def _error(status: int, code: str) -> JSONResponse:
@@ -34,17 +39,27 @@ class Unauthorized(Exception):
     pass
 
 
-def create_app(settings: Settings, model: ChatModel | None = None) -> FastAPI:
+def create_app(
+    settings: Settings, model: ChatModel | None = None, embedder: Embedder | None = None
+) -> FastAPI:
     chat: ChatModel = model or (
         FakeModel()
         if settings.provider == "fake"
         else OpenAICompatibleModel(settings.base_url, settings.model, settings.timeout)
+    )
+    vectors: Embedder = embedder or (
+        FakeEmbedder()
+        if settings.embed_provider == "fake"
+        else OpenAICompatibleEmbedder(
+            settings.embed_base_url, settings.embed_model, settings.timeout
+        )
     )
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         yield
         await chat.close()
+        await vectors.close()
 
     app = FastAPI(
         title="madar-ai", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan
@@ -78,7 +93,13 @@ def create_app(settings: Settings, model: ChatModel | None = None) -> FastAPI:
 
     @app.get("/health")
     async def health() -> dict[str, object]:
-        return {"status": "ok", "model": chat.name, "modelReachable": await chat.reachable()}
+        return {
+            "status": "ok",
+            "model": chat.name,
+            "modelReachable": await chat.reachable(),
+            "embedModel": vectors.name,
+            "embedReachable": await vectors.reachable(),
+        }
 
     @app.post(
         "/v1/report-summary",
@@ -99,6 +120,24 @@ def create_app(settings: Settings, model: ChatModel | None = None) -> FastAPI:
         return await task_breakdown(
             chat, req, budget=settings.timeout, gone=request.is_disconnected
         )
+
+    @app.post(
+        "/v1/embed",
+        dependencies=[Depends(authorized)],
+        response_model=EmbedResponse,
+        response_model_by_alias=True,
+    )
+    async def embed_texts(req: EmbedRequest) -> EmbedResponse:
+        return await embed(vectors, req)
+
+    @app.post(
+        "/v1/answer",
+        dependencies=[Depends(authorized)],
+        response_model=AnswerResponse,
+        response_model_by_alias=True,
+    )
+    async def answer_question(req: AnswerRequest) -> AnswerResponse:
+        return await answer(chat, req)
 
     return app
 
