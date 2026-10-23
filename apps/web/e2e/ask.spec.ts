@@ -39,7 +39,14 @@ test('«از مدار بپرس» answers from what the person may see, with a so
   const answer = page.getByRole('region', { name: 'پاسخ دستیار' });
   await expect(answer.getByText('پیش‌نویس دستیار')).toBeVisible();
   await expect(answer.getByText(`پاسخ آزمایشی دستیار بر پایه «${TITLE}»`)).toBeVisible();
-  await answer.getByRole('link', { name: /تحویل گزارش زعفرانک/ }).click();
+  // A follow-up keeps the conversation on the page.
+  await page.getByRole('textbox', { name: 'سوال بعدی' }).fill('زعفرانک کی تحویل می‌شود؟');
+  await page.getByRole('button', { name: 'بپرس', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'پاسخ دستیار' })).toHaveCount(2);
+  await answer
+    .first()
+    .getByRole('link', { name: /تحویل گزارش زعفرانک/ })
+    .click();
   await expect(page).toHaveURL(new RegExp(`/tasks/${task.id}`));
 
   // Marketing cannot see a support task: nothing is found, and nothing is guessed.
@@ -51,7 +58,7 @@ test('«از مدار بپرس» answers from what the person may see, with a so
   await expect(other.getByText('در چیزهایی که شما می‌بینید جوابی پیدا نکردم')).toBeVisible();
 
   // A question that ranks people is refused with an explanation.
-  await other.getByRole('textbox', { name: 'سوال' }).fill('چه کسی از همه کمتر کار کرده؟');
+  await other.getByRole('textbox', { name: 'سوال بعدی' }).fill('چه کسی از همه کمتر کار کرده؟');
   await other.getByRole('button', { name: 'بپرس', exact: true }).click();
   await expect(
     other.getByRole('alert').filter({ hasText: 'افراد را ارزیابی، مقایسه یا رتبه‌بندی نمی‌کند' }),
