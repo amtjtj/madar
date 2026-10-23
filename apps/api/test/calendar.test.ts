@@ -30,6 +30,8 @@ describe.skipIf(!hasDatabase)('personal calendar', () => {
   let ali: Person;
   let zahra: Person;
   let director: Person; // oversees meetings
+  let boss: Person; // manages support, and in management (oversees meetings)
+  let exec: Person; // reads every task, edits none
   let other: Client;
   let stranger: Person; // a member of the other company
   let range: { from: string; to: string };
@@ -59,6 +61,14 @@ describe.skipIf(!hasDatabase)('personal calendar', () => {
     ali = await memberSession(app, env, owner.c, { departments: dept(support.id) });
     zahra = await memberSession(app, env, owner.c, { departments: dept(support.id) });
     director = await memberSession(app, env, owner.c, { departments: dept(management.id) });
+    boss = await memberSession(app, env, owner.c, {
+      displayName: 'مریم احمدی',
+      departments: [
+        { departmentId: support.id, deptRole: 'manager', isPrimary: true },
+        { departmentId: management.id, deptRole: 'member', isPrimary: false },
+      ],
+    });
+    exec = await memberSession(app, env, owner.c, { roles: ['executive'] });
     other = (await ownerSession(app, env)).c;
     const otherDept = (await other.post('/api/departments', { name: 'فروش' })).body;
     stranger = await memberSession(app, env, other, {
@@ -234,6 +244,83 @@ describe.skipIf(!hasDatabase)('personal calendar', () => {
     ).body;
     expect(itemsOn((await get(zahra)).body, day).some((i) => i.id === meeting.id)).toBe(true);
     expect(allItems((await get(director)).body).some((i) => i.id === meeting.id)).toBe(false);
+  });
+
+  it('lists whose calendar I may open: myself, my department as manager, everyone tenant-wide', async () => {
+    const ids = async (p: Person) =>
+      ((await p.c.get('/api/calendar/people')).body as Array<{ id: string }>).map((x) => x.id);
+    expect(await ids(ali)).toEqual([ali.memberId]);
+    const forBoss = await ids(boss);
+    expect(forBoss[0]).toBe(boss.memberId);
+    expect(forBoss).toEqual(expect.arrayContaining([ali.memberId, zahra.memberId]));
+    // Management is not a department Maryam manages; oversight is not enough.
+    expect(forBoss).not.toContain(director.memberId);
+    const forExec = await ids(exec);
+    expect(forExec).toEqual(
+      expect.arrayContaining([ali.memberId, director.memberId, boss.memberId]),
+    );
+    expect(forExec).not.toContain(stranger.memberId);
+  });
+
+  it("shows a team member's calendar with my visibility, never their plan or private work", async () => {
+    const day = addDays(today(), 9);
+    const open = (
+      await ali.c.post('/api/tasks', { title: 'کار علی برای مدیر', dueOn: day, addToToday: true })
+    ).body;
+    const secret = (
+      await ali.c.post('/api/projects', { name: 'پروژه خصوصی علی', visibility: 'private' })
+    ).body;
+    const hidden = (
+      await ali.c.post('/api/tasks', { title: 'کار خصوصی علی', projectId: secret.id, dueOn: day })
+    ).body;
+    const oneOnOne = (
+      await ali.c.post('/api/meetings', {
+        type: 'one_on_one',
+        title: 'یک‌به‌یک علی و زهرا',
+        startsAt: at(day, '11:00'),
+        endsAt: at(day, '11:30'),
+        participantIds: [zahra.memberId],
+      })
+    ).body;
+    const team = (
+      await zahra.c.post('/api/meetings', {
+        type: 'regular',
+        title: 'جلسه تیم پشتیبانی',
+        startsAt: at(day, '13:00'),
+        endsAt: at(day, '14:00'),
+        participantIds: [ali.memberId],
+      })
+    ).body;
+
+    const res = await get(boss, `&member=${ali.memberId}`);
+    expect(res.status).toBe(200);
+    const cal: CalendarRange = res.body;
+    expect(cal.member.id).toBe(ali.memberId);
+    const ids = [...allItems(cal), ...cal.overdue].map((i) => i.id);
+    expect(ids).toContain(open.id);
+    expect(ids).not.toContain(hidden.id);
+    expect(ids).not.toContain(oneOnOne.id);
+    // Maryam oversees meetings, so she sees the team meeting, without Ali's reply.
+    expect(itemsOn(cal, day).find((i) => i.id === team.id)?.meeting?.myResponse).toBeNull();
+    // Ali's plan is his alone: today's plan items are not there unless due that day.
+    expect(allItems(cal).every((i) => !i.task?.planned)).toBe(true);
+    // Maryam manages support: she may move Ali's due date.
+    expect(itemsOn(cal, day).find((i) => i.id === open.id)?.task).toMatchObject({
+      editable: true,
+      version: open.version,
+    });
+    // The executive reads it but may not change it.
+    const forExec: CalendarRange = (await get(exec, `&member=${ali.memberId}`)).body;
+    expect(itemsOn(forExec, day).find((i) => i.id === open.id)?.task?.editable).toBe(false);
+    // Working hours come with each day.
+    expect(cal.days.some((d) => d.hours !== null)).toBe(true);
+  });
+
+  it('refuses someone outside my people, and anyone from another company', async () => {
+    expect((await get(ali, `&member=${zahra.memberId}`)).status).toBe(404);
+    expect((await get(boss, `&member=${director.memberId}`)).status).toBe(404);
+    expect((await get(exec, `&member=${stranger.memberId}`)).status).toBe(404);
+    expect((await get(stranger, `&member=${ali.memberId}`)).status).toBe(404);
   });
 
   it('refuses a range longer than six weeks or reversed', async () => {

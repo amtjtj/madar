@@ -9,7 +9,16 @@ const task = (due: boolean, planned: boolean): CalendarItem => ({
   kind: 'task',
   id: '00000000-0000-4000-8000-000000000001',
   title: 'گزارش',
-  task: { priority: 'normal', statusCategory: 'todo', due, planned, overdue: false, dueOn: null },
+  task: {
+    priority: 'normal',
+    statusCategory: 'todo',
+    due,
+    planned,
+    overdue: false,
+    dueOn: null,
+    version: 1,
+    editable: true,
+  },
 });
 
 describe('calendar items', () => {

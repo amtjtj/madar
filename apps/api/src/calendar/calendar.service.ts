@@ -10,27 +10,31 @@ import {
   type CalendarDay,
   type CalendarItem,
   type CalendarLayer,
+  type CalendarPerson,
   type CalendarQuery,
   type CalendarRange,
 } from '@madar/shared';
 import { and, asc, eq, gte, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
 
 import type { TenantContext } from '../common/context.js';
+import { notFound } from '../common/errors.js';
 import { TenantDb } from '../database/tenant-db.service.js';
 import { takesPart, visibleMeetings } from '../meetings/access.js';
 import { loadWorkCalendar } from '../notifications/calendar.js';
-import { visibleProjects, visibleTasks } from '../work/access.js';
+import { editableTasks, visibleProjects, visibleTasks } from '../work/access.js';
+import { calendarPeople } from './access.js';
 
 const OPEN = ['todo', 'in_progress'] as const;
 const OVERDUE_MAX = 100;
 type TaskRow = Pick<
   typeof s.tasks.$inferSelect,
-  'id' | 'title' | 'priority' | 'statusCategory' | 'dueOn'
->;
+  'id' | 'title' | 'priority' | 'statusCategory' | 'dueOn' | 'version'
+> & { editable: boolean };
 
 /**
- * The personal calendar (plan phase-2-step-14a, ADR 0024): an aggregate over existing data. Every
- * layer reuses its own visibility condition, so the calendar never shows what its page would not.
+ * The calendar (plans phase-2-step-14a and 14b, ADR 0024): an aggregate over existing data. Every
+ * layer reuses the viewer's own visibility condition, so the calendar never shows what its page
+ * would not; for someone else's calendar only «whose» changes (assignee, participant, member).
  */
 @Injectable()
 export class CalendarService {
@@ -38,9 +42,18 @@ export class CalendarService {
 
   get(ctx: TenantContext, query: CalendarQuery): Promise<CalendarRange> {
     return this.db.run(ctx, async (tx) => {
+      const whose = query.member ?? ctx.memberId;
+      const [person] = await tx
+        .select({ id: s.members.id, displayName: s.members.displayName })
+        .from(s.members)
+        .where(and(eq(s.members.id, whose), calendarPeople(ctx.actor)));
+      if (!person) throw notFound('Member');
+      const self = whose === ctx.memberId;
       const { calendar, timeZone } = await loadWorkCalendar(tx, ctx.tenantId);
       const today = calendarDateIn(new Date(), timeZone);
       const on = new Set<CalendarLayer>(query.layers);
+      // Someone else's daily plan is theirs alone.
+      if (!self) on.delete('plan');
       const byDay = new Map<string, CalendarItem[]>(
         daysInRange(query.from, query.to).map((d) => [d, []]),
       );
@@ -74,6 +87,8 @@ export class CalendarService {
             overdue:
               row.dueOn !== null && row.dueOn < today && OPEN.includes(row.statusCategory as never),
             dueOn: row.dueOn,
+            version: row.version,
+            editable: row.editable,
           },
           meeting: null,
           project: null,
@@ -88,6 +103,8 @@ export class CalendarService {
         priority: s.tasks.priority,
         statusCategory: s.tasks.statusCategory,
         dueOn: s.tasks.dueOn,
+        version: s.tasks.version,
+        editable: sql<boolean>`${editableTasks(ctx.actor)}`,
       };
       // Past due days show nothing: those tasks appear once, above today.
       const dueFrom = query.from > today ? query.from : today;
@@ -96,7 +113,11 @@ export class CalendarService {
           .select(taskColumns)
           .from(s.tasks)
           .where(
-            and(this.myOpenTasks(ctx), gte(s.tasks.dueOn, dueFrom), lte(s.tasks.dueOn, query.to)),
+            and(
+              this.openTasksOf(ctx, whose),
+              gte(s.tasks.dueOn, dueFrom),
+              lte(s.tasks.dueOn, query.to),
+            ),
           )
           .orderBy(asc(s.tasks.dueOn), asc(s.tasks.id))
           .limit(CALENDAR_LAYER_MAX + 1);
@@ -129,7 +150,7 @@ export class CalendarService {
         const rows = await tx
           .select(taskColumns)
           .from(s.tasks)
-          .where(and(this.myOpenTasks(ctx), lt(s.tasks.dueOn, today)))
+          .where(and(this.openTasksOf(ctx, whose), lt(s.tasks.dueOn, today)))
           .orderBy(asc(s.tasks.dueOn), asc(s.tasks.id))
           .limit(OVERDUE_MAX + 1);
         if (rows.length > OVERDUE_MAX && !truncated.includes('tasks')) truncated.push('tasks');
@@ -148,6 +169,8 @@ export class CalendarService {
               planned: false,
               overdue: true,
               dueOn: row.dueOn,
+              version: row.version,
+              editable: row.editable,
             },
             meeting: null,
             project: null,
@@ -156,7 +179,8 @@ export class CalendarService {
       }
 
       if (on.has('meetings')) {
-        // Mine only: a personal calendar, not what oversight lets me read.
+        // Meetings they take part in. For me: never what oversight alone lets me read. For someone
+        // else: only what I may see (their one-on-ones with others stay out).
         const rows = await tx
           .select({
             id: s.meetings.id,
@@ -172,12 +196,12 @@ export class CalendarService {
             s.meetingParticipants,
             and(
               eq(s.meetingParticipants.meetingId, s.meetings.id),
-              eq(s.meetingParticipants.memberId, ctx.memberId),
+              eq(s.meetingParticipants.memberId, whose),
             ),
           )
           .where(
             and(
-              takesPart(ctx.memberId),
+              self ? takesPart(ctx.memberId) : undefined,
               visibleMeetings(ctx.actor),
               gte(s.meetings.startsAt, zonedInstant(query.from, '00:00', timeZone)),
               lt(s.meetings.startsAt, zonedInstant(addDays(query.to, 1), '00:00', timeZone)),
@@ -196,7 +220,7 @@ export class CalendarService {
               endsAt: row.endsAt.toISOString(),
               type: row.type,
               canceled: row.canceledAt !== null,
-              myResponse: row.myResponse,
+              myResponse: self ? row.myResponse : null,
             },
             project: null,
             period: null,
@@ -220,8 +244,8 @@ export class CalendarService {
               lte(s.projects.dueOn, query.to),
               visibleProjects(ctx.actor),
               or(
-                eq(s.projects.ownerId, ctx.memberId),
-                sql`exists (select 1 from project_members pm where pm.project_id = ${s.projects.id} and pm.member_id = ${ctx.memberId})`,
+                eq(s.projects.ownerId, whose),
+                sql`exists (select 1 from project_members pm where pm.project_id = ${s.projects.id} and pm.member_id = ${whose})`,
               ),
             ),
           )
@@ -263,16 +287,44 @@ export class CalendarService {
         date,
         off: on.has('holidays') && hoursOn({ ...calendar, holidays: [] }, date) === null,
         holiday: holidays.has(date),
+        hours: hoursOn(calendar, date),
         items,
       }));
-      return { days, overdue, truncated };
+      return { days, overdue, truncated, member: person };
     });
   }
 
-  /** Open tasks assigned to me that I still see. */
-  private myOpenTasks(ctx: TenantContext) {
+  /** People whose calendar the viewer may open: themselves first, then by name. */
+  people(ctx: TenantContext): Promise<CalendarPerson[]> {
+    return this.db.run(ctx, (tx) =>
+      tx
+        .select({
+          id: s.members.id,
+          displayName: s.members.displayName,
+          department: s.departments.name,
+        })
+        .from(s.members)
+        .leftJoin(
+          s.departmentMemberships,
+          and(
+            eq(s.departmentMemberships.memberId, s.members.id),
+            eq(s.departmentMemberships.isPrimary, true),
+          ),
+        )
+        .leftJoin(s.departments, eq(s.departments.id, s.departmentMemberships.departmentId))
+        .where(calendarPeople(ctx.actor))
+        .orderBy(
+          sql`${s.members.id} <> ${ctx.memberId}`,
+          asc(s.members.displayName),
+          asc(s.members.id),
+        ),
+    );
+  }
+
+  /** Open tasks assigned to `memberId` that the viewer still sees. */
+  private openTasksOf(ctx: TenantContext, memberId: string) {
     return and(
-      eq(s.tasks.assigneeId, ctx.memberId),
+      eq(s.tasks.assigneeId, memberId),
       inArray(s.tasks.statusCategory, [...OPEN]),
       isNull(s.tasks.deletedAt),
       visibleTasks(ctx.actor),
