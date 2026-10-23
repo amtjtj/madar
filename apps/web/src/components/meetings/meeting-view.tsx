@@ -267,6 +267,7 @@ export function MeetingView({ id }: { id: string }) {
                 <span className="font-semibold text-ink">{t('meetings.response.label')}</span>
                 <RsvpButtons
                   value={meeting.myResponse ?? 'pending'}
+                  disabled={respond.isPending}
                   onChange={(response) =>
                     respond.mutate(response, {
                       onSuccess: () =>

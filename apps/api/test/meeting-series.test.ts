@@ -295,7 +295,7 @@ describe.skipIf(!hasDatabase)('weekly meetings, replies, reminders and minutes a
       })
     ).body;
     const late = await ali.c.put(`/api/meetings/${started.id}/response`, { response: 'accepted' });
-    expect(late.body.error.code).toBe('meeting_started');
+    expect(late.body.error.code).toBe('meeting_reply_closed');
   });
 
   it('reminds people coming ten minutes before, once, only in working hours', async () => {
@@ -410,6 +410,103 @@ describe.skipIf(!hasDatabase)('weekly meetings, replies, reminders and minutes a
       subjectId: oneOnOne.id,
     });
     expect(refused.body.error.code).toBe('evidence_not_allowed');
+  });
+
+  it('a shorter series cancels its later weeks; a longer one brings them back', async () => {
+    const first = await weekly({ repeat: { untilOn: saturdayIn(2) } });
+    const seriesId = first.series?.id ?? '';
+    await maryam.c.patch(`/api/meeting-series/${seriesId}`, { untilOn: saturdayIn(1) });
+    let rows = await meetingsOf(seriesId);
+    expect(rows.filter((m) => !m.canceledAt).map((m) => m.occursOn)).toEqual([saturdayIn(1)]);
+    await maryam.c.patch(`/api/meeting-series/${seriesId}`, { untilOn: null });
+    rows = await meetingsOf(seriesId);
+    const active = rows.filter((m) => !m.canceledAt).map((m) => m.occursOn);
+    expect(active).toContain(saturdayIn(2));
+    expect(active).not.toContain(saturdayIn(3)); // still the holiday
+    expect(active.length).toBeGreaterThanOrEqual(5);
+    // Never two meetings in one week.
+    expect(new Set(rows.map((m) => m.occursOn)).size).toBe(rows.length);
+  });
+
+  it('a new weekday skips holidays and fills the week a holiday left empty', async () => {
+    const sundayHoliday = addDays(saturdayIn(4), 1);
+    await owner.c.put('/api/work-calendar', {
+      ...DEFAULT_WORK_CALENDAR,
+      holidays: [saturdayIn(3), sundayHoliday],
+    });
+    try {
+      const first = await weekly();
+      const seriesId = first.series?.id ?? '';
+      expect((await meetingsOf(seriesId)).map((m) => m.occursOn)).not.toContain(saturdayIn(3));
+      await maryam.c.patch(`/api/meeting-series/${seriesId}`, { weekday: 1 });
+      const rows = await meetingsOf(seriesId);
+      const active = rows.filter((m) => !m.canceledAt).map((m) => m.occursOn);
+      // The week the Saturday holiday left empty now meets on Sunday; the Sunday holiday does not.
+      expect(active).toContain(addDays(saturdayIn(3), 1));
+      expect(active).not.toContain(sundayHoliday);
+      expect(active.every((d) => persianWeekdayOfCalendarDate(d ?? '') === 1)).toBe(true);
+      const weeks = rows.map((m) =>
+        addDays(m.occursOn ?? '', -persianWeekdayOfCalendarDate(m.occursOn ?? '')),
+      );
+      expect(new Set(weeks).size).toBe(weeks.length);
+    } finally {
+      await owner.c.put('/api/work-calendar', {
+        ...DEFAULT_WORK_CALENDAR,
+        holidays: [saturdayIn(3)],
+      });
+    }
+  });
+
+  it('«this and the following ones» starts from the meeting being edited, even one edited alone', async () => {
+    const first = await weekly();
+    const seriesId = first.series?.id ?? '';
+    const made = await meetingsOf(seriesId);
+    const third = made[2];
+    await maryam.c.patch(`/api/meetings/${third?.id ?? ''}`, { title: 'جلسه ویژه' });
+    const res = await maryam.c.patch(`/api/meeting-series/${seriesId}`, {
+      fromMeetingId: third?.id,
+      startTime: '11:00',
+      endTime: '11:30',
+    });
+    expect(res.status).toBe(200);
+    const after = await meetingsOf(seriesId);
+    const at11 = (id: string | undefined) =>
+      after.find((m) => m.id === id)?.startsAt.toISOString() ===
+      at(after.find((m) => m.id === id)?.occursOn ?? '', '11:00');
+    expect(at11(made[0]?.id)).toBe(false);
+    expect(at11(made[1]?.id)).toBe(false);
+    expect(at11(third?.id)).toBe(true);
+    expect(after.find((m) => m.id === third?.id)?.detached).toBe(false);
+    expect(at11(made[3]?.id)).toBe(true);
+    // A meeting from another series is not a starting point.
+    const other = await weekly();
+    expect(
+      (
+        await maryam.c.patch(`/api/meeting-series/${seriesId}`, {
+          fromMeetingId: other.id,
+          startTime: '12:00',
+          endTime: '12:30',
+        })
+      ).status,
+    ).toBe(404);
+  });
+
+  it('a canceled meeting gets no reminder', async () => {
+    const day = saturdayIn(2);
+    const meeting: Meeting = (
+      await maryam.c.post('/api/meetings', {
+        type: 'regular',
+        title: 'لغوشده',
+        startsAt: at(day, '11:05'),
+        endsAt: at(day, '11:35'),
+        participantIds: [ali.memberId],
+      })
+    ).body;
+    await maryam.c.post(`/api/meetings/${meeting.id}/cancel`);
+    await jobs.remindForTenant(tenantId, zonedInstant(day, '10:58', tz));
+    expect(
+      (await notificationsOf(ali.memberId, 'meeting_reminder')).map((n) => n.subjectId),
+    ).not.toContain(meeting.id);
   });
 
   it('another company reaches none of it', async () => {

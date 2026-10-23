@@ -11,6 +11,7 @@ import { WeeklyReportsJob } from '../reports/weekly-job.js';
 import { REDIS } from './consumer.js';
 
 const QUEUE = 'scheduled';
+const MEETING_QUEUE = 'meeting-reminders';
 const EVERY_MS = 15 * 60_000;
 /** Meeting reminders need minute precision («۱۰ دقیقه دیگر»). */
 const MEETING_REMINDERS_MS = 60_000;
@@ -25,6 +26,9 @@ export class SchedulerService implements OnModuleDestroy {
   private readonly logger = new Logger('Scheduler');
   private queue: Queue | undefined;
   private worker: Worker | undefined;
+  /** Its own queue and worker, so a long 15-minute run never holds a reminder back. */
+  private remindersQueue: Queue | undefined;
+  private remindersWorker: Worker | undefined;
 
   constructor(
     @Inject(REDIS) private readonly redis: Redis,
@@ -43,29 +47,41 @@ export class SchedulerService implements OnModuleDestroy {
       { every: EVERY_MS },
       { name: 'due-reminders' },
     );
-    await this.queue.upsertJobScheduler(
-      'meeting-reminders',
-      { every: MEETING_REMINDERS_MS },
-      { name: 'meeting-reminders' },
-    );
     this.worker = new Worker(
       QUEUE,
       async (job) => {
-        if (job.name === 'due-reminders') {
-          await this.reminders.runAll();
-          await this.weeklyReports.runAll();
-          await this.filesCleanup.runAll();
-          await this.meetings.generateAll();
+        if (job.name !== 'due-reminders') return;
+        // Each step on its own: one failing never skips the others.
+        const steps: Array<[string, () => Promise<void>]> = [
+          ['reminders', () => this.reminders.runAll()],
+          ['weekly reports', () => this.weeklyReports.runAll()],
+          ['files cleanup', () => this.filesCleanup.runAll()],
+          ['weekly meetings', () => this.meetings.generateAll()],
+        ];
+        for (const [name, run] of steps) {
+          await run().catch((error: unknown) => this.logger.error(`${name}: ${String(error)}`));
         }
-        if (job.name === 'meeting-reminders') await this.meetings.remindAll();
       },
       options,
     );
     this.worker.on('failed', (job, error) => this.logger.error(`${job?.name}: ${error.message}`));
+
+    this.remindersQueue = new Queue(MEETING_QUEUE, options);
+    await this.remindersQueue.upsertJobScheduler(
+      'meeting-reminders',
+      { every: MEETING_REMINDERS_MS },
+      { name: 'meeting-reminders' },
+    );
+    this.remindersWorker = new Worker(MEETING_QUEUE, () => this.meetings.remindAll(), options);
+    this.remindersWorker.on('failed', (job, error) =>
+      this.logger.error(`${job?.name}: ${error.message}`),
+    );
   }
 
   async onModuleDestroy(): Promise<void> {
     await this.worker?.close();
+    await this.remindersWorker?.close();
     await this.queue?.close();
+    await this.remindersQueue?.close();
   }
 }

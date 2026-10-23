@@ -307,7 +307,8 @@ export class NotificationsConsumer implements EventConsumer {
               subjectType: 'meeting',
               subjectId: meeting.id,
               payload,
-              dedupeKey: `invite-series:${String(p.seriesId)}:${recipientId}`,
+              // Once per event: someone removed and added again is invited again.
+              dedupeKey: `event:${event.id}`,
             });
           }
         };

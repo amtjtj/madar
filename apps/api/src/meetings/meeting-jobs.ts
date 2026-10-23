@@ -57,7 +57,9 @@ export class MeetingJobs {
               gt(s.meetingSeries.untilOn, s.meetingSeries.generatedUntil),
             ),
           ),
-        );
+        )
+        // A series being changed right now is skipped; the next run sees its new rule.
+        .for('update', { skipLocked: true });
       let made = 0;
       for (const series of due) made += (await generateSeries(tx, series, loaded, now)).length;
       return made;
@@ -103,7 +105,8 @@ export class MeetingJobs {
           subjectId: row.meetingId,
           actorId: null,
           payload: { title: row.title, data: { startsAt: row.startsAt.toISOString() } },
-          dedupeKey: `remind:${row.meetingId}:${row.memberId}`,
+          // A meeting moved later reminds again.
+          dedupeKey: `remind:${row.meetingId}:${row.memberId}:${row.startsAt.toISOString()}`,
           now,
           notAfter: row.startsAt,
           calendar: loaded,

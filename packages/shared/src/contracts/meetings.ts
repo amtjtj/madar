@@ -182,6 +182,8 @@ const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 
 /** «این و جلسه‌های بعدی»: changes the series and its future meetings not edited one by one. */
 export const updateSeriesRequest = z.object({
+  /** The meeting the change starts from (it and the following ones); omit for all to come. */
+  fromMeetingId: z.uuid().optional(),
   title: title.optional(),
   weekday: z.number().int().min(0).max(6).optional(),
   startTime: hhmm.optional(),

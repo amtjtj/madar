@@ -27,7 +27,7 @@ import {
   type Task,
   type UpdateMeetingRequest,
 } from '@madar/shared';
-import { and, asc, desc, eq, gt, inArray, isNull, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 
 import type { TenantContext } from '../common/context.js';
@@ -54,8 +54,8 @@ const badTime = () =>
   new ApiError(HttpStatus.BAD_REQUEST, 'meeting_time_invalid', 'End after start, within a day');
 const badLink = () =>
   new ApiError(HttpStatus.BAD_REQUEST, 'meeting_link_invalid', 'Links are http or https');
-const started = () =>
-  new ApiError(HttpStatus.CONFLICT, 'meeting_started', 'The meeting has started');
+const replyClosed = () =>
+  new ApiError(HttpStatus.CONFLICT, 'meeting_reply_closed', 'Replies close when it starts');
 const hasTask = () =>
   new ApiError(HttpStatus.CONFLICT, 'decision_has_task', 'The decision already has a task');
 
@@ -280,7 +280,8 @@ export class MeetingsService {
       if (current.canceledAt) throw canceled();
       const [meeting] = await tx
         .update(s.meetings)
-        .set({ canceledAt: new Date(), updatedAt: new Date() })
+        // Canceled alone: a later change to the series never brings it back.
+        .set({ canceledAt: new Date(), detached: current.seriesId !== null, updatedAt: new Date() })
         .where(eq(s.meetings.id, id))
         .returning();
       if (!meeting) throw notFound('Meeting');
@@ -446,7 +447,7 @@ export class MeetingsService {
     return this.db.run(ctx, async (tx) => {
       const meeting = await this.requireWritable(tx, ctx, id);
       if (meeting.organizerId === ctx.memberId) throw forbidden();
-      if (meeting.startsAt <= new Date()) throw started();
+      if (meeting.startsAt <= new Date()) throw replyClosed();
       await tx
         .update(s.meetingParticipants)
         .set({ response, respondedAt: new Date() })
@@ -618,6 +619,18 @@ export class MeetingsService {
       if (!updated) throw notFound('Series');
 
       const now = new Date();
+      // From the meeting being edited (always included, even if it was edited alone), or every
+      // meeting to come. A meeting canceled by the series (not detached) comes back when the
+      // new rule includes its day again; one canceled or edited alone is left alone.
+      let fromDay: string | null = null;
+      if (body.fromMeetingId) {
+        const [from] = await tx
+          .select({ occursOn: s.meetings.occursOn })
+          .from(s.meetings)
+          .where(and(eq(s.meetings.id, body.fromMeetingId), eq(s.meetings.seriesId, id)));
+        if (!from?.occursOn) throw notFound('Meeting');
+        fromDay = from.occursOn;
+      }
       const future = await tx
         .select()
         .from(s.meetings)
@@ -625,17 +638,25 @@ export class MeetingsService {
           and(
             eq(s.meetings.seriesId, id),
             gt(s.meetings.startsAt, now),
-            isNull(s.meetings.canceledAt),
-            eq(s.meetings.detached, false),
+            fromDay ? sql`${s.meetings.occursOn} >= ${fromDay}` : undefined,
+            or(
+              eq(s.meetings.detached, false),
+              body.fromMeetingId
+                ? and(eq(s.meetings.id, body.fromMeetingId), isNull(s.meetings.canceledAt))
+                : undefined,
+            ),
           ),
         );
+      const holidays = new Set(calendar.holidays);
       // All of a series' days share its old weekday, so shifting them never collides.
       const shift = weekday - series.weekday;
       for (const meeting of future) {
         const day = addDays(meeting.occursOn ?? series.startsOn, shift);
-        // Past its new last day (or moved into the past): canceled, never deleted.
-        const ended =
-          (untilOn !== null && day > untilOn) || zonedInstant(day, startTime, timeZone) <= now;
+        // Past its last day, on a holiday or moved into the past: canceled, never deleted.
+        const off =
+          (untilOn !== null && day > untilOn) ||
+          holidays.has(day) ||
+          zonedInstant(day, startTime, timeZone) <= now;
         await tx
           .update(s.meetings)
           .set({
@@ -646,7 +667,8 @@ export class MeetingsService {
             location,
             link,
             agenda: updated.agenda,
-            canceledAt: ended ? now : null,
+            canceledAt: off ? (meeting.canceledAt ?? now) : null,
+            detached: false,
             updatedAt: now,
           })
           .where(eq(s.meetings.id, meeting.id));
@@ -667,14 +689,28 @@ export class MeetingsService {
             .onConflictDoNothing();
         }
       }
-      const generatedUntil = addDays(updated.generatedUntil, shift);
-      const [refreshed] = await tx
-        .update(s.meetingSeries)
-        .set({ generatedUntil })
-        .where(eq(s.meetingSeries.id, id))
-        .returning();
-      // A later last day (or a moved weekday) may leave weeks to make.
-      if (refreshed) await generateSeries(tx, refreshed, { calendar, timeZone }, now);
+      // A shorter series ends for meetings edited alone too.
+      if (untilOn) {
+        await tx
+          .update(s.meetings)
+          .set({ canceledAt: now, updatedAt: now })
+          .where(
+            and(
+              eq(s.meetings.seriesId, id),
+              gt(s.meetings.startsAt, now),
+              isNull(s.meetings.canceledAt),
+              sql`${s.meetings.occursOn} > ${untilOn}`,
+            ),
+          );
+      }
+      // Weeks with no meeting yet (a later last day, or a holiday on the old weekday) are made
+      // with the new rule; a week that already has one is never given a second.
+      const [refreshed] = await tx.select().from(s.meetingSeries).where(eq(s.meetingSeries.id, id));
+      if (refreshed) {
+        await generateSeries(tx, refreshed, { calendar, timeZone }, now, {
+          from: fromDay ?? calendarDateIn(now, timeZone),
+        });
+      }
 
       const next = await this.nextOfSeries(tx, id);
       const moved =
@@ -1052,13 +1088,32 @@ export async function generateSeries(
   series: typeof s.meetingSeries.$inferSelect,
   { calendar, timeZone }: { calendar: WorkCalendar; timeZone: string },
   now: Date,
+  /** Fill from this day instead of the day after `generated_until` (after a rule change). */
+  options: { from?: string } = {},
 ): Promise<MeetingRow[]> {
   if (series.canceledAt) return [];
   const today = calendarDateIn(now, timeZone);
   const horizon = addDays(today, SERIES_HORIZON_WEEKS * 7);
-  const next = addDays(series.generatedUntil, 1);
-  const dates = seriesDates(series, next > today ? next : today, horizon, calendar.holidays).filter(
-    (day) => zonedInstant(day, series.startTime, timeZone) > now,
+  const start = options.from ?? addDays(series.generatedUntil, 1);
+  const from = start > today ? start : today;
+  // One meeting a week at most: a week already holding one (moved, edited alone or canceled)
+  // gets no other.
+  const weekOf = (day: string) => addDays(day, -persianWeekdayOfCalendarDate(day));
+  const taken = new Set(
+    (
+      await tx
+        .select({ occursOn: s.meetings.occursOn })
+        .from(s.meetings)
+        .where(
+          and(
+            eq(s.meetings.seriesId, series.id),
+            sql`${s.meetings.occursOn} >= ${addDays(from, -6)}`,
+          ),
+        )
+    ).map((r) => weekOf(r.occursOn ?? from)),
+  );
+  const dates = seriesDates(series, from, horizon, calendar.holidays).filter(
+    (day) => zonedInstant(day, series.startTime, timeZone) > now && !taken.has(weekOf(day)),
   );
   const people = (
     await tx

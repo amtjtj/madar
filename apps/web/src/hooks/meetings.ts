@@ -121,7 +121,9 @@ export function useRespond(id: string, memberId: string | undefined) {
   return useMutation({
     mutationFn: (response: 'accepted' | 'declined') =>
       api<Meeting>(`/api/meetings/${id}/response`, { method: 'PUT', body: { response } }),
-    onMutate: (response) => {
+    onMutate: async (response) => {
+      // A refetch already on its way would overwrite the reply shown.
+      await client.cancelQueries({ queryKey: key });
       const before = client.getQueryData<Meeting>(key);
       if (before) client.setQueryData(key, withResponse(before, memberId, response));
       return { before };

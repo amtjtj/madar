@@ -42,6 +42,7 @@ export type ErrorCode =
   | 'group_owner_only'
   | 'meeting_canceled'
   | 'meeting_started'
+  | 'meeting_reply_closed'
   | 'one_on_one_needs_one'
   | 'meeting_time_invalid'
   | 'meeting_link_invalid'

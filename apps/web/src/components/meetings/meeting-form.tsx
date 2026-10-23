@@ -162,6 +162,7 @@ function MeetingForm({
       {
         seriesId: weekly.id,
         body: {
+          fromMeetingId: meeting?.id,
           title: fields.title,
           weekday: persianWeekdayOfCalendarDate(date),
           startTime: start,
