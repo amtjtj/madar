@@ -55,6 +55,7 @@ import {
   ChatDemo,
   WorkDemo,
   CalendarDemo,
+  WeekDemo,
 } from './interactive';
 import { Code, Panel, Section } from './section';
 
@@ -561,6 +562,7 @@ export default function DesignSystemPage() {
                 />
               </div>
               <CalendarDemo today={calendarDateIn(new Date())} />
+              <WeekDemo today={calendarDateIn(new Date())} />
             </div>
           </Panel>
         </Section>

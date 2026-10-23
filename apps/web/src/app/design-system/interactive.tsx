@@ -13,7 +13,13 @@ import {
 } from '@madar/shared';
 import {
   Avatar,
+  CalendarDnd,
   CalendarMonth,
+  DayStrip,
+  DragItem,
+  DropDay,
+  TimedEvent,
+  WeekGrid,
   LayerToggle,
   Badge,
   BottomNav,
@@ -645,5 +651,73 @@ export function CalendarDemo({ today }: { today: string }) {
         }
       />
     </div>
+  );
+}
+
+export function WeekDemo({ today }: { today: string }) {
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const date = addDays(today, i - 3);
+    return { date, today: date === today, off: i === 6 };
+  });
+  const [due, setDue] = useState(addDays(today, -1));
+  const [selected, setSelected] = useState(today);
+  const meeting = (
+    id: string,
+    title: string,
+    start: number,
+    end: number,
+    column = 0,
+    columns = 1,
+  ) => ({
+    id,
+    date: today,
+    start,
+    end,
+    column,
+    columns,
+    node: <TimedEvent title={title} time={t('designSystem.calendar.time')} href="#calendar" />,
+  });
+  const chip = (
+    <DragItem id="demo-task" title={t('designSystem.calendar.task')}>
+      {(handle) => (
+        <div className="flex min-w-0 items-center rounded-md bg-layer-task-soft text-[0.6875rem] leading-5 text-ink">
+          {handle}
+          <span className="truncate px-1">{t('designSystem.calendar.task')}</span>
+        </div>
+      )}
+    </DragItem>
+  );
+  return (
+    <CalendarDnd
+      onMove={(_id, date) => setDue(date)}
+      itemTitle={() => t('designSystem.calendar.task')}
+      dayLabel={(date) => formatCalendarDate(date, 'full')}
+    >
+      <div className="flex flex-col gap-4">
+        <DayStrip
+          label={t('calendar.weekDays')}
+          selected={selected}
+          onSelect={setSelected}
+          days={days.map((d) => ({ ...d, busy: d.date === due || d.today }))}
+          dayLabel={(d) => formatCalendarDate(d.date, 'full')}
+        />
+        <WeekGrid
+          days={days}
+          startHour={9}
+          endHour={14}
+          nowMinutes={11 * 60 + 20}
+          dayLabel={(d) => formatCalendarDate(d.date, 'full')}
+          allDay={(d) => (
+            <DropDay date={d.date} className="h-full p-1">
+              {d.date === due && chip}
+            </DropDay>
+          )}
+          events={[
+            meeting('a', t('designSystem.calendar.meeting'), 600, 660, 0, 2),
+            meeting('b', t('designSystem.meetings.okr'), 630, 720, 1, 2),
+          ]}
+        />
+      </div>
+    </CalendarDnd>
   );
 }
