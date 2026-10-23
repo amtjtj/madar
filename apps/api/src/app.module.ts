@@ -23,6 +23,7 @@ import { ChatModule } from './chat/chat.module.js';
 import { EvidenceModule } from './evidence/evidence.module.js';
 import { LettersModule } from './letters/letters.module.js';
 import { MeetingsModule } from './meetings/meetings.module.js';
+import { RequestsModule } from './requests/requests.module.js';
 import { WorkModule } from './work/work.module.js';
 
 @Module({
@@ -41,6 +42,7 @@ import { WorkModule } from './work/work.module.js';
     EvidenceModule,
     ChatModule,
     MeetingsModule,
+    RequestsModule,
     CalendarModule,
     AiModule,
     GoalsModule,

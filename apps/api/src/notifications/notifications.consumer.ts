@@ -23,6 +23,9 @@ const HANDLED = [
   'meeting.series_scheduled',
   'meeting.series_updated',
   'meeting.series_canceled',
+  'request.submitted',
+  'request.advanced',
+  'request.decided',
 ];
 
 /** Turns domain events into in-app notifications. */
@@ -50,6 +53,32 @@ export class NotificationsConsumer implements EventConsumer {
           subjectType: 'task',
           subjectId: task.id,
           payload: { title: task.title },
+          dedupeKey: `event:${event.id}`,
+        });
+        return;
+      }
+      case 'request.submitted':
+      case 'request.advanced':
+      case 'request.decided': {
+        // To the approver whose turn it is, or back to the requester (ADR 0028). The request's
+        // kind only: no titles, amounts or names leave the request.
+        const [request] = await tx
+          .select({ id: s.approvalRequests.id, kind: s.approvalRequests.kind })
+          .from(s.approvalRequests)
+          .where(eq(s.approvalRequests.id, String(p.requestId)));
+        if (!request) return;
+        const decided = event.type === 'request.decided';
+        const recipientId = String(decided ? p.requesterId : p.approverId);
+        await this.notifier.notify(tx, {
+          ...base,
+          recipientId,
+          kind: decided ? 'request_decided' : 'request_waiting',
+          subjectType: 'request',
+          subjectId: request.id,
+          payload: {
+            title: '',
+            data: { kind: request.kind, ...(decided ? { status: String(p.status) } : {}) },
+          },
           dedupeKey: `event:${event.id}`,
         });
         return;

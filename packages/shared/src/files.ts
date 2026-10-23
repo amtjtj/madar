@@ -152,7 +152,14 @@ export const fileSettings = z.object({ maxSizeMb: z.number().int().min(1).max(10
 export type FileSettings = z.infer<typeof fileSettings>;
 export const DEFAULT_FILE_SETTINGS: FileSettings = { maxSizeMb: DEFAULT_MAX_FILE_MB };
 
-export const ATTACHMENT_SUBJECTS = ['task', 'comment', 'letter', 'message', 'minutes'] as const;
+export const ATTACHMENT_SUBJECTS = [
+  'task',
+  'comment',
+  'letter',
+  'message',
+  'minutes',
+  'approval_request',
+] as const;
 export type AttachmentSubject = (typeof ATTACHMENT_SUBJECTS)[number];
 
 export const attachment = z.object({

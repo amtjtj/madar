@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { attachment } from '../files.js';
 import { addDays } from '../locale/jalali.js';
 import { workingDaysBetween, type WorkCalendar } from '../locale/work-calendar.js';
 import { calendarDate } from './work.js';
@@ -124,14 +125,7 @@ export const requestDetail = requestSummary.extend({
   steps: z.array(requestStep),
   /** Working days a daily leave takes (holidays and days off not counted). */
   leaveDays: z.number().int().nullable(),
-  attachments: z.array(
-    z.object({
-      id: z.uuid(),
-      fileName: z.string(),
-      size: z.number().int(),
-      kind: z.string(),
-    }),
-  ),
+  attachments: z.array(attachment),
   can: z.object({ decide: z.boolean(), cancel: z.boolean() }),
 });
 export type RequestDetail = z.infer<typeof requestDetail>;

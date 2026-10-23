@@ -13,6 +13,7 @@ import { visibleConversations } from '../chat/access.js';
 import { visibleGoals } from '../goals/access.js';
 import { visibleLetters } from '../letters/access.js';
 import { visibleMeetings } from '../meetings/access.js';
+import { visibleRequests } from '../requests/access.js';
 import { readsReport, visibleProjects, visibleTasks } from '../work/access.js';
 import { loadWorkCalendar } from './calendar.js';
 
@@ -126,6 +127,13 @@ export class Notifier {
         .select({ id: s.meetings.id })
         .from(s.meetings)
         .where(and(eq(s.meetings.id, subjectId), visibleMeetings(actor)));
+      return Boolean(row);
+    }
+    if (subjectType === 'request') {
+      const [row] = await tx
+        .select({ id: s.approvalRequests.id })
+        .from(s.approvalRequests)
+        .where(and(eq(s.approvalRequests.id, subjectId), visibleRequests(actor)));
       return Boolean(row);
     }
     if (subjectType === 'goal') {

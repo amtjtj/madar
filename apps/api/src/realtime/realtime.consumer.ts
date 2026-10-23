@@ -40,6 +40,10 @@ const HANDLED = [
   'meeting.series_scheduled',
   'meeting.series_updated',
   'meeting.series_canceled',
+  'request.submitted',
+  'request.advanced',
+  'request.decided',
+  'request.canceled',
 ];
 
 /**
@@ -132,6 +136,22 @@ export class RealtimeConsumer implements EventConsumer {
       if (rooms.length) {
         emits.push(() => this.emitter.to(rooms).emit(REALTIME_EVENTS.meetingsChanged));
       }
+      return;
+    }
+    if (event.type.startsWith('request.') && p.requestId) {
+      // The requester and every approver of the request refresh their lists (ADR 0028).
+      const [request] = await tx
+        .select({
+          requesterId: s.approvalRequests.requesterId,
+          snapshot: s.approvalRequests.snapshot,
+        })
+        .from(s.approvalRequests)
+        .where(eq(s.approvalRequests.id, String(p.requestId)));
+      if (!request) return;
+      const rooms = [...new Set([request.requesterId, ...request.snapshot.approvers])].map((m) =>
+        memberRoom(t, m),
+      );
+      emits.push(() => this.emitter.to(rooms).emit(REALTIME_EVENTS.requestsChanged));
       return;
     }
     if (event.type.startsWith('letter.') && p.letterId) {

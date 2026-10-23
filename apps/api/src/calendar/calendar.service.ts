@@ -18,6 +18,7 @@ import { and, asc, eq, gte, inArray, isNull, lt, lte, or, sql } from 'drizzle-or
 
 import type { TenantContext } from '../common/context.js';
 import { notFound } from '../common/errors.js';
+import { visibleRequests } from '../requests/access.js';
 import { TenantDb } from '../database/tenant-db.service.js';
 import { takesPart, visibleMeetings } from '../meetings/access.js';
 import { loadWorkCalendar } from '../notifications/calendar.js';
@@ -279,6 +280,46 @@ export class CalendarService {
             project: null,
             period: { year: row.year, quarter: row.quarter },
           });
+        }
+      }
+
+      if (on.has('leaves')) {
+        // Approved leaves of whose calendar this is: my own, or ones whose request I may see
+        // (ADR 0028). A daily leave shows on each of its days.
+        const rows = await tx
+          .select({ leave: s.leaves })
+          .from(s.leaves)
+          .innerJoin(s.approvalRequests, eq(s.approvalRequests.id, s.leaves.requestId))
+          .where(
+            and(
+              eq(s.leaves.memberId, whose),
+              lte(s.leaves.startsOn, query.to),
+              gte(s.leaves.endsOn, query.from),
+              self ? undefined : visibleRequests(ctx.actor),
+            ),
+          )
+          .orderBy(asc(s.leaves.startsOn))
+          .limit(CALENDAR_LAYER_MAX + 1);
+        for (const { leave } of cut('leaves', rows)) {
+          for (const day of daysInRange(
+            leave.startsOn < query.from ? query.from : leave.startsOn,
+            leave.endsOn > query.to ? query.to : leave.endsOn,
+          )) {
+            push(day, {
+              kind: 'leave',
+              id: leave.id,
+              title: null,
+              task: null,
+              meeting: null,
+              project: null,
+              period: null,
+              leave: {
+                kind: leave.kind,
+                startsAt: leave.startsAt?.toISOString() ?? null,
+                endsAt: leave.endsAt?.toISOString() ?? null,
+              },
+            });
+          }
         }
       }
 

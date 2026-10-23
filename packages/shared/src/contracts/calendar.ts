@@ -75,7 +75,7 @@ export const calendarItem = z.object({
       endsAt: z.iso.datetime().nullable(),
     })
     .nullable()
-    .default(null),
+    .optional(),
 });
 export type CalendarItem = z.infer<typeof calendarItem>;
 

@@ -30,6 +30,7 @@ import { takesPart, visibleMeetings } from '../meetings/access.js';
 import { pinnedToVisibleTask } from '../evidence/letter-provider.js';
 import { messagePinnedToVisibleTask } from '../evidence/message-provider.js';
 import { minutesPinnedToVisibleTask } from '../evidence/minutes-provider.js';
+import { visibleRequests } from '../requests/access.js';
 import { canEditTask, visibleTasks } from '../work/access.js';
 import { TasksService } from '../work/tasks.service.js';
 import { attachmentRows, bindUploads, toAttachment, type AttachmentRow } from './attachments-db.js';
@@ -317,8 +318,11 @@ export class AttachmentsService implements OnModuleInit {
   remove(ctx: TenantContext, id: string): Promise<void> {
     return this.db.run(ctx, async (tx) => {
       const row = await this.visible(tx, ctx, id);
-      // A message's files go with the message (deleting the message removes them).
-      if (row.subjectType === 'message') throw forbidden();
+      // A message's files go with the message (deleting the message removes them); a request's
+      // files are part of its record (ADR 0028).
+      if (row.subjectType === 'message' || row.subjectType === 'approval_request') {
+        throw forbidden();
+      }
       let meetingId: string | null = null;
       if (row.subjectType === 'minutes') {
         // Anyone who may write the minutes, while the meeting is not canceled (ADR 0023).
@@ -395,6 +399,17 @@ export class AttachmentsService implements OnModuleInit {
       ) {
         throw notFound('Attachment');
       }
+      return row;
+    }
+    if (row.subjectType === 'approval_request') {
+      // Whoever sees the request (ADR 0028).
+      const [request] = row.subjectId
+        ? await tx
+            .select({ id: s.approvalRequests.id })
+            .from(s.approvalRequests)
+            .where(and(eq(s.approvalRequests.id, row.subjectId), visibleRequests(ctx.actor)))
+        : [];
+      if (!request) throw notFound('Attachment');
       return row;
     }
     if (row.subjectType === 'message') {
