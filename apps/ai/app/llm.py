@@ -7,7 +7,7 @@ from typing import Literal, Protocol
 
 import httpx
 
-Kind = Literal["report_summary", "task_breakdown", "answer"]
+Kind = Literal["report_summary", "task_breakdown", "answer", "minutes", "letter_reply"]
 
 
 @dataclass(frozen=True)
@@ -111,6 +111,24 @@ class FakeModel:
                 for i, step in enumerate(steps)
             ]
             return Completion(text=json.dumps({"tasks": tasks}, ensure_ascii=False), tokens=40)
+        if kind == "minutes":
+            notes = user.split("یادداشت‌ها:", 1)[-1]
+            lines = [ln.strip(" -•") for ln in re.split(r"[\n.]+", notes) if ln.strip(" -•")]
+            text = "\n".join(f"- {ln}" for ln in lines) or "- (بدون یادداشت)"
+            decisions = [ln for ln in lines if re.search(r"شود|شه|باید|قرار", ln)][:2]
+            body = {"text": f"خلاصه آزمایشی دستیار:\n{text}", "decisions": decisions}
+            return Completion(text=json.dumps(body, ensure_ascii=False), tokens=30)
+        if kind == "letter_reply":
+            subject = re.search(r"موضوع نامه: (.+)", user)
+            intent = re.search(r"منظور پاسخ‌دهنده: (.+)", user)
+            parts = [
+                "با سلام و احترام،",
+                f"پاسخ آزمایشی دستیار به نامه «{subject.group(1) if subject else ''}».",
+            ]
+            if intent:
+                parts.append(intent.group(1))
+            parts.append("با سپاس")
+            return Completion(text="\n\n".join(parts), tokens=20)
         if kind == "answer":
             source = re.search(r"^\[(\d+)\] \(.+?\) (.+)$", user, re.MULTILINE)
             if source is None:

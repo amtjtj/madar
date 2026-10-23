@@ -13,9 +13,13 @@ from .llm import ChatModel, Kind
 from .prompts import (
     ANSWER_SYSTEM,
     BREAKDOWN_SYSTEM,
+    LETTER_SYSTEM,
+    MINUTES_SYSTEM,
     REPORT_SYSTEM,
     answer_message,
     breakdown_message,
+    letter_reply_message,
+    minutes_message,
     report_message,
 )
 from .schemas import (
@@ -23,6 +27,10 @@ from .schemas import (
     AnswerResponse,
     EmbedRequest,
     EmbedResponse,
+    LetterReplyRequest,
+    LetterReplyResponse,
+    MinutesRequest,
+    MinutesResponse,
     ModelTask,
     ReportSummaryRequest,
     ReportSummaryResponse,
@@ -37,6 +45,8 @@ log = logging.getLogger("madar.ai")
 MAX_TASKS = 10
 MAX_SUMMARY_CHARS = 1200
 MAX_ANSWER_CHARS = 1500
+MAX_DRAFT_CHARS = 6000
+MAX_DECISIONS = 6
 
 
 class ModelOutputError(Exception):
@@ -176,3 +186,80 @@ async def answer(model: ChatModel, req: AnswerRequest) -> AnswerResponse:
     return AnswerResponse(
         text=text, cited=citations(text, known), model=model.name, tokens=completion.tokens
     )
+
+
+def _tidy_draft(text: str) -> str:
+    """Lines collapsed, at most one empty line between paragraphs, cut near the limit."""
+    out: list[str] = []
+    for raw in text.replace("\r", "").splitlines():
+        line = " ".join(raw.split())
+        if line or (out and out[-1]):
+            out.append(line)
+    text = "\n".join(out).strip()
+    if len(text) > MAX_DRAFT_CHARS:
+        text = text[:MAX_DRAFT_CHARS].rsplit(" ", 1)[0] + "…"
+    return text
+
+
+def _parse_minutes(text: str) -> tuple[str, list[str]]:
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end < start:
+        raise ModelOutputError("no JSON object")
+    try:
+        data = json.loads(text[start : end + 1])
+    except json.JSONDecodeError as error:
+        raise ModelOutputError("invalid JSON") from error
+    if not isinstance(data, dict):
+        raise ModelOutputError("not an object")
+    body = _tidy_draft(str(data.get("text") or ""))
+    if not body:
+        raise ModelOutputError("empty minutes")
+    rows = data.get("decisions")
+    decisions: list[str] = []
+    for row in rows if isinstance(rows, list) else []:
+        if not isinstance(row, str):
+            continue
+        decision = " ".join(row.split()).lstrip("-• ")[:200]
+        if decision and decision not in decisions:
+            decisions.append(decision)
+    return body, decisions[:MAX_DECISIONS]
+
+
+async def minutes(
+    model: ChatModel,
+    req: MinutesRequest,
+    *,
+    budget: float,
+    gone: Callable[[], Awaitable[bool]] | None = None,
+) -> MinutesResponse:
+    """Notes into tidy minutes and suggested decisions; one retry like task_breakdown."""
+    tokens = 0
+    begun = time.monotonic()
+    for attempt in range(2):
+        started = time.monotonic()
+        completion = await model.complete(
+            "minutes", MINUTES_SYSTEM, minutes_message(req), as_json=True, max_tokens=900
+        )
+        tokens += completion.tokens
+        _record("minutes", started, completion.tokens)
+        try:
+            text, decisions = _parse_minutes(completion.text)
+        except ModelOutputError:
+            out_of_time = time.monotonic() - begun > budget / 2
+            if attempt == 1 or out_of_time or (gone is not None and await gone()):
+                raise
+            continue
+        return MinutesResponse(text=text, decisions=decisions, model=model.name, tokens=tokens)
+    raise ModelOutputError("unreachable")
+
+
+async def letter_reply(model: ChatModel, req: LetterReplyRequest) -> LetterReplyResponse:
+    started = time.monotonic()
+    completion = await model.complete(
+        "letter_reply", LETTER_SYSTEM, letter_reply_message(req), as_json=False, max_tokens=600
+    )
+    _record("letter_reply", started, completion.tokens)
+    text = _tidy_draft(completion.text)
+    if not text:
+        raise ModelOutputError("empty reply")
+    return LetterReplyResponse(text=text, model=model.name, tokens=completion.tokens)

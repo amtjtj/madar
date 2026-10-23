@@ -23,12 +23,24 @@ from .schemas import (
     AnswerResponse,
     EmbedRequest,
     EmbedResponse,
+    LetterReplyRequest,
+    LetterReplyResponse,
+    MinutesRequest,
+    MinutesResponse,
     ReportSummaryRequest,
     ReportSummaryResponse,
     TaskBreakdownRequest,
     TaskBreakdownResponse,
 )
-from .service import ModelOutputError, answer, embed, report_summary, task_breakdown
+from .service import (
+    ModelOutputError,
+    answer,
+    embed,
+    letter_reply,
+    minutes,
+    report_summary,
+    task_breakdown,
+)
 
 
 def _error(status: int, code: str) -> JSONResponse:
@@ -138,6 +150,24 @@ def create_app(
     )
     async def answer_question(req: AnswerRequest) -> AnswerResponse:
         return await answer(chat, req)
+
+    @app.post(
+        "/v1/minutes",
+        dependencies=[Depends(authorized)],
+        response_model=MinutesResponse,
+        response_model_by_alias=True,
+    )
+    async def tidy_minutes(req: MinutesRequest, request: Request) -> MinutesResponse:
+        return await minutes(chat, req, budget=settings.timeout, gone=request.is_disconnected)
+
+    @app.post(
+        "/v1/letter-reply",
+        dependencies=[Depends(authorized)],
+        response_model=LetterReplyResponse,
+        response_model_by_alias=True,
+    )
+    async def reply_draft(req: LetterReplyRequest) -> LetterReplyResponse:
+        return await letter_reply(chat, req)
 
     return app
 

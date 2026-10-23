@@ -115,6 +115,7 @@ class AnswerRequest(Body):
     question: Annotated[str, Field(min_length=3, max_length=500)]
     today: Text
     sources: list[AnswerSource] = Field(min_length=1, max_length=8)
+    history: list["Turn"] = Field(default_factory=list, max_length=3)
 
 
 class AnswerResponse(Body):
@@ -122,3 +123,51 @@ class AnswerResponse(Body):
     cited: list[int]
     model: str
     tokens: int
+
+
+class Turn(Body):
+    """An earlier question and answer on the same «از مدار بپرس» page (not stored anywhere)."""
+
+    question: Annotated[str, Field(min_length=1, max_length=500)]
+    answer: Annotated[str, Field(min_length=1, max_length=1500)]
+
+
+class MinutesRequest(Body):
+    """A meeting's facts and the minute-taker's own notes; no participant list (ADR 0025)."""
+
+    title: Text
+    kind: Literal["regular", "okr_review", "one_on_one"]
+    date: Text
+    agenda: Annotated[str, Field(max_length=4000)] = ""
+    notes: Annotated[str, Field(min_length=3, max_length=8000)]
+
+
+class MinutesResponse(Body):
+    text: str
+    decisions: list[str]
+    model: str
+    tokens: int
+
+
+class ThreadLetter(Body):
+    sender: Text
+    subject: Text
+    body: Annotated[str, Field(min_length=1, max_length=3000)]
+
+
+class LetterReplyRequest(Body):
+    subject: Text
+    body: Annotated[str, Field(min_length=1, max_length=8000)]
+    sender: Text
+    recipient: Text
+    thread: list[ThreadLetter] = Field(default_factory=list, max_length=2)
+    intent: Annotated[str, Field(max_length=300)] = ""
+
+
+class LetterReplyResponse(Body):
+    text: str
+    model: str
+    tokens: int
+
+
+AnswerRequest.model_rebuild()
