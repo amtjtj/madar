@@ -64,6 +64,7 @@ import { AttachmentList, FilePicker, PendingList } from '@/components/work/attac
 import { useUploads } from '@/hooks/files';
 import { meetingKeys } from '@/hooks/keys';
 import { useKeyResultOptions } from '@/hooks/goals';
+import { useAssignees } from '@/hooks/work';
 import {
   useAddDecision,
   useCancelMeeting,
@@ -706,6 +707,8 @@ function ConvertDialog({
   const router = useRouter();
   const [title, setTitle] = useState('');
   const [assignee, setAssignee] = useState<Person[]>([]);
+  // Only people the task may go to (outside a project: the people I manage, ADR 0027).
+  const { data: assignable } = useAssignees(null);
   const [dueOn, setDueOn] = useState<string | null>(null);
   const [keyResultId, setKeyResultId] = useState('');
   // A new decision fills the form; set during render, not in an effect.
@@ -766,6 +769,7 @@ function ConvertDialog({
           label={t('meetings.convert.assignee')}
           value={assignee}
           onChange={(next) => setAssignee(next.slice(-1))}
+          among={assignable ?? []}
         />
         <DatePicker
           label={t('meetings.convert.due')}

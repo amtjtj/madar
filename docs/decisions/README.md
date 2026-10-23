@@ -32,3 +32,4 @@ Template: Status · Date · Context · Decision · Alternatives considered · Co
 | 0024 | Calendar (personal and team) | Accepted |
 | 0025 | AI assistant: stateless service, model gateway, data boundary | Accepted |
 | 0026 | Company knowledge index and «از مدار بپرس» (pgvector, visibility at query time) | Accepted |
+| 0027 | Who defines goals, projects and work; sub-goals | Accepted |

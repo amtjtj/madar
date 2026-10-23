@@ -89,7 +89,8 @@ test('schedule a meeting, record minutes, turn a decision into a task, cancel an
   const ali = await browser.newPage();
   await signIn(ali, employee.person.username, 'علی');
   await ali.goto('/?tab=today');
-  const card = ali.getByRole('link', { name: /هماهنگی شیفت/ });
+  // The today card (the week's calendar below lists it too).
+  const card = ali.getByRole('link', { name: /هماهنگی شیفت/ }).first();
   await expect(card).toBeVisible();
   await ali.goto(`/meetings/${meetingId}`);
   await expect(ali.locator('strong', { hasText: 'دو برداشت' })).toBeVisible();

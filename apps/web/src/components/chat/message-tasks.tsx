@@ -17,6 +17,7 @@ import { Button, DatePicker, Modal, Skeleton, TextField, useToast } from '@madar
 import { RecipientPicker, type Person } from '@/components/letters/recipient-picker';
 import { useCreateTaskFromMessage, useMessageTasks } from '@/hooks/chat';
 import { useMe } from '@/hooks/use-me';
+import { useAssignees } from '@/hooks/work';
 import { errorMessage } from '@/lib/errors';
 
 /**
@@ -37,6 +38,10 @@ export function MakeTaskDialog({
   const { toast } = useToast();
   const [title, setTitle] = useState('');
   const [assignee, setAssignee] = useState<Person[]>([]);
+  // Only people the task may go to: the project's people in a project channel (ADR 0027).
+  const { data: assignable } = useAssignees(
+    conversation.kind === 'project' ? conversation.projectId : null,
+  );
   const [dueOn, setDueOn] = useState<string | null>(null);
   // A new message fills the form; set during render, not in an effect.
   const [forId, setForId] = useState<string | null>(null);
@@ -97,6 +102,7 @@ export function MakeTaskDialog({
             label={t('chat.taskAssignee')}
             value={assignee}
             onChange={(next) => setAssignee(next.slice(-1))}
+            among={assignable ?? []}
           />
           <p className="text-xs text-ink-muted">{t('chat.taskAssigneeHint')}</p>
         </div>

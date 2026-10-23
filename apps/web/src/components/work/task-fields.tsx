@@ -13,8 +13,7 @@ import {
 import { Avatar, DatePicker, SelectField, SourceBadge, rankText, useToast } from '@madar/ui';
 
 import { KeyResultSelect } from '@/components/goals/key-result-select';
-import { useMembers } from '@/hooks/queries';
-import { useProjects, useTodayDate, useUpdateTask } from '@/hooks/work';
+import { useAssignees, useProjects, useTodayDate, useUpdateTask } from '@/hooks/work';
 import { errorMessage } from '@/lib/errors';
 
 /** Side panel: status, priority, assignee, due date, weight, project and key result. */
@@ -22,7 +21,7 @@ export function TaskFields({ task }: { task: Task }) {
   const today = useTodayDate();
   const update = useUpdateTask();
   const { toast } = useToast();
-  const { data: members } = useMembers();
+  const { data: people } = useAssignees(task.project?.id);
   const { data: projects } = useProjects();
   const disabled = !task.can.edit;
 
@@ -35,10 +34,9 @@ export function TaskFields({ task }: { task: Task }) {
       },
     );
 
-  const assignees = (members ?? [])
-    .filter((m) => m.status === 'active')
-    .map((m) => ({ id: m.id, displayName: m.displayName }));
-  // Keep the current assignee selectable even if they are no longer active.
+  // Only people the task may go to (plan phase-3-step-17a). Keep the current assignee selectable
+  // even if they are no longer active or no longer in that list.
+  const assignees = [...(people ?? [])];
   if (task.assignee && !assignees.some((m) => m.id === task.assignee?.id)) {
     assignees.unshift(task.assignee);
   }

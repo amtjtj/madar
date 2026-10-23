@@ -219,6 +219,82 @@ describe.skipIf(!hasDatabase)('work: projects, tasks, comments, activity', () =>
     expect(unassigned.status).toBe(201);
   });
 
+  it('a task given inside a project does not leave it with a peer on it', async () => {
+    const project = (
+      await lead.c.post('/api/projects', {
+        name: 'تیکت‌های مشترک',
+        departmentId: support.id,
+        memberIds: [agent.memberId, colleague.memberId],
+      })
+    ).body;
+    const task = (
+      await agent.c.post('/api/tasks', {
+        title: 'کمک در تیکت',
+        projectId: project.id,
+        assigneeId: colleague.memberId,
+      })
+    ).body;
+    const out = await agent.c.patch(`/api/tasks/${task.id}`, { version: 1, projectId: null });
+    expect(out.status).toBe(403);
+    expect(out.body.error.code).toBe('assignee_not_allowed');
+    // The manager may move it out: the colleague is in the department she runs.
+    expect(
+      (await lead.c.patch(`/api/tasks/${task.id}`, { version: 1, projectId: null })).status,
+    ).toBe(200);
+  });
+
+  it('someone above in the reporting line gives work like a department manager', async () => {
+    // Neither runs a department; the line is set on the member (ADR 0027).
+    const senior = await memberSession(app, env, owner, {
+      departments: [{ departmentId: marketing.id, deptRole: 'member', isPrimary: true }],
+    });
+    const junior = await memberSession(app, env, owner, {
+      departments: [{ departmentId: marketing.id, deptRole: 'member', isPrimary: true }],
+      managerId: senior.memberId,
+    });
+    const given = await senior.c.post('/api/tasks', {
+      title: 'گزارش کمپین',
+      assigneeId: junior.memberId,
+    });
+    expect(given.status).toBe(201);
+    const list = (await senior.c.get('/api/tasks/assignees')).body as Array<{ id: string }>;
+    expect(list.map((p) => p.id)).toEqual(
+      expect.arrayContaining([senior.memberId, junior.memberId]),
+    );
+    expect(list.map((p) => p.id)).not.toContain(marketer.memberId);
+    // Not upwards.
+    const up = await junior.c.post('/api/tasks', { title: 'x', assigneeId: senior.memberId });
+    expect(up.status).toBe(403);
+  });
+
+  it('another company reaches none of it, its owner included', async () => {
+    const theirs = await ownerSession(app, env);
+    const project = (
+      await lead.c.post('/api/projects', { name: 'فقط ما', departmentId: support.id })
+    ).body;
+    expect((await theirs.c.get(`/api/tasks/assignees?projectId=${project.id}`)).status).toBe(404);
+    const list = (await theirs.c.get('/api/tasks/assignees')).body as Array<{ id: string }>;
+    for (const p of [lead, agent, colleague, marketer]) {
+      expect(list.map((x) => x.id)).not.toContain(p.memberId);
+    }
+    const department = (await theirs.c.post('/api/departments', { name: 'پشتیبانی' })).body;
+    const given = await theirs.c.post('/api/tasks', {
+      title: 'x',
+      departmentId: department.id,
+      assigneeId: agent.memberId,
+    });
+    expect(given.status).toBe(404);
+    expect(
+      (
+        await theirs.c.post('/api/tasks', {
+          title: 'x',
+          departmentId: department.id,
+          projectId: project.id,
+        })
+      ).status,
+    ).toBe(404);
+  });
+
   it('shows company-wide projects to everyone', async () => {
     const project = (
       await lead.c.post('/api/projects', {

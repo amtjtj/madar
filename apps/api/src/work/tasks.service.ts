@@ -349,9 +349,15 @@ export class TasksService {
         throw forbidden('Only department managers set the weight');
       }
       if (input.projectId) await this.requireUsableProject(tx, ctx, input.projectId);
-      if (input.assigneeId && input.assigneeId !== current.assigneeId) {
-        const projectId = input.projectId === undefined ? current.projectId : input.projectId;
-        await this.requireAssignable(tx, ctx, input.assigneeId, projectId);
+      // The assignee rule holds for a new assignee and for a task moving in or out of a project
+      // (otherwise a task given inside a project could leave it, still with that person).
+      const nextAssignee = input.assigneeId === undefined ? current.assigneeId : input.assigneeId;
+      const nextProject = input.projectId === undefined ? current.projectId : input.projectId;
+      if (
+        nextAssignee &&
+        (nextAssignee !== current.assigneeId || nextProject !== current.projectId)
+      ) {
+        await this.requireAssignable(tx, ctx, nextAssignee, nextProject);
       }
       if (input.keyResultId && input.keyResultId !== current.keyResultId) {
         await requireLinkableKeyResult(tx, ctx.actor, input.keyResultId);

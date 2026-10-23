@@ -30,6 +30,7 @@ import {
 import { PageHeader } from '@/components/app-shell';
 import { AskLink } from '@/components/assistant/ask-link';
 import { GoalTag } from '@/components/goals/goal-tag';
+import { CalendarPreview } from '@/components/home/calendar-preview';
 import { CompanyView } from '@/components/home/company-view';
 import { MyGoalsCard } from '@/components/home/my-goals-card';
 import { TodayMeetings } from '@/components/meetings/today-meetings';
@@ -156,13 +157,19 @@ function Home() {
         {!member ? (
           <TodaySkeleton />
         ) : tab === 'company' ? (
-          <CompanyView />
+          <>
+            <CompanyView />
+            <CalendarPreview />
+          </>
         ) : tab === 'team' ? (
-          <TeamView
-            departments={teamDepartments}
-            departmentId={departmentId}
-            onDepartmentChange={(id) => go('team', id)}
-          />
+          <>
+            <TeamView
+              departments={teamDepartments}
+              departmentId={departmentId}
+              onDepartmentChange={(id) => go('team', id)}
+            />
+            <CalendarPreview />
+          </>
         ) : (
           <TodayTab />
         )}
@@ -177,6 +184,7 @@ function TodayTab() {
     <>
       <TodayMeetings />
       {isPending || !today ? <TodaySkeleton /> : <TodayPlan today={today} />}
+      <CalendarPreview />
       <MyGoalsCard />
     </>
   );

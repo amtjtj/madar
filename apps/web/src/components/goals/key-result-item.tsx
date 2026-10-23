@@ -15,11 +15,12 @@ import { CheckinSheet } from './checkin-sheet';
 export function KeyResultItem({
   goalId,
   kr,
-  canEdit,
+  canCheckIn,
 }: {
   goalId: string;
   kr: KeyResult;
-  canEdit: boolean;
+  /** The owner and whoever defines the goal record progress (plan phase-3-step-17a). */
+  canCheckIn: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const { done, total } = kr.linked.tasks;
@@ -35,7 +36,7 @@ export function KeyResultItem({
             </Badge>
           </div>
         </div>
-        {canEdit && <CheckinSheet goalId={goalId} kr={kr} />}
+        {canCheckIn && <CheckinSheet goalId={goalId} kr={kr} />}
       </div>
       <ProgressBar value={kr.progress} size="sm" showValue />
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-ink-muted">

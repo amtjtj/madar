@@ -17,6 +17,7 @@ import {
 } from '@madar/ui';
 
 import { useDepartments } from '@/hooks/queries';
+import { leadsCompany, managedDepartments } from '@/lib/roles';
 import { useMe } from '@/hooks/use-me';
 import { useCreateProject, useTodayDate } from '@/hooks/work';
 import { errorMessage } from '@/lib/errors';
@@ -30,9 +31,10 @@ export function NewProjectButton() {
   const { data: departments } = useDepartments();
   const create = useCreateProject();
   const { toast } = useToast();
-  const myDepartments = me?.member?.departments.map((d) => d.id) ?? [];
-  const manageAll = me?.member?.permissions['task.manage'] === 'tenant';
-  const choices = (departments ?? []).filter((d) => manageAll || myDepartments.includes(d.id));
+  // Projects come from department managers and the leadership (plan phase-3-step-17a).
+  const leads = leadsCompany(me?.member);
+  const myDepartments = managedDepartments(me?.member);
+  const choices = (departments ?? []).filter((d) => leads || myDepartments.includes(d.id));
 
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
@@ -74,6 +76,7 @@ export function NewProjectButton() {
   };
 
   const visibilities = PROJECT_VISIBILITIES.filter((v) => v !== 'department' || departmentId);
+  if (!leads && myDepartments.length === 0) return null;
 
   return (
     <Modal
@@ -107,7 +110,7 @@ export function NewProjectButton() {
             if (!e.target.value && visibility === 'department') setVisibility('private');
           }}
           options={[
-            { value: '', label: t('projects.noDepartment') },
+            ...(leads ? [{ value: '', label: t('projects.noDepartment') }] : []),
             ...choices.map((d) => ({ value: d.id, label: d.name })),
           ]}
         />

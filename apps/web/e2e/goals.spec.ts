@@ -7,8 +7,9 @@ interface Period {
   current: boolean;
 }
 
-test('an employee sets a personal goal under the department goal, then records progress', async ({
+test('the manager sets a personal goal and a sub-goal; the employee records progress', async ({
   page,
+  browser,
   baseURL,
 }) => {
   test.slow();
@@ -26,14 +27,14 @@ test('an employee sets a personal goal under the department goal, then records p
     }),
   );
 
-  await signIn(page, employee.person.username, 'علی');
+  // Goals come from managers (plan phase-3-step-17a): Maryam sets Ali's goal, in seconds.
+  await signIn(page, manager.person.username, 'مریم');
   await page.goto('/goals');
-  await expect(page.getByText('هنوز هدفی برای این فصل نداری')).toBeVisible();
-
-  // Create a goal with two key results; it should take seconds, not minutes.
   const started = Date.now();
   await page.getByRole('button', { name: 'هدف تازه' }).click();
   await page.getByLabel('هدف چیست؟').fill('یادگیری ابزار جدید پشتیبانی');
+  await page.getByLabel('سطح').selectOption({ label: 'هدف فردی' });
+  await page.getByLabel('برای چه کسی؟').selectOption({ label: 'علی رضایی' });
   await page.getByLabel('زیر کدام هدف؟').selectOption({ label: 'پاسخ سریع‌تر به تیکت‌ها' });
   await page.getByLabel('نتیجه کلیدی ۱', { exact: true }).fill('پاسخ آماده تازه');
   await page.getByRole('textbox', { name: /^تا/ }).fill('۲۰');
@@ -44,26 +45,46 @@ test('an employee sets a personal goal under the department goal, then records p
   await expect(page.getByRole('heading', { name: 'یادگیری ابزار جدید پشتیبانی' })).toBeVisible();
   expect(Date.now() - started).toBeLessThan(60_000);
 
-  // Record progress: 10 of 20 is half way on that key result.
-  await page.getByRole('button', { name: 'ثبت پیشرفت' }).first().click();
-  const dialog = page.getByRole('dialog');
+  // A department goal gets a sub-goal from its own page.
+  await page.goto(`/goals/${department.id}`);
+  await page.getByRole('button', { name: 'زیرهدف تازه' }).click();
+  const sub = page.getByRole('dialog', { name: 'زیرهدف «پاسخ سریع‌تر به تیکت‌ها»' });
+  await sub.getByLabel('هدف چیست؟').fill('پوشش شبانه صف');
+  await sub.getByRole('button', { name: 'ساختن هدف' }).click();
+  await expect(page.getByRole('heading', { name: 'پوشش شبانه صف' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'پاسخ سریع‌تر به تیکت‌ها' }).first()).toBeVisible();
+
+  // Ali creates no goal and does not redefine his own, but records its progress.
+  const ali = await browser.newPage({ viewport: page.viewportSize() ?? undefined });
+  await signIn(ali, employee.person.username, 'علی');
+  await ali.goto('/goals');
+  await expect(ali.getByRole('link', { name: /یادگیری ابزار جدید پشتیبانی/ })).toBeVisible();
+  await expect(ali.getByRole('button', { name: 'هدف تازه' })).toHaveCount(0);
+  await ali
+    .getByRole('link', { name: /یادگیری ابزار جدید پشتیبانی/ })
+    .first()
+    .click();
+  await expect(ali.getByRole('button', { name: 'نتیجه کلیدی تازه' })).toHaveCount(0);
+  await ali.getByRole('button', { name: 'ثبت پیشرفت' }).first().click();
+  const dialog = ali.getByRole('dialog');
   await dialog.getByLabel('عدد فعلی').fill('۱۰');
   await dialog.getByRole('radio', { name: 'در خطر' }).click();
   await dialog.getByLabel('یادداشت (اختیاری)').fill('نیمی از پاسخ‌ها آماده است');
   await dialog.getByRole('button', { name: 'ثبت' }).click();
-  await expect(page.getByText('۱۰ از ۲۰')).toBeVisible();
+  await expect(ali.getByText('۱۰ از ۲۰')).toBeVisible();
   // Goal: (0.5 + 0) / 2 = 25 %.
-  await expect(page.getByRole('progressbar', { name: 'پیشرفت هدف' })).toHaveAttribute(
+  await expect(ali.getByRole('progressbar', { name: 'پیشرفت هدف' })).toHaveAttribute(
     'aria-valuenow',
     '25',
   );
-  await page.getByRole('button', { name: 'تاریخچه پیشرفت' }).first().click();
-  await expect(page.getByText('نیمی از پاسخ‌ها آماده است')).toBeVisible();
+  await ali.getByRole('button', { name: 'تاریخچه پیشرفت' }).first().click();
+  await expect(ali.getByText('نیمی از پاسخ‌ها آماده است')).toBeVisible();
 
-  // The department goal moved too, and it lists the personal goal.
-  await page.getByRole('link', { name: 'پاسخ سریع‌تر به تیکت‌ها' }).first().click();
-  await expect(page.getByRole('heading', { name: 'هدف‌های زیرمجموعه' })).toBeVisible();
-  await expect(page.getByRole('link', { name: /یادگیری ابزار جدید پشتیبانی/ })).toBeVisible();
+  // The department goal lists the personal goal.
+  await ali.getByRole('link', { name: 'پاسخ سریع‌تر به تیکت‌ها' }).first().click();
+  await expect(ali.getByRole('heading', { name: 'هدف‌های زیرمجموعه' })).toBeVisible();
+  await expect(ali.getByRole('link', { name: /یادگیری ابزار جدید پشتیبانی/ })).toBeVisible();
+  await ali.close();
 
   // A marketer sees neither the department goal nor the personal one.
   const theirs = await ok<Array<{ id: string }>>(
@@ -91,8 +112,14 @@ test('the company tab shows the alignment tree, and a task can serve a key resul
     }),
   );
   await ok(
-    await employee.client.post('/api/goals', {
-      data: { periodId, level: 'individual', parentId: parent.id, title: 'هدف شخصی علی' },
+    await manager.client.post('/api/goals', {
+      data: {
+        periodId,
+        level: 'individual',
+        ownerId: employee.person.memberId,
+        parentId: parent.id,
+        title: 'هدف شخصی علی',
+      },
     }),
   );
   const task = await ok<{ id: string }>(

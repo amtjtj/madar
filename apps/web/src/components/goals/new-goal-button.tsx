@@ -16,7 +16,7 @@ import {
 import { Button, Modal, SelectField, TextField, useToast } from '@madar/ui';
 
 import { useCreateGoal, useGoals } from '@/hooks/goals';
-import { useDepartments } from '@/hooks/queries';
+import { useDepartments, useMembers } from '@/hooks/queries';
 import { useMe } from '@/hooks/use-me';
 import { errorMessage } from '@/lib/errors';
 
@@ -41,18 +41,33 @@ const emptyKr = (): KrDraft => ({
   unit: '',
 });
 
-/** «New goal»: title, level, alignment and a few key results, quick enough for a phone. */
+/** The goal a new sub-goal goes under (its level and department are the defaults). */
+export interface ParentGoal {
+  id: string;
+  title: string;
+  level: GoalLevel;
+  department: { id: string } | null;
+}
+
+/**
+ * «New goal»: title, level, alignment and a few key results, quick enough for a phone. Goals are
+ * set by the leadership and department managers (plan phase-3-step-17a); a personal goal names
+ * its owner. With `parent` it is «زیرهدف تازه», under that goal.
+ */
 export function NewGoalButton({
   periodId,
   defaultLevel,
+  parent,
 }: {
   periodId: string;
   defaultLevel: GoalLevel;
+  parent?: ParentGoal;
 }) {
   const router = useRouter();
   const { data: me } = useMe();
   const { data: departments } = useDepartments();
   const { data: periodGoals } = useGoals('company', periodId);
+  const { data: members } = useMembers();
   const create = useCreateGoal();
   const { toast } = useToast();
 
@@ -60,35 +75,46 @@ export function NewGoalButton({
   const managesCompany = member?.permissions['goal.manage'] === 'tenant';
   const myDepartments = member?.departments ?? [];
   const managed = myDepartments.filter((d) => d.deptRole === 'head' || d.deptRole === 'manager');
-  const levels: GoalLevel[] = [
+  const allLevels: GoalLevel[] = [
     ...(managesCompany ? (['company'] as const) : []),
-    ...(managesCompany || managed.length ? (['department'] as const) : []),
-    ...(myDepartments.length ? (['individual'] as const) : []),
+    ...(managesCompany || managed.length ? (['department', 'individual'] as const) : []),
   ];
+  // A sub-goal sits at its parent's level or below.
+  const levels = parent
+    ? allLevels.filter((l) => PARENT_LEVELS[l].includes(parent.level))
+    : allLevels;
 
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [level, setLevel] = useState<GoalLevel>(defaultLevel);
   const [departmentId, setDepartmentId] = useState('');
   const [parentId, setParentId] = useState('');
+  const [ownerId, setOwnerId] = useState('');
   const [krs, setKrs] = useState<KrDraft[]>([emptyKr()]);
 
-  const departmentChoices = (departments ?? []).filter((d) =>
-    level === 'department'
-      ? managesCompany || managed.some((m) => m.id === d.id)
-      : myDepartments.some((m) => m.id === d.id),
+  const departmentChoices = (departments ?? []).filter(
+    (d) => managesCompany || managed.some((m) => m.id === d.id),
   );
   const parentChoices = (periodGoals ?? []).filter((g) => PARENT_LEVELS[level].includes(g.level));
+  // A personal goal belongs to someone in its department.
+  const ownerChoices = (members ?? []).filter(
+    (m) => m.status === 'active' && m.departments.some((d) => d.departmentId === departmentId),
+  );
 
   const onOpenChange = (next: boolean) => {
     if (next) {
-      const initial = levels.includes(defaultLevel)
-        ? defaultLevel
-        : (levels.at(-1) ?? 'individual');
+      const wanted = parent?.level ?? defaultLevel;
+      const initial = levels.includes(wanted) ? wanted : (levels.at(-1) ?? 'individual');
+      const parentDepartment = parent?.department?.id;
       setTitle('');
       setLevel(initial);
-      setDepartmentId((initial === 'department' ? managed[0]?.id : myDepartments[0]?.id) ?? '');
-      setParentId('');
+      setDepartmentId(
+        (parentDepartment && departmentChoices.some((d) => d.id === parentDepartment)
+          ? parentDepartment
+          : (managed[0]?.id ?? departmentChoices[0]?.id)) ?? '',
+      );
+      setParentId(parent?.id ?? '');
+      setOwnerId('');
       setKrs([emptyKr()]);
     }
     setOpen(next);
@@ -96,10 +122,7 @@ export function NewGoalButton({
 
   const changeLevel = (next: GoalLevel) => {
     setLevel(next);
-    setParentId('');
-    if (next === 'department' && !managed.some((m) => m.id === departmentId) && !managesCompany) {
-      setDepartmentId(managed[0]?.id ?? '');
-    }
+    if (!parent) setParentId('');
   };
 
   const updateKr = (key: number, patch: Partial<KrDraft>) =>
@@ -131,6 +154,7 @@ export function NewGoalButton({
         periodId,
         level,
         ...(level !== 'company' && departmentId ? { departmentId } : {}),
+        ...(level === 'individual' && ownerId ? { ownerId } : {}),
         parentId: parentId || null,
         title: title.trim(),
         keyResults,
@@ -152,8 +176,16 @@ export function NewGoalButton({
     <Modal
       open={open}
       onOpenChange={onOpenChange}
-      title={t('goals.newTitle')}
-      trigger={<Button icon={<Plus aria-hidden />}>{t('goals.new')}</Button>}
+      title={parent ? t('goals.newSubTitle', { title: parent.title }) : t('goals.newTitle')}
+      trigger={
+        parent ? (
+          <Button variant="secondary" size="sm" icon={<Plus aria-hidden />}>
+            {t('goals.newSub')}
+          </Button>
+        ) : (
+          <Button icon={<Plus aria-hidden />}>{t('goals.new')}</Button>
+        )
+      }
     >
       <form onSubmit={submit} className="flex flex-col gap-4">
         <TextField
@@ -176,12 +208,26 @@ export function NewGoalButton({
             <SelectField
               label={t('goals.form.department')}
               value={departmentId}
-              onChange={(e) => setDepartmentId(e.target.value)}
+              onChange={(e) => {
+                setDepartmentId(e.target.value);
+                setOwnerId('');
+              }}
               options={departmentChoices.map((d) => ({ value: d.id, label: d.name }))}
             />
           )}
         </div>
-        {level !== 'company' && (
+        {level === 'individual' && (
+          <SelectField
+            label={t('goals.form.owner')}
+            value={ownerId}
+            onChange={(e) => setOwnerId(e.target.value)}
+            options={[
+              { value: '', label: t('goals.form.ownerPick') },
+              ...ownerChoices.map((m) => ({ value: m.id, label: m.displayName })),
+            ]}
+          />
+        )}
+        {!parent && (
           <SelectField
             label={t('goals.form.parent')}
             value={parentId}
@@ -275,7 +321,12 @@ export function NewGoalButton({
         <Button
           type="submit"
           loading={create.isPending}
-          disabled={!title.trim() || (level !== 'company' && !departmentId) || !rangesValid}
+          disabled={
+            !title.trim() ||
+            (level !== 'company' && !departmentId) ||
+            (level === 'individual' && !ownerId) ||
+            !rangesValid
+          }
         >
           {t('goals.form.create')}
         </Button>

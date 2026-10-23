@@ -17,7 +17,8 @@ import {
 } from '@madar/ui';
 
 import { useCreateSuggested, useTaskBreakdown } from '@/hooks/ai';
-import { useDepartments, useMembers } from '@/hooks/queries';
+import { useDepartments } from '@/hooks/queries';
+import { useAssignees } from '@/hooks/work';
 import { useMe } from '@/hooks/use-me';
 import { ApiClientError } from '@/lib/api';
 import { errorMessage } from '@/lib/errors';
@@ -34,7 +35,8 @@ const newKey = () => `s${++counter}`;
 export function BreakdownDialog({ today }: { today: string }) {
   const { data: me } = useMe();
   const { data: departments } = useDepartments();
-  const { data: members } = useMembers();
+  // Only people the tasks may go to (ADR 0027), so «ساختن» never fails half way.
+  const { data: assignable } = useAssignees(null);
   const breakdown = useTaskBreakdown();
   const create = useCreateSuggested();
   const { toast } = useToast();
@@ -54,7 +56,7 @@ export function BreakdownDialog({ today }: { today: string }) {
     (d) => member?.permissions['task.manage'] === 'tenant' || mine.has(d.id),
   );
   const chosen = departmentId || choices[0]?.id || '';
-  const people = (members ?? []).filter((m) => m.status === 'active');
+  const people = assignable ?? [];
 
   const reset = () => {
     abort.current?.abort();

@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type {
+  AssigneeOption,
   Activity,
   SetTaskProgressRequest,
   Comment,
@@ -59,6 +60,21 @@ export function useProjects(filter: { risk?: boolean } = {}) {
   return useQuery({
     queryKey: filter.risk ? [...workKeys.projects, 'risk'] : workKeys.projects,
     queryFn: () => api<Project[]>(filter.risk ? '/api/projects?risk=true' : '/api/projects'),
+  });
+}
+
+/**
+ * Who a task may go to (plan phase-3-step-17a): in a project, everyone who sees it; outside one,
+ * me and the people I manage. The API checks again on save.
+ */
+export function useAssignees(projectId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['assignees', projectId ?? null],
+    queryFn: () =>
+      api<AssigneeOption[]>(
+        projectId ? `/api/tasks/assignees?projectId=${projectId}` : '/api/tasks/assignees',
+      ),
+    staleTime: 60_000,
   });
 }
 

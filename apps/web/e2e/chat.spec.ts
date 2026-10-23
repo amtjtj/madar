@@ -13,10 +13,14 @@ test('project team chat: live message, reply, and a new project member gets the 
   baseURL,
 }) => {
   test.slow();
-  const { manager, employee, outsider } = await setUpCompany(baseURL ?? '');
+  const { manager, employee, outsider, support } = await setUpCompany(baseURL ?? '');
   const project = await ok<{ id: string }>(
     await manager.client.post('/api/projects', {
-      data: { name: 'احراز هویت تازه', memberIds: [employee.person.memberId] },
+      data: {
+        name: 'احراز هویت تازه',
+        departmentId: support.id,
+        memberIds: [employee.person.memberId],
+      },
     }),
   );
 
@@ -216,10 +220,10 @@ test('files, a mention in a muted channel, and a reaction that goes live', async
   baseURL,
 }) => {
   test.slow();
-  const { manager, employee } = await setUpCompany(baseURL ?? '');
+  const { manager, employee, support } = await setUpCompany(baseURL ?? '');
   const project = await ok<{ id: string }>(
     await manager.client.post('/api/projects', {
-      data: { name: 'اپ موبایل', memberIds: [employee.person.memberId] },
+      data: { name: 'اپ موبایل', departmentId: support.id, memberIds: [employee.person.memberId] },
     }),
   );
   const channel = await ok<{ id: string }>(
@@ -291,10 +295,14 @@ test('a task from a message, search that jumps to it, and the owner exports the 
   baseURL,
 }) => {
   test.slow();
-  const { manager, employee, ownerLogin } = await setUpCompany(baseURL ?? '');
+  const { manager, employee, ownerLogin, support } = await setUpCompany(baseURL ?? '');
   const project = await ok<{ id: string }>(
     await manager.client.post('/api/projects', {
-      data: { name: 'درگاه پرداخت', memberIds: [employee.person.memberId] },
+      data: {
+        name: 'درگاه پرداخت',
+        departmentId: support.id,
+        memberIds: [employee.person.memberId],
+      },
     }),
   );
   const channel = await ok<{ id: string }>(

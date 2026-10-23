@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { keyResultRange } from './contracts/goals.js';
+import { GOAL_DEPTH_MAX, keyResultRange, PARENT_LEVELS } from './contracts/goals.js';
 import { goalProgress, keyResultProgress, worstStatus } from './goal-progress.js';
 
 describe('keyResultProgress', () => {
@@ -65,5 +65,15 @@ describe('keyResultRange', () => {
     expect(keyResultRange({ kind: 'number' })).toBeNull();
     expect(keyResultRange({ kind: 'number', startValue: 5, targetValue: 5 })).toBeNull();
     expect(keyResultRange({ kind: 'percent', targetValue: 120 })).toBeNull();
+  });
+});
+
+describe('goal parents (plan phase-3-step-17a)', () => {
+  it('a goal goes under its own level or above, never below', () => {
+    expect(PARENT_LEVELS.company).toEqual(['company']);
+    expect(PARENT_LEVELS.department).toEqual(['department', 'company']);
+    expect(PARENT_LEVELS.individual).toEqual(['individual', 'department', 'company']);
+    expect(PARENT_LEVELS.company).not.toContain('department');
+    expect(GOAL_DEPTH_MAX).toBe(5);
   });
 });

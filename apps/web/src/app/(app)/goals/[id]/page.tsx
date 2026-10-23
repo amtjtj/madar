@@ -24,6 +24,7 @@ import {
 
 import { GoalCard, GoalStatusBadge } from '@/components/goals/goal-card';
 import { KeyResultItem } from '@/components/goals/key-result-item';
+import { NewGoalButton } from '@/components/goals/new-goal-button';
 import { useAddKeyResult, useArchiveGoal, useGoal } from '@/hooks/goals';
 import { errorMessage } from '@/lib/errors';
 
@@ -100,16 +101,24 @@ export default function GoalPage() {
                       key={kr.id}
                       goalId={goal.id}
                       kr={kr}
-                      canEdit={goal.can.edit && !goal.archivedAt}
+                      canCheckIn={goal.can.checkIn && !goal.archivedAt}
                     />
                   ))}
                 </ul>
               )}
             </CardContent>
           </Card>
-          {goal.children.length > 0 && (
+          {(goal.children.length > 0 || (goal.can.edit && !goal.archivedAt)) && (
             <section className="flex flex-col gap-3">
-              <h2 className="text-lg font-bold text-ink">{t('goals.detail.children')}</h2>
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-lg font-bold text-ink">{t('goals.detail.children')}</h2>
+                {goal.can.edit && !goal.archivedAt && (
+                  <NewGoalButton periodId={goal.periodId} defaultLevel={goal.level} parent={goal} />
+                )}
+              </div>
+              {goal.children.length === 0 && (
+                <p className="text-sm text-ink-muted">{t('goals.detail.noChildren')}</p>
+              )}
               <ul className="flex flex-col gap-3">
                 {goal.children.map((child) => (
                   <li key={child.id}>

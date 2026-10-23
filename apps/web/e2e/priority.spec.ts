@@ -91,9 +91,16 @@ test('«my tasks»: drag with the mouse, filter by source', async ({ page, baseU
   const create = async (client: typeof owner, data: object) =>
     ok<{ id: string }>(await client.post('/api/tasks', { data }));
   await create(employee.client, { title: 'یادداشت‌های شخصی' });
+  // A colleague's request comes through a shared project (plan phase-3-step-17a).
+  const shared = await ok<{ id: string }>(
+    await owner.post('/api/projects', {
+      data: { name: 'تیکت‌های مشترک', departmentId: support.id },
+    }),
+  );
   await create(colleague.client, {
     title: 'کمک در تیکت مشترک',
     assigneeId: employee.person.memberId,
+    projectId: shared.id,
   });
   await create(owner, {
     title: 'برنامه سه‌ماهه',
@@ -113,6 +120,9 @@ test('«my tasks»: drag with the mouse, filter by source', async ({ page, baseU
   // Mouse: drag the personal note above everything.
   const from = list.getByRole('button', { name: 'جابه‌جا کردن «یادداشت‌های شخصی»' });
   const to = list.getByRole('button', { name: 'جابه‌جا کردن «برنامه سه‌ماهه»' });
+  // On a phone the last card sits near the bottom edge (cards show their project), where the
+  // drag would scroll the page: centre the list first.
+  await from.evaluate((el) => el.scrollIntoView({ block: 'center' }));
   const a = await from.boundingBox();
   const b = await to.boundingBox();
   if (!a || !b) throw new Error('handles not laid out');

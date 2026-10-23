@@ -22,12 +22,15 @@ export function RecipientPicker({
   value,
   onChange,
   exclude = [],
+  among,
   autoFocus,
 }: {
   label: string;
   value: Person[];
   onChange: (people: Person[]) => void;
   exclude?: string[];
+  /** Search only these people (e.g. who a task may go to, ADR 0027) instead of the directory. */
+  among?: Person[];
   autoFocus?: boolean;
 }) {
   const id = useId();
@@ -37,11 +40,13 @@ export function RecipientPicker({
     const timer = setTimeout(() => setSearch(query.trim()), 250);
     return () => clearTimeout(timer);
   }, [query]);
-  const { data: found, isFetching } = useMembers({ q: search });
+  const { data: found, isFetching: searching } = useMembers({ q: among ? '' : search });
   const taken = new Set([...exclude, ...value.map((p) => p.id)]);
-  const results = search
-    ? (found ?? []).filter((m) => m.status === 'active' && !taken.has(m.id)).slice(0, 6)
-    : [];
+  const pool: Array<Person & { title?: string | null }> = among
+    ? among.filter((p) => p.displayName.includes(search))
+    : (found ?? []).filter((m) => m.status === 'active');
+  const isFetching = among ? false : searching;
+  const results = search ? pool.filter((m) => !taken.has(m.id)).slice(0, 6) : [];
 
   return (
     <div className="flex flex-col gap-1.5">
