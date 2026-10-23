@@ -30,7 +30,7 @@ async function dragTo(page: Page, handle: Locator, target: Locator) {
   await page.mouse.up();
 }
 
-test('desktop: drag a due date across the week, and open a team member\'s calendar', async ({
+test("desktop: drag a due date across the week, and open a team member's calendar", async ({
   page,
   baseURL,
 }, testInfo) => {
