@@ -36,6 +36,10 @@ const HANDLED = [
   'meeting.canceled',
   'meeting.minutes_recorded',
   'meeting.decision_converted',
+  'meeting.response_changed',
+  'meeting.series_scheduled',
+  'meeting.series_updated',
+  'meeting.series_canceled',
 ];
 
 /**
@@ -109,12 +113,17 @@ export class RealtimeConsumer implements EventConsumer {
       }
       return;
     }
-    if (event.type.startsWith('meeting.') && p.meetingId) {
-      // The people taking part, and anyone just removed (their list changes too; ADR 0023).
-      const rows = await tx
-        .select({ memberId: s.meetingParticipants.memberId })
-        .from(s.meetingParticipants)
-        .where(eq(s.meetingParticipants.meetingId, String(p.meetingId)));
+    if (event.type.startsWith('meeting.') && (p.meetingId || p.seriesId)) {
+      // The people taking part (in the series, for a series change), and anyone just removed.
+      const rows = p.seriesId
+        ? await tx
+            .select({ memberId: s.meetingSeriesParticipants.memberId })
+            .from(s.meetingSeriesParticipants)
+            .where(eq(s.meetingSeriesParticipants.seriesId, String(p.seriesId)))
+        : await tx
+            .select({ memberId: s.meetingParticipants.memberId })
+            .from(s.meetingParticipants)
+            .where(eq(s.meetingParticipants.meetingId, String(p.meetingId)));
       const people = new Set([
         ...rows.map((r) => r.memberId),
         ...((p.removedIds as string[] | undefined) ?? []),

@@ -29,6 +29,7 @@ import { visibleLetters } from '../letters/access.js';
 import { takesPart, visibleMeetings } from '../meetings/access.js';
 import { pinnedToVisibleTask } from '../evidence/letter-provider.js';
 import { messagePinnedToVisibleTask } from '../evidence/message-provider.js';
+import { minutesPinnedToVisibleTask } from '../evidence/minutes-provider.js';
 import { canEditTask, visibleTasks } from '../work/access.js';
 import { TasksService } from '../work/tasks.service.js';
 import { attachmentRows, bindUploads, toAttachment, type AttachmentRow } from './attachments-db.js';
@@ -387,7 +388,13 @@ export class AttachmentsService implements OnModuleInit {
       return row;
     }
     if (row.subjectType === 'minutes') {
-      if (!(await this.minutesMeeting(tx, ctx, row))) throw notFound('Attachment');
+      // Whoever sees the meeting, or anyone who sees a task its minutes are pinned to (13b).
+      if (
+        !(await this.minutesMeeting(tx, ctx, row)) &&
+        !(await this.minutesPinnedForViewer(tx, ctx, row))
+      ) {
+        throw notFound('Attachment');
+      }
       return row;
     }
     if (row.subjectType === 'message') {
@@ -420,6 +427,14 @@ export class AttachmentsService implements OnModuleInit {
       .innerJoin(s.meetings, eq(s.meetings.id, s.meetingMinutes.meetingId))
       .where(and(eq(s.meetingMinutes.id, row.subjectId), visibleMeetings(ctx.actor)));
     return meeting ?? null;
+  }
+
+  private async minutesPinnedForViewer(tx: Tx, ctx: TenantContext, row: AttachmentRow) {
+    if (!row.subjectId) return false;
+    const result = await tx.execute<{ ok: boolean }>(
+      sql`select ${minutesPinnedToVisibleTask(row.subjectId, visibleTasks(ctx.actor))} as ok`,
+    );
+    return Boolean(result.rows[0]?.ok);
   }
 
   private async messagePinnedForViewer(tx: Tx, ctx: TenantContext, row: AttachmentRow) {

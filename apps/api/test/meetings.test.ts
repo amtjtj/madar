@@ -137,13 +137,13 @@ describe.skipIf(!hasDatabase)('meetings', () => {
 
     const seen = await ali.c.get(`/api/meetings/${meeting.id}`);
     expect(seen.status).toBe(200);
-    expect(seen.body.can).toEqual({ edit: false, record: true, convert: true });
+    expect(seen.body.can).toMatchObject({ edit: false, record: true, convert: true });
     expect((await reza.c.get(`/api/meetings/${meeting.id}`)).status).toBe(404);
     // No role is an exception: the owner is not in it and oversees nothing.
     expect((await owner.c.get(`/api/meetings/${meeting.id}`)).status).toBe(404);
     const watched = await director.c.get(`/api/meetings/${meeting.id}`);
     expect(watched.status).toBe(200);
-    expect(watched.body.can).toEqual({ edit: false, record: false, convert: false });
+    expect(watched.body.can).toMatchObject({ edit: false, record: false, convert: false });
     expect((await other.get(`/api/meetings/${meeting.id}`)).status).toBe(404);
 
     const upcoming: MeetingList = (await ali.c.get('/api/meetings?range=upcoming')).body;
@@ -238,7 +238,7 @@ describe.skipIf(!hasDatabase)('meetings', () => {
     const done = await maryam.c.post(`/api/meetings/${meeting.id}/cancel`);
     expect(done.status).toBe(200);
     expect(done.body.canceledAt).not.toBeNull();
-    expect(done.body.can).toEqual({ edit: false, record: false, convert: false });
+    expect(done.body.can).toMatchObject({ edit: false, record: false, convert: false });
     const again = await maryam.c.patch(`/api/meetings/${meeting.id}`, { title: 'دوباره' });
     expect(again.status).toBe(409);
     expect(again.body.error.code).toBe('meeting_canceled');

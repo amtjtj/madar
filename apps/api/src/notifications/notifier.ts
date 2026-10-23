@@ -27,6 +27,8 @@ export interface NewNotification {
   payload: { title: string; data?: Record<string, string | number> };
   dedupeKey: string;
   now?: Date;
+  /** Not worth sending once quiet hours would hold it past this time (a meeting reminder). */
+  notAfter?: Date;
   /** Already loaded by batch callers (reminders); loaded here otherwise. */
   calendar?: { calendar: WorkCalendar; timeZone: string };
 }
@@ -51,6 +53,8 @@ export class Notifier {
 
     const now = input.now ?? new Date();
     const { calendar, timeZone } = input.calendar ?? (await loadWorkCalendar(tx, input.tenantId));
+    const deliverAt = deliverAfter(calendar, now, { timeZone, offHours: prefs?.offHours ?? false });
+    if (input.notAfter && deliverAt > input.notAfter) return false;
     const [row] = await tx
       .insert(s.notifications)
       .values({
@@ -62,7 +66,7 @@ export class Notifier {
         payload: input.payload,
         dedupeKey: input.dedupeKey,
         createdAt: now,
-        deliverAfter: deliverAfter(calendar, now, { timeZone, offHours: prefs?.offHours ?? false }),
+        deliverAfter: deliverAt,
       })
       .onConflictDoNothing()
       .returning({ id: s.notifications.id });

@@ -14,12 +14,17 @@ import {
 } from '@nestjs/common';
 import {
   convertDecisionRequest,
+  meetingResponseRequest,
+  updateSeriesRequest,
   createMeetingRequest,
   decisionRequest,
   listMeetingsQuery,
   saveMinutesRequest,
   updateMeetingRequest,
   type ConvertDecisionRequest,
+  type MeetingResponseRequest,
+  type MinutesTasks,
+  type UpdateSeriesRequest,
   type CreateMeetingRequest,
   type DecisionRequest,
   type ListMeetingsQuery,
@@ -84,6 +89,23 @@ export class MeetingsController {
     return this.meetings.cancel(ctx, id);
   }
 
+  @Put(':id/response')
+  respond(
+    @Tenant() ctx: TenantContext,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodPipe(meetingResponseRequest)) body: MeetingResponseRequest,
+  ): Promise<Meeting> {
+    return this.meetings.respond(ctx, id, body.response);
+  }
+
+  @Get(':id/pin-tasks')
+  pinTasks(
+    @Tenant() ctx: TenantContext,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<MinutesTasks> {
+    return this.meetings.minutesTasks(ctx, id);
+  }
+
   @Put(':id/minutes')
   saveMinutes(
     @Tenant() ctx: TenantContext,
@@ -129,5 +151,27 @@ export class MeetingsController {
     @Body(new ZodPipe(convertDecisionRequest)) body: ConvertDecisionRequest,
   ): Promise<Task> {
     return this.meetings.convertDecision(ctx, id, decisionId, body);
+  }
+}
+
+/** «این و جلسه‌های بعدی» of a weekly series (plan phase-2-step-13b); the organizer only. */
+@Controller('meeting-series')
+export class MeetingSeriesController {
+  constructor(private readonly meetings: MeetingsService) {}
+
+  @Patch(':id')
+  @RateLimit({ max: 60, windowMs: 3_600_000 })
+  update(
+    @Tenant() ctx: TenantContext,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodPipe(updateSeriesRequest)) body: UpdateSeriesRequest,
+  ): Promise<Meeting | null> {
+    return this.meetings.updateSeries(ctx, id, body);
+  }
+
+  @Post(':id/cancel')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  cancel(@Tenant() ctx: TenantContext, @Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    return this.meetings.cancelSeries(ctx, id);
   }
 }

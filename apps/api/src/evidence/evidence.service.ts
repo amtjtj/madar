@@ -25,6 +25,7 @@ import {
   letterSummaries,
   pinnableLetter,
 } from './letter-provider.js';
+import { checkMinutesPin, minutesBodyOf, minutesSummaries } from './minutes-provider.js';
 import { checkMessagePin, messageBodyOf, messageSummaries } from './message-provider.js';
 
 type EvidenceRow = typeof s.taskEvidence.$inferSelect;
@@ -176,8 +177,12 @@ export class EvidenceService {
     const check =
       body.kind === 'message'
         ? await checkMessagePin(tx, ctx.memberId, body.subjectId)
-        : await checkLetterPin(tx, ctx.memberId, body.subjectId);
-    if (check === 'not_found') throw notFound(body.kind === 'message' ? 'Message' : 'Letter');
+        : body.kind === 'minutes'
+          ? await checkMinutesPin(tx, ctx.actor, body.subjectId)
+          : await checkLetterPin(tx, ctx.memberId, body.subjectId);
+    if (check === 'not_found') {
+      throw notFound({ message: 'Message', minutes: 'Minutes', letter: 'Letter' }[body.kind]);
+    }
     if (check === 'not_allowed') throw notAllowed();
     const [row] = await tx
       .insert(s.taskEvidence)
@@ -215,8 +220,8 @@ export class EvidenceService {
 
   /** The history line: a letter by its number, a message by its kind only (never its text). */
   private async trail(tx: Tx, row: EvidenceRow, what: 'pinned' | 'unpinned') {
-    if (row.kind === 'message') {
-      return { verb: `message_${what}` as const };
+    if (row.kind === 'message' || row.kind === 'minutes') {
+      return { verb: `${row.kind}_${what}` as const };
     }
     const number = (await letterSummaries(tx, [row.subjectId])).get(row.subjectId)?.number ?? '';
     return {
@@ -325,11 +330,16 @@ export class EvidenceService {
       if (row.kind === 'message') {
         const content = await messageBodyOf(tx, row.subjectId);
         if (!content) throw notFound('Evidence');
-        return { ...presented, body: null, cc: [], ...content };
+        return { ...presented, body: null, cc: [], minutesText: null, ...content };
+      }
+      if (row.kind === 'minutes') {
+        const content = await minutesBodyOf(tx, row.subjectId);
+        if (!content) throw notFound('Evidence');
+        return { ...presented, body: null, cc: [], messageText: null, ...content };
       }
       const content = await letterBodyOf(tx, row.subjectId);
       if (!content) throw notFound('Evidence');
-      return { ...presented, ...content, messageText: null };
+      return { ...presented, ...content, messageText: null, minutesText: null };
     });
   }
 
@@ -367,6 +377,10 @@ export class EvidenceService {
       tx,
       rows.filter((r) => r.kind === 'message').map((r) => r.subjectId),
     );
+    const minutes = await minutesSummaries(
+      tx,
+      rows.filter((r) => r.kind === 'minutes').map((r) => r.subjectId),
+    );
     const editsTask = await this.edits(tx, ctx, task);
     const names = new Map<string, string>();
     for (const r of rows) {
@@ -386,6 +400,7 @@ export class EvidenceService {
       pinnedAt: r.createdAt.toISOString(),
       summary: r.kind === 'letter' ? (summaries.get(r.subjectId) ?? null) : null,
       message: r.kind === 'message' ? (messages.get(r.subjectId) ?? null) : null,
+      minutes: r.kind === 'minutes' ? (minutes.get(r.subjectId) ?? null) : null,
       can: { unpin: editsTask || r.pinnedBy === ctx.memberId },
     }));
   }

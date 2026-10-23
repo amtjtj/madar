@@ -5,6 +5,7 @@ import { ENV } from '../config/config.module.js';
 import type { Env } from '../config/env.js';
 import { FilesCleanupJob } from '../files/cleanup-job.js';
 import { FILE_STORAGE, createStorage } from '../files/storage.js';
+import { MeetingJobs } from '../meetings/meeting-jobs.js';
 import { NotificationsConsumer } from '../notifications/notifications.consumer.js';
 import { NotificationsCoreModule } from '../notifications/notifications.module.js';
 import { PushDeliveries } from '../push/push-deliveries.service.js';
@@ -38,9 +39,11 @@ import { SchedulerService } from './scheduler.service.js';
     HeartbeatService,
     { provide: FILE_STORAGE, useFactory: (env: Env) => createStorage(env), inject: [ENV] },
     FilesCleanupJob,
+    MeetingJobs,
   ],
   exports: [
     FilesCleanupJob,
+    MeetingJobs,
     RelayService,
     ConsumerRunner,
     SchedulerService,

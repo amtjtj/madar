@@ -20,6 +20,9 @@ const HANDLED = [
   'meeting.updated',
   'meeting.canceled',
   'meeting.minutes_recorded',
+  'meeting.series_scheduled',
+  'meeting.series_updated',
+  'meeting.series_canceled',
 ];
 
 /** Turns domain events into in-app notifications. */
@@ -160,7 +163,9 @@ export class NotificationsConsumer implements EventConsumer {
             payload:
               p.kind === 'message'
                 ? { title: task.title, data: { message: 1 } }
-                : { title: task.title },
+                : p.kind === 'minutes'
+                  ? { title: task.title, data: { minutes: 1 } }
+                  : { title: task.title },
             dedupeKey: `event:${event.id}`,
           });
         }
@@ -275,6 +280,58 @@ export class NotificationsConsumer implements EventConsumer {
               kind === 'meeting_invited'
                 ? `invite:${meeting.id}:${recipientId}`
                 : `event:${event.id}`,
+          });
+        }
+        return;
+      }
+      case 'meeting.series_scheduled':
+      case 'meeting.series_updated':
+      case 'meeting.series_canceled': {
+        // One message for the whole series, on its next meeting (plan phase-2-step-13b).
+        if (!p.meetingId) return;
+        const [meeting] = await tx
+          .select({ id: s.meetings.id, title: s.meetings.title, startsAt: s.meetings.startsAt })
+          .from(s.meetings)
+          .where(eq(s.meetings.id, String(p.meetingId)));
+        if (!meeting) return;
+        const payload = {
+          title: meeting.title,
+          data: { startsAt: meeting.startsAt.toISOString(), series: 1 },
+        };
+        const invite = async (memberIds: string[]) => {
+          for (const recipientId of memberIds) {
+            await this.notifier.notify(tx, {
+              ...base,
+              recipientId,
+              kind: 'meeting_invited',
+              subjectType: 'meeting',
+              subjectId: meeting.id,
+              payload,
+              dedupeKey: `invite-series:${String(p.seriesId)}:${recipientId}`,
+            });
+          }
+        };
+        if (event.type === 'meeting.series_scheduled') {
+          await invite((p.memberIds as string[] | undefined) ?? []);
+          return;
+        }
+        const added = new Set((p.addedIds as string[] | undefined) ?? []);
+        if (event.type === 'meeting.series_updated') await invite([...added]);
+        if (event.type === 'meeting.series_updated' && !p.notify) return;
+        const people = await tx
+          .select({ memberId: s.meetingSeriesParticipants.memberId })
+          .from(s.meetingSeriesParticipants)
+          .where(eq(s.meetingSeriesParticipants.seriesId, String(p.seriesId)));
+        for (const { memberId } of people) {
+          if (added.has(memberId)) continue;
+          await this.notifier.notify(tx, {
+            ...base,
+            recipientId: memberId,
+            kind: event.type === 'meeting.series_canceled' ? 'meeting_canceled' : 'meeting_changed',
+            subjectType: 'meeting',
+            subjectId: meeting.id,
+            payload,
+            dedupeKey: `event:${event.id}`,
           });
         }
         return;

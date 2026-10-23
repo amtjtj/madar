@@ -3,6 +3,13 @@ import { emitEvent, schema as s, uuidv7, type Tx } from '@madar/db';
 import {
   addDays,
   calendarDateIn,
+  persianWeekdayOfCalendarDate,
+  SERIES_HORIZON_WEEKS,
+  seriesDates,
+  wallClockIn,
+  type MinutesTasks,
+  type UpdateSeriesRequest,
+  type WorkCalendar,
   MINUTES_FILES_MAX,
   meetingTimeError,
   safeMeetingLink,
@@ -14,6 +21,7 @@ import {
   type Meeting,
   type MeetingDecision,
   type MeetingList,
+  type MeetingResponse,
   type MeetingSummary,
   type SaveMinutesRequest,
   type Task,
@@ -27,6 +35,7 @@ import { ApiError, forbidden, notFound } from '../common/errors.js';
 import { TenantDb } from '../database/tenant-db.service.js';
 import { attachmentRows, bindUploads, toAttachment } from '../files/attachments-db.js';
 import { keyResultRefs } from '../goals/links.js';
+import { loadWorkCalendar } from '../notifications/calendar.js';
 import { canCreateIn, visibleTasks } from '../work/access.js';
 import { TasksService } from '../work/tasks.service.js';
 import { takesPart, visibleMeetings } from './access.js';
@@ -45,6 +54,8 @@ const badTime = () =>
   new ApiError(HttpStatus.BAD_REQUEST, 'meeting_time_invalid', 'End after start, within a day');
 const badLink = () =>
   new ApiError(HttpStatus.BAD_REQUEST, 'meeting_link_invalid', 'Links are http or https');
+const started = () =>
+  new ApiError(HttpStatus.CONFLICT, 'meeting_started', 'The meeting has started');
 const hasTask = () =>
   new ApiError(HttpStatus.CONFLICT, 'decision_has_task', 'The decision already has a task');
 
@@ -86,7 +97,7 @@ export class MeetingsService {
         : null;
       const key = sql`(${s.meetings.startsAt}, ${s.meetings.id})`;
       const after = cursor ? sql`(${cursor.at}::timestamptz, ${cursor.id}::uuid)` : null;
-      const rows = await this.summaryQuery(tx)
+      const rows = await this.summaryQuery(tx, ctx.memberId)
         .where(
           and(
             visibleMeetings(ctx.actor),
@@ -114,7 +125,7 @@ export class MeetingsService {
     return this.db.run(ctx, async (tx) => {
       const timeZone = await this.timeZone(tx, ctx);
       const today = calendarDateIn(new Date(), timeZone);
-      const rows = await this.summaryQuery(tx)
+      const rows = await this.summaryQuery(tx, ctx.memberId)
         .where(
           and(
             takesPart(ctx.memberId),
@@ -147,6 +158,17 @@ export class MeetingsService {
       if (!departmentId) {
         throw new ApiError(HttpStatus.BAD_REQUEST, 'no_department', 'Join a department first');
       }
+      if (body.repeat) {
+        return this.createSeries(tx, ctx, {
+          ...body,
+          startsAt,
+          endsAt,
+          link,
+          others,
+          departmentId,
+          untilOn: body.repeat.untilOn ?? null,
+        });
+      }
       const id = uuidv7();
       const [meeting] = await tx
         .insert(s.meetings)
@@ -164,9 +186,7 @@ export class MeetingsService {
         })
         .returning();
       if (!meeting) throw notFound('Meeting');
-      await tx
-        .insert(s.meetingParticipants)
-        .values([ctx.memberId, ...others].map((memberId) => ({ meetingId: id, memberId })));
+      await tx.insert(s.meetingParticipants).values(participantRows(id, ctx.memberId, others));
       await emitEvent(tx, 'meeting.scheduled', { meetingId: id, memberIds: others }, ctx.memberId);
       return this.detail(tx, ctx, meeting);
     });
@@ -227,6 +247,8 @@ export class MeetingsService {
           location,
           link,
           agenda: body.agenda ?? current.agenda,
+          // A weekly meeting edited on its own leaves the series' later changes alone.
+          detached: current.seriesId !== null,
           updatedAt: new Date(),
         })
         .where(eq(s.meetings.id, id))
@@ -419,10 +441,354 @@ export class MeetingsService {
     });
   }
 
-  private summaryQuery(tx: Tx) {
+  /** «می‌آیم» / «نمی‌آیم», for oneself, until the meeting starts. */
+  respond(ctx: TenantContext, id: string, response: 'accepted' | 'declined'): Promise<Meeting> {
+    return this.db.run(ctx, async (tx) => {
+      const meeting = await this.requireWritable(tx, ctx, id);
+      if (meeting.organizerId === ctx.memberId) throw forbidden();
+      if (meeting.startsAt <= new Date()) throw started();
+      await tx
+        .update(s.meetingParticipants)
+        .set({ response, respondedAt: new Date() })
+        .where(
+          and(
+            eq(s.meetingParticipants.meetingId, id),
+            eq(s.meetingParticipants.memberId, ctx.memberId),
+          ),
+        );
+      await emitEvent(tx, 'meeting.response_changed', { meetingId: id }, ctx.memberId);
+      return this.detail(tx, ctx, meeting);
+    });
+  }
+
+  /** The tasks this meeting's minutes are pinned to: those the reader sees, and how many others. */
+  minutesTasks(ctx: TenantContext, id: string): Promise<MinutesTasks> {
+    return this.db.run(ctx, async (tx) => {
+      await this.requireVisible(tx, ctx, id);
+      const rows = await tx
+        .select({
+          id: s.tasks.id,
+          title: s.tasks.title,
+          visible: sql<boolean>`${visibleTasks(ctx.actor)}`,
+        })
+        .from(s.taskEvidence)
+        .innerJoin(s.tasks, eq(s.tasks.id, s.taskEvidence.taskId))
+        .where(
+          and(
+            eq(s.taskEvidence.kind, 'minutes'),
+            eq(s.taskEvidence.subjectId, id),
+            isNull(s.taskEvidence.unpinnedAt),
+            isNull(s.tasks.deletedAt),
+          ),
+        )
+        .orderBy(asc(s.taskEvidence.createdAt));
+      return {
+        visible: rows.filter((r) => r.visible).map((r) => ({ id: r.id, title: r.title })),
+        hidden: rows.filter((r) => !r.visible).length,
+      };
+    });
+  }
+
+  /**
+   * A weekly series (plan phase-2-step-13b): its rule in the company's wall clock, its people, and
+   * the meetings of the coming weeks. Answers with the first of them.
+   */
+  private async createSeries(
+    tx: Tx,
+    ctx: TenantContext,
+    input: Omit<CreateMeetingRequest, 'startsAt' | 'endsAt' | 'link'> & {
+      startsAt: Date;
+      endsAt: Date;
+      link: string | null;
+      others: string[];
+      departmentId: string;
+      untilOn: string | null;
+    },
+  ): Promise<Meeting> {
+    const { calendar, timeZone } = await loadWorkCalendar(tx, ctx.tenantId);
+    const startsOn = calendarDateIn(input.startsAt, timeZone);
+    const startTime = wallClockIn(input.startsAt, timeZone);
+    const endTime = wallClockIn(input.endsAt, timeZone);
+    // One day, the same wall-clock times every week.
+    if (calendarDateIn(input.endsAt, timeZone) !== startsOn || endTime <= startTime) {
+      throw badTime();
+    }
+    if (input.untilOn && input.untilOn < startsOn) throw badTime();
+    const seriesId = uuidv7();
+    const [series] = await tx
+      .insert(s.meetingSeries)
+      .values({
+        id: seriesId,
+        type: input.type,
+        title: input.title,
+        weekday: persianWeekdayOfCalendarDate(startsOn),
+        startTime,
+        endTime,
+        startsOn,
+        untilOn: input.untilOn,
+        location: input.location?.trim() || null,
+        link: input.link,
+        agenda: input.agenda ?? '',
+        organizerId: ctx.memberId,
+        departmentId: input.departmentId,
+        generatedUntil: addDays(startsOn, -1),
+      })
+      .returning();
+    if (!series) throw notFound('Series');
+    await tx
+      .insert(s.meetingSeriesParticipants)
+      .values([ctx.memberId, ...input.others].map((memberId) => ({ seriesId, memberId })));
+    const made = await generateSeries(tx, series, { calendar, timeZone }, new Date());
+    const first = made[0];
+    if (!first) throw badTime();
+    await emitEvent(
+      tx,
+      'meeting.series_scheduled',
+      { seriesId, meetingId: first.id, memberIds: input.others },
+      ctx.memberId,
+    );
+    return this.detail(tx, ctx, first);
+  }
+
+  /**
+   * «این و جلسه‌های بعدی»: the series and its meetings still to come that were not edited on
+   * their own. Past meetings never change. Answers with the next meeting of the series.
+   */
+  updateSeries(ctx: TenantContext, id: string, body: UpdateSeriesRequest): Promise<Meeting | null> {
+    return this.db.run(ctx, async (tx) => {
+      const series = await this.requireSeries(tx, ctx, id);
+      const { calendar, timeZone } = await loadWorkCalendar(tx, ctx.tenantId);
+      const startTime = body.startTime ?? series.startTime;
+      const endTime = body.endTime ?? series.endTime;
+      if (endTime <= startTime) throw badTime();
+      const untilOn = body.untilOn === undefined ? series.untilOn : body.untilOn;
+      if (untilOn && untilOn < series.startsOn) throw badTime();
+      const weekday = body.weekday ?? series.weekday;
+      const link = body.link === undefined ? series.link : linkOf(body.link);
+      const location =
+        body.location === undefined ? series.location : body.location?.trim() || null;
+
+      let added: string[] = [];
+      let removed: string[] = [];
+      if (body.participantIds) {
+        const before = (
+          await tx
+            .select({ memberId: s.meetingSeriesParticipants.memberId })
+            .from(s.meetingSeriesParticipants)
+            .where(eq(s.meetingSeriesParticipants.seriesId, id))
+        )
+          .map((r) => r.memberId)
+          .filter((m) => m !== series.organizerId);
+        const after = [...new Set(body.participantIds)].filter((m) => m !== series.organizerId);
+        if (series.type === 'one_on_one' && after.length !== 1) throw needsOne();
+        added = after.filter((m) => !before.includes(m));
+        removed = before.filter((m) => !after.includes(m));
+        await this.requireActive(tx, added);
+        if (removed.length) {
+          await tx
+            .delete(s.meetingSeriesParticipants)
+            .where(
+              and(
+                eq(s.meetingSeriesParticipants.seriesId, id),
+                inArray(s.meetingSeriesParticipants.memberId, removed),
+              ),
+            );
+        }
+        if (added.length) {
+          await tx
+            .insert(s.meetingSeriesParticipants)
+            .values(added.map((memberId) => ({ seriesId: id, memberId })));
+        }
+      }
+      const [updated] = await tx
+        .update(s.meetingSeries)
+        .set({
+          title: body.title ?? series.title,
+          weekday,
+          startTime,
+          endTime,
+          untilOn,
+          location,
+          link,
+          agenda: body.agenda ?? series.agenda,
+          updatedAt: new Date(),
+        })
+        .where(eq(s.meetingSeries.id, id))
+        .returning();
+      if (!updated) throw notFound('Series');
+
+      const now = new Date();
+      const future = await tx
+        .select()
+        .from(s.meetings)
+        .where(
+          and(
+            eq(s.meetings.seriesId, id),
+            gt(s.meetings.startsAt, now),
+            isNull(s.meetings.canceledAt),
+            eq(s.meetings.detached, false),
+          ),
+        );
+      // All of a series' days share its old weekday, so shifting them never collides.
+      const shift = weekday - series.weekday;
+      for (const meeting of future) {
+        const day = addDays(meeting.occursOn ?? series.startsOn, shift);
+        // Past its new last day (or moved into the past): canceled, never deleted.
+        const ended =
+          (untilOn !== null && day > untilOn) || zonedInstant(day, startTime, timeZone) <= now;
+        await tx
+          .update(s.meetings)
+          .set({
+            title: updated.title,
+            occursOn: day,
+            startsAt: zonedInstant(day, startTime, timeZone),
+            endsAt: zonedInstant(day, endTime, timeZone),
+            location,
+            link,
+            agenda: updated.agenda,
+            canceledAt: ended ? now : null,
+            updatedAt: now,
+          })
+          .where(eq(s.meetings.id, meeting.id));
+        if (removed.length) {
+          await tx
+            .delete(s.meetingParticipants)
+            .where(
+              and(
+                eq(s.meetingParticipants.meetingId, meeting.id),
+                inArray(s.meetingParticipants.memberId, removed),
+              ),
+            );
+        }
+        if (added.length) {
+          await tx
+            .insert(s.meetingParticipants)
+            .values(added.map((memberId) => ({ meetingId: meeting.id, memberId })))
+            .onConflictDoNothing();
+        }
+      }
+      const generatedUntil = addDays(updated.generatedUntil, shift);
+      const [refreshed] = await tx
+        .update(s.meetingSeries)
+        .set({ generatedUntil })
+        .where(eq(s.meetingSeries.id, id))
+        .returning();
+      // A later last day (or a moved weekday) may leave weeks to make.
+      if (refreshed) await generateSeries(tx, refreshed, { calendar, timeZone }, now);
+
+      const next = await this.nextOfSeries(tx, id);
+      const moved =
+        shift !== 0 ||
+        startTime !== series.startTime ||
+        endTime !== series.endTime ||
+        location !== series.location ||
+        link !== series.link;
+      await emitEvent(
+        tx,
+        'meeting.series_updated',
+        {
+          seriesId: id,
+          meetingId: next?.id ?? null,
+          notify: moved,
+          addedIds: added,
+          removedIds: removed,
+        },
+        ctx.memberId,
+      );
+      return next ? this.detail(tx, ctx, next) : null;
+    });
+  }
+
+  /** Cancels the series from now on: its meetings to come; past ones stay with their minutes. */
+  cancelSeries(ctx: TenantContext, id: string): Promise<void> {
+    return this.db.run(ctx, async (tx) => {
+      await this.requireSeries(tx, ctx, id);
+      const next = await this.nextOfSeries(tx, id);
+      const now = new Date();
+      await tx
+        .update(s.meetingSeries)
+        .set({ canceledAt: now, updatedAt: now })
+        .where(eq(s.meetingSeries.id, id));
+      await tx
+        .update(s.meetings)
+        .set({ canceledAt: now, updatedAt: now })
+        .where(
+          and(
+            eq(s.meetings.seriesId, id),
+            gt(s.meetings.startsAt, now),
+            isNull(s.meetings.canceledAt),
+          ),
+        );
+      await emitEvent(
+        tx,
+        'meeting.series_canceled',
+        { seriesId: id, meetingId: next?.id ?? null },
+        ctx.memberId,
+      );
+    });
+  }
+
+  /** The organizer's series, not canceled; others on it get 403, everyone else 404. */
+  private async requireSeries(tx: Tx, ctx: TenantContext, id: string) {
+    const [series] = await tx
+      .select()
+      .from(s.meetingSeries)
+      .where(eq(s.meetingSeries.id, id))
+      .for('update');
+    if (!series) throw notFound('Series');
+    if (series.organizerId !== ctx.memberId) {
+      const [member] = await tx
+        .select({ id: s.meetingSeriesParticipants.memberId })
+        .from(s.meetingSeriesParticipants)
+        .where(
+          and(
+            eq(s.meetingSeriesParticipants.seriesId, id),
+            eq(s.meetingSeriesParticipants.memberId, ctx.memberId),
+          ),
+        );
+      throw member ? forbidden() : notFound('Series');
+    }
+    if (series.canceledAt) throw canceled();
+    return series;
+  }
+
+  private async nextOfSeries(tx: Tx, seriesId: string): Promise<MeetingRow | null> {
+    const [next] = await tx
+      .select()
+      .from(s.meetings)
+      .where(
+        and(
+          eq(s.meetings.seriesId, seriesId),
+          gt(s.meetings.endsAt, new Date()),
+          isNull(s.meetings.canceledAt),
+        ),
+      )
+      .orderBy(asc(s.meetings.startsAt))
+      .limit(1);
+    return next ?? null;
+  }
+
+  private async pinnedCount(tx: Tx, meetingId: string): Promise<number> {
+    const [row] = await tx
+      .select({ n: sql<number>`count(*)::int` })
+      .from(s.taskEvidence)
+      .innerJoin(s.tasks, eq(s.tasks.id, s.taskEvidence.taskId))
+      .where(
+        and(
+          eq(s.taskEvidence.kind, 'minutes'),
+          eq(s.taskEvidence.subjectId, meetingId),
+          isNull(s.taskEvidence.unpinnedAt),
+          isNull(s.tasks.deletedAt),
+        ),
+      );
+    return row?.n ?? 0;
+  }
+
+  private summaryQuery(tx: Tx, memberId: string) {
     return tx
       .select({
         meeting: s.meetings,
+        myResponse: sql<MeetingResponse | null>`(select mp.response from meeting_participants mp where mp.meeting_id = ${s.meetings.id} and mp.member_id = ${memberId})`,
         organizerName: organizer.displayName,
         participantCount: sql<number>`(select count(*)::int from meeting_participants mp where mp.meeting_id = ${s.meetings.id})`,
         hasMinutes: sql<boolean>`exists (select 1 from meeting_minutes mm where mm.meeting_id = ${s.meetings.id})`,
@@ -504,14 +870,20 @@ export class MeetingsService {
   }
 
   private async detail(tx: Tx, ctx: TenantContext, meeting: MeetingRow): Promise<Meeting> {
-    const [summary] = await this.summaryQuery(tx).where(eq(s.meetings.id, meeting.id));
+    const [summary] = await this.summaryQuery(tx, ctx.memberId).where(
+      eq(s.meetings.id, meeting.id),
+    );
     if (!summary) throw notFound('Meeting');
     const [department] = await tx
       .select({ id: s.departments.id, name: s.departments.name })
       .from(s.departments)
       .where(eq(s.departments.id, meeting.departmentId));
     const participants = await tx
-      .select({ id: s.members.id, displayName: s.members.displayName })
+      .select({
+        id: s.members.id,
+        displayName: s.members.displayName,
+        response: s.meetingParticipants.response,
+      })
       .from(s.meetingParticipants)
       .innerJoin(s.members, eq(s.members.id, s.meetingParticipants.memberId))
       .where(eq(s.meetingParticipants.meetingId, meeting.id))
@@ -522,6 +894,11 @@ export class MeetingsService {
     );
     const writes = participants.some((p) => p.id === ctx.memberId);
     const open = writes && !meeting.canceledAt;
+    const count = (response: MeetingResponse) =>
+      participants.filter((p) => p.response === response).length;
+    const [series] = meeting.seriesId
+      ? await tx.select().from(s.meetingSeries).where(eq(s.meetingSeries.id, meeting.seriesId))
+      : [];
 
     const [minutesRow] = await tx
       .select({
@@ -601,20 +978,48 @@ export class MeetingsService {
             attachments: files.map(({ row, uploaderName }) =>
               toAttachment(row, uploaderName, open),
             ),
+            pinnedCount: await this.pinnedCount(tx, meeting.id),
           }
         : null,
       decisions,
+      responses: {
+        accepted: count('accepted'),
+        declined: count('declined'),
+        pending: count('pending'),
+      },
+      series: series
+        ? {
+            id: series.id,
+            weekday: series.weekday,
+            startTime: series.startTime,
+            endTime: series.endTime,
+            untilOn: series.untilOn,
+            canceled: series.canceledAt !== null,
+          }
+        : null,
       can: {
         edit: meeting.organizerId === ctx.memberId && !meeting.canceledAt,
         record: open,
         convert: open && canCreateIn(ctx.actor, meeting.departmentId),
+        respond:
+          open && meeting.organizerId !== ctx.memberId && meeting.startsAt.getTime() > Date.now(),
+        pin: minutesRow !== undefined && meeting.type !== 'one_on_one',
       },
     };
   }
 }
 
+/** Everyone on a meeting; the organizer is coming. */
+function participantRows(meetingId: string, organizerId: string, others: string[]) {
+  return [
+    { meetingId, memberId: organizerId, response: 'accepted' as const },
+    ...others.map((memberId) => ({ meetingId, memberId })),
+  ];
+}
+
 function toSummary(r: {
   meeting: MeetingRow;
+  myResponse: MeetingResponse | null;
   organizerName: string;
   participantCount: number;
   hasMinutes: boolean;
@@ -632,5 +1037,68 @@ function toSummary(r: {
     participantCount: r.participantCount,
     hasMinutes: r.hasMinutes,
     canceledAt: m.canceledAt?.toISOString() ?? null,
+    seriesId: m.seriesId,
+    myResponse: r.myResponse,
   };
+}
+
+/**
+ * Makes the meetings of a series up to SERIES_HORIZON_WEEKS ahead, never in the past and never on
+ * a company holiday; a day already made is left alone (unique per series and day). Used when a
+ * series is created or changed, and by the worker. Returns the new meetings.
+ */
+export async function generateSeries(
+  tx: Tx,
+  series: typeof s.meetingSeries.$inferSelect,
+  { calendar, timeZone }: { calendar: WorkCalendar; timeZone: string },
+  now: Date,
+): Promise<MeetingRow[]> {
+  if (series.canceledAt) return [];
+  const today = calendarDateIn(now, timeZone);
+  const horizon = addDays(today, SERIES_HORIZON_WEEKS * 7);
+  const next = addDays(series.generatedUntil, 1);
+  const dates = seriesDates(series, next > today ? next : today, horizon, calendar.holidays).filter(
+    (day) => zonedInstant(day, series.startTime, timeZone) > now,
+  );
+  const people = (
+    await tx
+      .select({ memberId: s.meetingSeriesParticipants.memberId })
+      .from(s.meetingSeriesParticipants)
+      .where(eq(s.meetingSeriesParticipants.seriesId, series.id))
+  )
+    .map((r) => r.memberId)
+    .filter((m) => m !== series.organizerId);
+  const made: MeetingRow[] = [];
+  for (const day of dates) {
+    const id = uuidv7();
+    const [meeting] = await tx
+      .insert(s.meetings)
+      .values({
+        id,
+        type: series.type,
+        title: series.title,
+        startsAt: zonedInstant(day, series.startTime, timeZone),
+        endsAt: zonedInstant(day, series.endTime, timeZone),
+        location: series.location,
+        link: series.link,
+        agenda: series.agenda,
+        organizerId: series.organizerId,
+        departmentId: series.departmentId,
+        seriesId: series.id,
+        occursOn: day,
+      })
+      .onConflictDoNothing()
+      .returning();
+    if (!meeting) continue;
+    await tx.insert(s.meetingParticipants).values(participantRows(id, series.organizerId, people));
+    made.push(meeting);
+  }
+  const until = series.untilOn && series.untilOn < horizon ? series.untilOn : horizon;
+  if (until > series.generatedUntil) {
+    await tx
+      .update(s.meetingSeries)
+      .set({ generatedUntil: until })
+      .where(eq(s.meetingSeries.id, series.id));
+  }
+  return made;
 }

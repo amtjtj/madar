@@ -5,16 +5,20 @@ import type { Redis } from 'ioredis';
 import { ENV } from '../config/config.module.js';
 import type { Env } from '../config/env.js';
 import { FilesCleanupJob } from '../files/cleanup-job.js';
+import { MeetingJobs } from '../meetings/meeting-jobs.js';
 import { RemindersService } from '../notifications/reminders.service.js';
 import { WeeklyReportsJob } from '../reports/weekly-job.js';
 import { REDIS } from './consumer.js';
 
 const QUEUE = 'scheduled';
 const EVERY_MS = 15 * 60_000;
+/** Meeting reminders need minute precision («۱۰ دقیقه دیگر»). */
+const MEETING_REMINDERS_MS = 60_000;
 
 /**
- * Recurring jobs (BullMQ job schedulers), every 15 minutes: reminders, weekly report snapshots and
- * the cleanup of unreachable files.
+ * Recurring jobs (BullMQ job schedulers). Every 15 minutes: due reminders, weekly report snapshots,
+ * the cleanup of unreachable files and making weekly meetings ahead. Every minute: meeting
+ * reminders.
  */
 @Injectable()
 export class SchedulerService implements OnModuleDestroy {
@@ -28,6 +32,7 @@ export class SchedulerService implements OnModuleDestroy {
     private readonly reminders: RemindersService,
     private readonly weeklyReports: WeeklyReportsJob,
     private readonly filesCleanup: FilesCleanupJob,
+    private readonly meetings: MeetingJobs,
   ) {}
 
   async start(): Promise<void> {
@@ -38,6 +43,11 @@ export class SchedulerService implements OnModuleDestroy {
       { every: EVERY_MS },
       { name: 'due-reminders' },
     );
+    await this.queue.upsertJobScheduler(
+      'meeting-reminders',
+      { every: MEETING_REMINDERS_MS },
+      { name: 'meeting-reminders' },
+    );
     this.worker = new Worker(
       QUEUE,
       async (job) => {
@@ -45,7 +55,9 @@ export class SchedulerService implements OnModuleDestroy {
           await this.reminders.runAll();
           await this.weeklyReports.runAll();
           await this.filesCleanup.runAll();
+          await this.meetings.generateAll();
         }
+        if (job.name === 'meeting-reminders') await this.meetings.remindAll();
       },
       options,
     );
