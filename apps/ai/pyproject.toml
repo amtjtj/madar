@@ -1,0 +1,38 @@
+[project]
+name = "madar-ai"
+version = "0.0.0"
+description = "Madar's private AI service (ADR 0025): stateless, open-source models on our own servers."
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi==0.115.12",
+  "uvicorn==0.34.2",
+  "httpx==0.28.1",
+  "pydantic==2.11.4",
+]
+
+[dependency-groups]
+dev = [
+  "pytest==8.3.5",
+  "ruff==0.11.10",
+  "mypy==1.15.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "RUF"]
+ignore = ["RUF001", "RUF003"]  # Persian text uses Arabic-script characters on purpose
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S105", "S106"]
+"app/prompts.py" = ["E501"]  # prompts are long Persian lines
+
+[tool.mypy]
+strict = true
+packages = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

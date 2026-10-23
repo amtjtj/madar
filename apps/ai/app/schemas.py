@@ -1,0 +1,88 @@
+"""Request and response bodies (camelCase on the wire, like the rest of Madar's API)."""
+
+from typing import Annotated, Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic.alias_generators import to_camel
+
+Text = Annotated[str, Field(min_length=1, max_length=200)]
+
+
+class Body(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, extra="forbid")
+
+
+class Totals(Body):
+    done: int = Field(ge=0)
+    created: int = Field(ge=0)
+    overdue: int | None = Field(default=None, ge=0)
+
+
+class DepartmentFacts(Body):
+    name: Text
+    done: int = Field(ge=0)
+    overdue: int = Field(ge=0)
+    behind: bool
+    goal_progress: float | None = Field(default=None, ge=0, le=1)
+
+
+class GoalFacts(Body):
+    title: Text
+    progress: float = Field(ge=0, le=1)
+    change: float | None = None
+
+
+class ProjectFacts(Body):
+    name: Text
+    done: int = Field(ge=0)
+    total: int = Field(ge=0)
+    overdue: int = Field(ge=0)
+
+
+class ReportSummaryRequest(Body):
+    """
+    The facts of one weekly report. It never carries people: the API leaves out every name
+    (CLAUDE.md AI rules; the report itself never counts or compares people, ADR 0015).
+    """
+
+    scope: Literal["company", "department"]
+    name: Text
+    week_label: Text
+    partial: bool
+    totals: Totals
+    previous: Totals
+    departments: list[DepartmentFacts] = Field(default_factory=list, max_length=50)
+    goals: list[GoalFacts] = Field(default_factory=list, max_length=30)
+    at_risk_projects: list[ProjectFacts] = Field(default_factory=list, max_length=20)
+    highlights: list[Text] = Field(default_factory=list, max_length=10)
+    stuck: int = Field(default=0, ge=0)
+
+
+class ReportSummaryResponse(Body):
+    text: str
+    model: str
+    tokens: int
+
+
+class TaskBreakdownRequest(Body):
+    sentence: Annotated[str, Field(min_length=3, max_length=300)]
+    department: Text
+    today: Text
+
+
+class SuggestedTask(Body):
+    title: Annotated[str, Field(min_length=1, max_length=200)]
+    due_in_days: int | None = Field(default=None, ge=0, le=365)
+
+
+class ModelBreakdown(Body):
+    """What the model must return; anything else is rejected."""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, extra="ignore")
+    tasks: list[SuggestedTask] = Field(min_length=1)
+
+
+class TaskBreakdownResponse(Body):
+    tasks: list[SuggestedTask]
+    model: str
+    tokens: int

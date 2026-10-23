@@ -1,0 +1,14 @@
+{
+  "name": "@madar/ai",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Python AI service; scripts wrap uv so turbo runs its checks with the rest",
+  "scripts": {
+    "dev": "uv run --frozen uvicorn --factory app.main:from_env --reload --port ${AI_PORT:-4200}",
+    "start": "uv run --frozen uvicorn --factory app.main:from_env --host 0.0.0.0 --port ${AI_PORT:-4200}",
+    "lint": "uv run --frozen ruff check . && uv run --frozen ruff format --check .",
+    "format": "uv run --frozen ruff format .",
+    "typecheck": "uv run --frozen mypy",
+    "test": "uv run --frozen pytest -q"
+  }
+}

@@ -45,6 +45,10 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
+      # The AI service (apps/ai) runs its pytest, ruff and mypy through turbo like the rest.
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: 0.11.32
       - run: pnpm install --frozen-lockfile
       - run: pnpm format:check
       - run: pnpm build
