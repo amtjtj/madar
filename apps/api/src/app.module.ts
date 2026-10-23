@@ -17,6 +17,7 @@ import { RealtimeModule } from './realtime/realtime.module.js';
 import { ReportsModule } from './reports/reports.module.js';
 import { TenantsModule } from './tenants/tenants.module.js';
 import { FilesModule } from './files/files.module.js';
+import { CalendarModule } from './calendar/calendar.module.js';
 import { ChatModule } from './chat/chat.module.js';
 import { EvidenceModule } from './evidence/evidence.module.js';
 import { LettersModule } from './letters/letters.module.js';
@@ -39,6 +40,7 @@ import { WorkModule } from './work/work.module.js';
     EvidenceModule,
     ChatModule,
     MeetingsModule,
+    CalendarModule,
     GoalsModule,
     DashboardModule,
     ReportsModule,
