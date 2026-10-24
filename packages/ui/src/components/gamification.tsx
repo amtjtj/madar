@@ -115,7 +115,11 @@ export function StreakMap({ days, from, to, className }: StreakMapProps) {
                     aria-label={label}
                     className={cn(
                       'size-4 rounded-[4px] border sm:size-5',
-                      status ? dayStyle[status] : 'border-transparent bg-transparent',
+                      status
+                        ? dayStyle[status]
+                        : day <= to
+                          ? 'border-line/50 bg-transparent'
+                          : 'border-transparent bg-transparent',
                     )}
                   />
                 );
@@ -163,14 +167,20 @@ export function XpRow({ amount, reason, title, weight, when, className }: XpRowP
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-sm font-medium text-ink">
-          {t(`ui.gamification.reasons.${reason}`)}
-          {title ? ` «${title}»` : ''}
+          {title
+            ? t('ui.gamification.withTitle', {
+                reason: t(`ui.gamification.reasons.${reason}`),
+                title,
+              })
+            : t(`ui.gamification.reasons.${reason}`)}
         </span>
         <span className="text-xs text-ink-muted">
           {weight && weight > 1
-            ? `${t('ui.gamification.weight', { weight: formatNumber(weight) })}، `
-            : ''}
-          {when}
+            ? t('ui.gamification.meta', {
+                weight: t('ui.gamification.weight', { weight: formatNumber(weight) }),
+                when,
+              })
+            : when}
         </span>
       </span>
     </div>

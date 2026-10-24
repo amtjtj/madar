@@ -32,11 +32,11 @@ export class GamificationConsumer implements EventConsumer {
     const today = calendarDateIn(event.occurredAt, timeZone);
     if (event.type === 'task.reopened' || event.type === 'task.deleted') {
       // Taking back is never switched off: XP once given follows its work.
-      await reverseTask(tx, String(p.taskId), event.id, today);
+      await reverseTask(tx, String(p.taskId), event.id, today, event.type === 'task.deleted');
       return;
     }
     if (event.type === 'request.decided') {
-      if (p.status === 'approved') await excuseLeaveDays(tx, event.tenantId, String(p.requestId));
+      if (p.status === 'approved') await excuseLeaveDays(tx, String(p.requestId));
       return;
     }
     const settings = await loadGamificationSettings(tx, event.tenantId);

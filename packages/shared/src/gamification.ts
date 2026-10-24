@@ -1,5 +1,4 @@
-import { addDays } from './locale/jalali.js';
-import { hoursOn, isWorkingDay, type WorkCalendar } from './locale/work-calendar.js';
+import { hoursOn, type WorkCalendar } from './locale/work-calendar.js';
 
 /**
  * Gamification rules (ADR 0007, plan phase-3-step-18a). Pure functions shared by the API, the worker
@@ -106,20 +105,14 @@ export function dayStatus(
 /**
  * The streak ending at the latest closed day: completed days back to the first missed one;
  * excused and off days are skipped (they neither break nor add). `days` may be in any order and
- * need not be contiguous: a closed working day that is missing from it counts as missed.
+ * need not be contiguous: a day that was never closed (before joining, a long outage) is skipped
+ * too, the same as the worker's running count does.
  */
-export function currentStreak(
-  days: ReadonlyArray<{ day: string; status: StreakStatus }>,
-  through: string,
-  calendar: WorkCalendar,
-  since: string,
-): number {
-  const byDay = new Map(days.map((d) => [d.day, d.status]));
+export function currentStreak(days: ReadonlyArray<{ day: string; status: StreakStatus }>): number {
   let count = 0;
-  for (let day = through; day >= since; day = addDays(day, -1)) {
-    const status = byDay.get(day) ?? (isWorkingDay(calendar, day) ? 'missed' : 'off_day');
-    if (status === 'completed') count++;
-    else if (status === 'missed') break;
+  for (const d of [...days].sort((a, b) => b.day.localeCompare(a.day))) {
+    if (d.status === 'completed') count++;
+    else if (d.status === 'missed') break;
   }
   return count;
 }

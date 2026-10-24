@@ -22,7 +22,7 @@ import { calendarDateIn, categoryOf } from '@madar/shared';
 
 import { api, ApiClientError } from '@/lib/api';
 
-import { workKeys } from './keys';
+import { progressKeys, workKeys } from './keys';
 import { useMe } from './use-me';
 
 export function useTasks(params: Partial<ListTasksQuery>, options: { enabled?: boolean } = {}) {
@@ -209,6 +209,8 @@ export function useSetTaskProgress() {
       if (task.parentId) void client.invalidateQueries({ queryKey: workKeys.task(task.parentId) });
       void client.invalidateQueries({ queryKey: workKeys.allTasks });
       void client.invalidateQueries({ queryKey: workKeys.projects });
+      // Finishing work moves my day's ring (ADR 0029).
+      void client.invalidateQueries({ queryKey: progressKeys.mine });
     },
   });
 }

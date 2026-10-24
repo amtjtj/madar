@@ -7,7 +7,6 @@ import {
   longestStreak,
   zonedInstant,
   type StreakStatus,
-  type WorkCalendar,
 } from '@madar/shared';
 import { and, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
 
@@ -68,6 +67,11 @@ async function onLeave(tx: Tx, memberIds: string[], day: string): Promise<Set<st
   return new Set(rows.map((r) => r.memberId));
 }
 
+/** One streak update per member at a time (the job and a late leave approval). */
+async function lockStreak(tx: Tx, memberId: string): Promise<void> {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`streak:${memberId}`}, 0))`);
+}
+
 /** Moves the cached streak forward by one closed day. */
 function step(
   stats: { current: number; longest: number },
@@ -93,8 +97,6 @@ export async function closeDays(tx: Tx, tenantId: string, now: Date): Promise<nu
     .select({
       id: s.members.id,
       joinedAt: s.members.joinedAt,
-      current: s.memberStats.currentStreak,
-      longest: s.memberStats.longestStreak,
       through: s.memberStats.streakThrough,
     })
     .from(s.members)
@@ -107,9 +109,6 @@ export async function closeDays(tx: Tx, tenantId: string, now: Date): Promise<nu
     const floor = addDays(yesterday, -(CLOSE_BACKFILL_DAYS - 1));
     return [afterJoin, afterClosed, floor].sort().at(-1) ?? floor;
   };
-  const state = new Map(
-    people.map((p) => [p.id, { current: p.current ?? 0, longest: p.longest ?? 0 }]),
-  );
   const start = people.map(firstOf).sort()[0];
   if (!start || start > yesterday) return 0;
   let written = 0;
@@ -133,9 +132,15 @@ export async function closeDays(tx: Tx, tenantId: string, now: Date): Promise<nu
         .values({ memberId, day, status, planned: count.planned, done: count.done })
         .onConflictDoNothing()
         .returning({ day: s.streakDays.day });
-      if (inserted.length) written++;
-      const next = step(state.get(memberId) ?? { current: 0, longest: 0 }, status);
-      state.set(memberId, next);
+      if (!inserted.length) continue;
+      written++;
+      // Read under the member's lock: a leave approved meanwhile may have recounted the streak.
+      await lockStreak(tx, memberId);
+      const [stats] = await tx
+        .select({ current: s.memberStats.currentStreak, longest: s.memberStats.longestStreak })
+        .from(s.memberStats)
+        .where(eq(s.memberStats.memberId, memberId));
+      const next = step(stats ?? { current: 0, longest: 0 }, status);
       await tx
         .insert(s.memberStats)
         .values({
@@ -159,16 +164,15 @@ export async function closeDays(tx: Tx, tenantId: string, now: Date): Promise<nu
 }
 
 /** Recounts a member's streak from all their closed days (after a day changed). */
-export async function rebuildStreak(tx: Tx, memberId: string, calendar: WorkCalendar) {
+export async function rebuildStreak(tx: Tx, memberId: string) {
+  await lockStreak(tx, memberId);
   const days = await tx
     .select({ day: s.streakDays.day, status: s.streakDays.status })
     .from(s.streakDays)
     .where(eq(s.streakDays.memberId, memberId))
     .orderBy(s.streakDays.day);
-  const first = days[0]?.day;
-  const last = days.at(-1)?.day;
-  if (!first || !last) return;
-  const current = currentStreak(days, last, calendar, first);
+  if (!days.length) return;
+  const current = currentStreak(days);
   const longest = longestStreak(days);
   await tx
     .update(s.memberStats)
@@ -180,7 +184,7 @@ export async function rebuildStreak(tx: Tx, memberId: string, calendar: WorkCale
  * A daily leave approved after its days were closed: those missed days become excused, and the
  * streak is recounted (the same event's transaction).
  */
-export async function excuseLeaveDays(tx: Tx, tenantId: string, requestId: string): Promise<void> {
+export async function excuseLeaveDays(tx: Tx, requestId: string): Promise<void> {
   const [leave] = await tx
     .select({
       memberId: s.leaves.memberId,
@@ -204,6 +208,5 @@ export async function excuseLeaveDays(tx: Tx, tenantId: string, requestId: strin
     )
     .returning({ day: s.streakDays.day });
   if (!changed.length) return;
-  const { calendar } = await loadWorkCalendar(tx, tenantId);
-  await rebuildStreak(tx, leave.memberId, calendar);
+  await rebuildStreak(tx, leave.memberId);
 }

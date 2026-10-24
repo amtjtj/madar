@@ -205,10 +205,33 @@ describe.skipIf(!hasDatabase)('gamification: XP, levels and streaks (ADR 0029)',
     );
     expect(notes.map((n) => n.recipientId)).toEqual([agent.memberId]);
     expect(notes[0]?.payload).toMatchObject({ data: { level: 2 } });
+    // Reopening drops below level 2 and finishing again climbs back: no second celebration.
+    await reopen(agent.c, big);
+    await xpBecomes(agent, 57);
+    await finish(agent.c, big);
+    await xpBecomes(agent, 132);
+    await settle();
+    const again = await withTenant(handle.db, { tenantId }, (tx) =>
+      tx.select().from(s.notifications).where(eq(s.notifications.kind, 'level_up')),
+    );
+    expect(again).toHaveLength(1);
   });
 
   it('deleting finished work takes its XP back', async () => {
     expect((await head.c.delete(`/api/tasks/${big.id}`)).status).toBe(204);
+    expect((await xpBecomes(agent, 57)).xp).toBe(57);
+  });
+
+  it('deleting finished work takes back its subtasks’ XP too', async () => {
+    const parent = await task(head.c, { assigneeId: agent.memberId, title: 'آماده‌سازی گزارش' });
+    const sub = await task(head.c, {
+      parentId: parent.id,
+      assigneeId: agent.memberId,
+      title: 'جمع‌آوری آمار',
+    });
+    await finish(agent.c, sub);
+    expect((await xpBecomes(agent, 67)).xp).toBe(67);
+    expect((await head.c.delete(`/api/tasks/${parent.id}`)).status).toBe(204);
     expect((await xpBecomes(agent, 57)).xp).toBe(57);
   });
 

@@ -36,13 +36,16 @@ export const fa = {
     progress: '{value} انجام شده',
     markComplete: 'علامت زدن به‌عنوان انجام‌شده',
     markIncomplete: 'برگرداندن به انجام‌نشده',
-    xpGained: '+{xp} امتیاز',
+    /** The sign stays left of the digits (an isolate), so «+۱۰» never reads as «۱۰۰». */
+    xpGained: '\u2066+{xp}\u2069 امتیاز',
     gamification: {
       streak: 'استریک {count} روز',
       level: 'سطح {level}',
       toNext: '{xp} امتیاز تا سطح بعد',
-      xpLost: '−{xp}',
+      xpLost: '\u2066−{xp}\u2069 امتیاز',
       weight: 'وزن {weight}',
+      withTitle: '{reason} «{title}»',
+      meta: '{weight}، {when}',
       mapLabel: 'روزهای اخیر',
       days: {
         completed: 'روز کامل',
@@ -62,7 +65,7 @@ export const fa = {
         task_completed: 'تمام کردن',
         on_time: 'سر وقت',
         goal_checkin: 'ثبت پیشرفت هدف',
-        reversal: 'برگشت با بازگشایی',
+        reversal: 'برگشت امتیاز',
       },
     },
     locked: 'قفل',
@@ -1556,6 +1559,7 @@ export const fa = {
     totalXp: '{xp} امتیاز تا امروز',
     todayXp: 'امتیاز امروز: {xp}',
     capReached: 'سقف امتیاز امروز پر شد؛ فردا دوباره.',
+    dayComplete: 'روز کامل شد! استریکت یک روز بلندتر شد.',
     mapTitle: '۱۲ هفته اخیر',
     mapHint:
       'روز کامل یعنی دست‌کم {percent} برنامه امروز را تمام کنی. مرخصی، تعطیلی و روزهای غیرکاری استریک را نمی‌شکنند.',

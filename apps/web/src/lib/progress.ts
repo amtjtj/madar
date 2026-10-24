@@ -25,13 +25,14 @@ export function xpForFinishing(
 const LEVEL_KEY = 'madar.progress.level';
 
 /**
- * Whether this device should celebrate `level` now: once per new level, never on the first visit
- * (a per-device convenience; nothing breaks without storage).
+ * Whether this device should celebrate `level` now: once per level never seen before (not again
+ * after a take-back), never on the first visit (a per-device convenience; nothing breaks without
+ * storage).
  */
 export function celebrateLevel(level: number): boolean {
   try {
     const seen = Number(localStorage.getItem(LEVEL_KEY) ?? 0);
-    localStorage.setItem(LEVEL_KEY, String(level));
+    if (level > seen) localStorage.setItem(LEVEL_KEY, String(level));
     return seen > 0 && level > seen;
   } catch {
     return false;

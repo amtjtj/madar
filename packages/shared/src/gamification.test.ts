@@ -90,10 +90,10 @@ describe('streaks', () => {
       { day: '2026-10-30', status: 'off_day' },
       { day: '2026-10-31', status: 'completed' },
     ];
-    expect(currentStreak(days, '2026-10-31', calendar, '2026-10-01')).toBe(3);
+    expect(currentStreak(days)).toBe(3);
     expect(longestStreak(days)).toBe(3);
-    // A closed working day with no row is missed.
-    expect(currentStreak(days.slice(1), '2026-10-31', calendar, '2026-10-20')).toBe(3);
-    expect(currentStreak(days, '2026-10-24', calendar, '2026-10-01')).toBe(0);
+    // A day never closed (here Thursday the 29th) is skipped, not counted as missed.
+    expect(currentStreak(days.filter((d) => d.day !== '2026-10-29'))).toBe(3);
+    expect(currentStreak(days.slice(0, 1))).toBe(0);
   });
 });

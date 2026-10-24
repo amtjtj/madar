@@ -34,7 +34,7 @@ test('Ali finishes his day: +XP on the check, the day completes, and only he see
     .getByRole('checkbox', { name: /^پاسخ به تیکت‌های صف شب — علامت زدن/ })
     .first()
     .click();
-  await expect(page.getByText('+۴۵ امتیاز').first()).toBeVisible();
+  await expect(page.getByText(/۴۵\u2069? امتیاز/).first()).toBeVisible();
   await expect(page.getByText('روزت کامل شد! استریک امروز حساب شد.')).toBeVisible();
   await expect(page.getByText('۵۵ امتیاز تا سطح بعد')).toBeVisible({ timeout: 15_000 });
 

@@ -197,6 +197,13 @@
       "when": 1792803007488,
       "tag": "0027_gamification",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792815570324,
+      "tag": "0028_best_level",
+      "breakpoints": true
     }
   ]
 }

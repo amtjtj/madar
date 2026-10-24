@@ -1,0 +1,1 @@
+ALTER TABLE "member_stats" ADD COLUMN "best_level" integer DEFAULT 1 NOT NULL;

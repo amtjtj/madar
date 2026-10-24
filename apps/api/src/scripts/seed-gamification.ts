@@ -27,6 +27,11 @@ export async function seedGamification(handle: DbHandle, tenantId: string): Prom
   await withTenant(handle.db, { tenantId }, async (tx) => {
     const { calendar, timeZone } = await loadWorkCalendar(tx, tenantId);
     const settings = await loadGamificationSettings(tx, tenantId);
+    // The demo people have worked here for the eight weeks of history, so no day goes unclosed.
+    await tx
+      .update(s.members)
+      .set({ joinedAt: new Date(Date.now() - 8 * 7 * 86_400_000) })
+      .where(eq(s.members.status, 'active'));
     const finished = await tx
       .select({
         id: s.tasks.id,
@@ -51,7 +56,13 @@ export async function seedGamification(handle: DbHandle, tenantId: string): Prom
       const completedOn = calendarDateIn(task.completedAt, timeZone);
       const xp = taskXp({ ...task, completedOn });
       const key = `task:${task.id}:${task.completedAt.toISOString()}`;
-      const base = { memberId: task.assigneeId, taskId: task.id, day: completedOn, sourceKey: key };
+      const base = {
+        memberId: task.assigneeId,
+        taskId: task.id,
+        day: completedOn,
+        sourceKey: key,
+        at: task.completedAt,
+      };
       await grant(
         tx,
         { ...base, reason: 'task_completed', amount: xp.completed },
@@ -89,9 +100,8 @@ export async function seedGamification(handle: DbHandle, tenantId: string): Prom
         });
         days.push({ day, status });
       }
-      const first = addDays(today, -STREAK_DAYS);
       const stats = {
-        currentStreak: currentStreak(days, yesterday, calendar, first),
+        currentStreak: currentStreak(days),
         longestStreak: longestStreak(days),
         streakThrough: yesterday,
       };

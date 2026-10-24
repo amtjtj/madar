@@ -63,8 +63,8 @@ export function useRealtime(enabled: boolean, tenantId?: string): boolean {
           void client.invalidateQueries({ queryKey: notificationKeys.all });
         }
         if (pending.has('letters')) void client.invalidateQueries({ queryKey: letterKeys.all });
-        // The day's ring follows the plan and finished work; XP follows the worker's hint.
-        if (pending.has('progress') || pending.has('today') || pending.has('work')) {
+        // My day follows my plan (a hint to me only); XP follows the worker's hint to me.
+        if (pending.has('progress') || pending.has('today')) {
           void client.invalidateQueries({ queryKey: progressKeys.all });
         }
         if (pending.has('requests')) {

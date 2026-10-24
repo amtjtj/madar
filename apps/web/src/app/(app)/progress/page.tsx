@@ -46,7 +46,7 @@ export default function ProgressPage() {
                 />
                 <p className="text-sm text-ink-muted">
                   {t('progress.totalXp', { xp: formatNumber(progress.xp) })}
-                  {'، '}
+                  {t('ui.listSeparator')}
                   {t('progress.todayXp', { xp: formatNumber(progress.today.xp) })}
                 </p>
                 {progress.today.capReached && (

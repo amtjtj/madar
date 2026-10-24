@@ -1,10 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { t } from '@madar/i18n';
 import { formatNumber } from '@madar/shared';
-import { Button, Card, CardContent, LevelBar, LevelUpMark, Modal, StreakFlame } from '@madar/ui';
+import {
+  Button,
+  Card,
+  CardContent,
+  LevelBar,
+  LevelUpMark,
+  Modal,
+  StreakFlame,
+  useToast,
+} from '@madar/ui';
 
 import { NextLink } from '@/components/next-link';
 import { useMyProgress } from '@/hooks/progress';
@@ -23,6 +32,16 @@ export function ProgressCard() {
     setChecked(progress.level);
     if (celebrateLevel(progress.level)) setLevel(progress.level);
   }
+  // A short cheer when today becomes complete while I watch (not on every visit).
+  const { toast } = useToast();
+  const wasComplete = useRef<boolean | null>(null);
+  const complete = progress?.enabled ? progress.today.complete : null;
+  useEffect(() => {
+    if (complete && wasComplete.current === false) {
+      toast({ tone: 'success', title: t('progress.dayComplete') });
+    }
+    wasComplete.current = complete;
+  }, [complete, toast]);
   if (!progress?.enabled) return null;
   const { today } = progress;
   return (

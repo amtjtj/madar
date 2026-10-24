@@ -96,6 +96,8 @@ export const memberStats = pgTable(
     tenantId: tenantId().references(() => tenants.id, { onDelete: 'cascade' }),
     memberId: uuid('member_id').notNull(),
     xpTotal: integer('xp_total').notNull().default(0),
+    /** The highest level ever reached: a level is celebrated once, not again after a take-back. */
+    bestLevel: integer('best_level').notNull().default(1),
     currentStreak: integer('current_streak').notNull().default(0),
     longestStreak: integer('longest_streak').notNull().default(0),
     /** The latest closed day the streak counts. */

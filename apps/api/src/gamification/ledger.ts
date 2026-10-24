@@ -16,6 +16,8 @@ export interface Grant {
   taskId?: string | null;
   /** The company's calendar day it counts on. */
   day: string;
+  /** When it was earned, if not now (the demo history). */
+  at?: Date;
 }
 
 /** XP earned on `day` so far (reversals do not free room under the cap). */
@@ -37,21 +39,23 @@ async function earnedOn(tx: Tx, memberId: string, day: string): Promise<number> 
 async function addToTotal(tx: Tx, memberId: string, amount: number): Promise<void> {
   if (amount === 0) return;
   const [before] = await tx
-    .select({ xp: s.memberStats.xpTotal })
+    .select({ xp: s.memberStats.xpTotal, best: s.memberStats.bestLevel })
     .from(s.memberStats)
     .where(eq(s.memberStats.memberId, memberId))
     .for('update');
   const total = (before?.xp ?? 0) + amount;
+  const best = before?.best ?? 1;
+  const level = levelOf(total).level;
   await tx
     .insert(s.memberStats)
-    .values({ memberId, xpTotal: total })
+    .values({ memberId, xpTotal: total, bestLevel: Math.max(best, level) })
     .onConflictDoUpdate({
       target: [s.memberStats.tenantId, s.memberStats.memberId],
-      set: { xpTotal: total, updatedAt: new Date() },
+      set: { xpTotal: total, bestLevel: Math.max(best, level), updatedAt: new Date() },
     });
-  const from = levelOf(before?.xp ?? 0).level;
-  const to = levelOf(total).level;
-  if (to > from) await emitEvent(tx, 'member.level_up', { memberId, level: to }, null);
+  // Only a level never reached before: finishing, reopening and finishing again near a threshold
+  // celebrates once.
+  if (level > best) await emitEvent(tx, 'member.level_up', { memberId, level }, null);
   await emitEvent(tx, 'member.progress_changed', { memberId }, null);
 }
 
@@ -75,6 +79,7 @@ export async function grant(tx: Tx, input: Grant, dailyCap: number): Promise<num
       sourceKey: input.sourceKey,
       taskId: input.taskId ?? null,
       day: input.day,
+      ...(input.at ? { createdAt: input.at } : {}),
     })
     .onConflictDoNothing()
     .returning({ id: s.xpLedger.id });
@@ -84,14 +89,16 @@ export async function grant(tx: Tx, input: Grant, dailyCap: number): Promise<num
 }
 
 /**
- * Takes back whatever a task still holds for each member (reopened or deleted), as one negative
- * row per member keyed by the event, so a repeated event takes nothing twice.
+ * Takes back whatever a task (and, when it is deleted, its subtasks, which go with it) still holds
+ * for each member, as one negative row per member keyed by the event, so a repeated event takes
+ * nothing twice.
  */
 export async function reverseTask(
   tx: Tx,
   taskId: string,
   eventId: string,
   day: string,
+  withSubtasks = false,
 ): Promise<void> {
   const held = await tx
     .select({
@@ -99,7 +106,11 @@ export async function reverseTask(
       net: sql<number>`sum(${s.xpLedger.amount})::int`,
     })
     .from(s.xpLedger)
-    .where(eq(s.xpLedger.taskId, taskId))
+    .where(
+      withSubtasks
+        ? sql`${s.xpLedger.taskId} in (select ${taskId}::uuid union select id from tasks where parent_id = ${taskId})`
+        : eq(s.xpLedger.taskId, taskId),
+    )
     .groupBy(s.xpLedger.memberId);
   for (const { memberId, net } of held) {
     if (net <= 0) continue;
