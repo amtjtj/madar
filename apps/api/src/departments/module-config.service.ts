@@ -40,6 +40,7 @@ export class ModuleConfigService {
         description: t(`templates.descriptions.${key}`),
         types: config.workItemTypes.map((type) => type.label),
         statuses: allStatuses(config),
+        config,
       };
     });
   }

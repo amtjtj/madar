@@ -46,6 +46,11 @@
   --streak: oklch(69% 0.19 42);
   --streak-soft: oklch(95% 0.04 50);
 
+  /* Department status colour that no semantic colour covers (plan phase-3-step-19a) */
+  --violet: oklch(56% 0.16 300);
+  --violet-soft: oklch(95% 0.035 300);
+  --violet-ink: oklch(44% 0.14 300);
+
   /* Status */
   --danger: oklch(56% 0.2 25);
   --danger-edge: oklch(46% 0.18 25);
@@ -107,6 +112,10 @@
   --streak: oklch(73% 0.18 45);
   --streak-soft: oklch(31% 0.07 45);
 
+  --violet: oklch(70% 0.14 300);
+  --violet-soft: oklch(30% 0.06 300);
+  --violet-ink: oklch(85% 0.09 300);
+
   --danger: oklch(68% 0.18 25);
   --danger-edge: oklch(54% 0.17 25);
   --danger-soft: oklch(30% 0.07 25);
@@ -160,6 +169,9 @@
     --on-accent: oklch(24% 0.05 62);
     --streak: oklch(73% 0.18 45);
     --streak-soft: oklch(31% 0.07 45);
+    --violet: oklch(70% 0.14 300);
+    --violet-soft: oklch(30% 0.06 300);
+    --violet-ink: oklch(85% 0.09 300);
     --danger: oklch(68% 0.18 25);
     --danger-edge: oklch(54% 0.17 25);
     --danger-soft: oklch(30% 0.07 25);
@@ -210,6 +222,9 @@
 
   --color-streak: var(--streak);
   --color-streak-soft: var(--streak-soft);
+  --color-violet: var(--violet);
+  --color-violet-soft: var(--violet-soft);
+  --color-violet-ink: var(--violet-ink);
 
   --color-danger: var(--danger);
   --color-danger-edge: var(--danger-edge);

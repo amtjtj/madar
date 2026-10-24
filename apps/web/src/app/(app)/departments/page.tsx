@@ -1,7 +1,16 @@
 'use client';
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Archive, Eye, MoreVertical, Pencil, Plus, ShieldCheck } from 'lucide-react';
+import {
+  Archive,
+  Eye,
+  MoreVertical,
+  Pencil,
+  Plus,
+  ShieldCheck,
+  SlidersHorizontal,
+} from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 import { t } from '@madar/i18n';
@@ -10,6 +19,7 @@ import {
   OVERSIGHT_RESOURCES,
   type Department,
   type OversightResource,
+  type TemplateKey,
 } from '@madar/shared';
 import {
   Badge,
@@ -26,7 +36,9 @@ import {
 } from '@madar/ui';
 
 import { PageHeader } from '@/components/app-shell';
+import { TemplatePicker } from '@/components/departments/template-picker';
 import { FormError } from '@/components/forms/form-error';
+import { configKeys } from '@/hooks/keys';
 import { keys, useCan, useDepartments, useMembers } from '@/hooks/queries';
 import { ME_KEY } from '@/hooks/use-me';
 import { api } from '@/lib/api';
@@ -46,6 +58,7 @@ export default function DepartmentsPage() {
   const [dialog, setDialog] = useState<Dialog>(null);
   const canManage = can('department.manage');
   const canOversee = can('department.set_oversight');
+  const router = useRouter();
 
   const rows = flattenTree(departments ?? [], (d) => d.parentId);
 
@@ -138,6 +151,12 @@ export default function DepartmentsPage() {
                               onSelect: () => setDialog({ kind: 'edit', department: d }),
                             },
                             {
+                              key: 'config',
+                              label: t('departmentConfig.open'),
+                              icon: <SlidersHorizontal aria-hidden />,
+                              onSelect: () => router.push(`/departments/${d.id}/settings`),
+                            },
+                            {
                               key: 'child',
                               label: t('departments.addChild'),
                               icon: <Plus aria-hidden />,
@@ -211,6 +230,7 @@ function DepartmentDialog({
   const [name, setName] = useState(department?.name ?? '');
   const [parent, setParent] = useState(department?.parentId ?? parentId ?? '');
   const [head, setHead] = useState(department?.head?.id ?? '');
+  const [templateKey, setTemplateKey] = useState<TemplateKey>('general');
   const [error, setError] = useState<string | null>(null);
 
   const excluded = department
@@ -232,7 +252,7 @@ function DepartmentDialog({
       const body = { name, parentId: parent || null, headMemberId: head || null };
       return department
         ? api<Department>(`/api/departments/${department.id}`, { method: 'PATCH', body })
-        : api<Department>('/api/departments', { method: 'POST', body });
+        : api<Department>('/api/departments', { method: 'POST', body: { ...body, templateKey } });
     },
     onSuccess: async () => {
       toast({
@@ -242,6 +262,7 @@ function DepartmentDialog({
       onClose();
       await queryClient.invalidateQueries({ queryKey: keys.departments });
       await queryClient.invalidateQueries({ queryKey: ['members'] });
+      await queryClient.invalidateQueries({ queryKey: configKeys.all });
     },
     onError: (e) => setError(errorMessage(e)),
   });
@@ -293,6 +314,7 @@ function DepartmentDialog({
           value={head}
           onChange={(e) => setHead(e.target.value)}
         />
+        {!department && <TemplatePicker value={templateKey} onChange={setTemplateKey} />}
       </form>
     </Modal>
   );

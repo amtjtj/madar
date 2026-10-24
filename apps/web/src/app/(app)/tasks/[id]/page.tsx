@@ -23,6 +23,7 @@ import { TaskEvidence } from '@/components/evidence/task-evidence';
 import { TaskAttachments } from '@/components/work/attachments';
 import { CommentThread } from '@/components/work/comment-thread';
 import { Subtasks } from '@/components/work/subtasks';
+import { TaskCustomFields } from '@/components/work/task-custom-fields';
 import { TaskFields } from '@/components/work/task-fields';
 import { TaskProgress } from '@/components/work/task-progress';
 import { TitleEditor, DescriptionEditor } from '@/components/work/task-text';
@@ -110,11 +111,12 @@ export default function TaskPage() {
         </div>
         <div className="flex min-w-0 flex-col gap-6 lg:col-start-1 lg:row-start-2">
           <DescriptionEditor task={task} />
+          <TaskCustomFields task={task} />
           <TaskAttachments taskId={task.id} />
           <TaskEvidence taskId={task.id} canPin={task.can.edit} />
           {!task.parentId && <Subtasks task={task} />}
           <CommentThread taskId={task.id} />
-          <ActivityList taskId={task.id} />
+          <ActivityList taskId={task.id} departmentId={task.department.id} />
         </div>
         <aside className="order-first flex flex-col gap-4 lg:order-none lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start">
           <Card>

@@ -13,6 +13,7 @@ import { AssistantGate } from '@/components/assistant/assistant-gate';
 import { BreakdownDialog } from '@/components/assistant/breakdown-dialog';
 import { NewTaskButton } from '@/components/work/new-task-button';
 import { Segmented, TaskViews } from '@/components/work/task-views';
+import { useDepartmentConfig } from '@/hooks/module-config';
 import { useDepartments } from '@/hooks/queries';
 import { useMe } from '@/hooks/use-me';
 import { useTodayDate } from '@/hooks/work';
@@ -44,6 +45,8 @@ function TasksScreen() {
   const subtasks = search.get('subtasks') === 'include' ? ('include' as const) : undefined;
   const drillDown = Boolean(due || stuck || departmentId || assigneeId);
   const departmentName = departments?.find((d) => d.id === departmentId)?.name;
+  // A department's own words for its work, e.g. «تیکت‌ها» (plan phase-3-step-19a).
+  const vocabulary = useDepartmentConfig(departmentId)?.vocabulary;
   const hasDepartment = (me?.member?.departments.length ?? 0) > 0;
   // Oversight and company-wide readers also get «همه».
   const readsAll = me?.member?.permissions['task.read'] === 'tenant';
@@ -56,14 +59,18 @@ function TasksScreen() {
   return (
     <>
       <PageHeader
-        title={t('tasks.title')}
+        title={
+          vocabulary && departmentName
+            ? `${vocabulary.taskPlural} ${departmentName}`
+            : t('tasks.title')
+        }
         subtitle={t('tasks.subtitle')}
         action={
           <div className="flex items-center gap-2">
             <AssistantGate>
               <BreakdownDialog today={today} />
             </AssistantGate>
-            <NewTaskButton today={today} addToToday={false} />
+            <NewTaskButton today={today} addToToday={false} departmentId={departmentId} />
           </div>
         }
       />

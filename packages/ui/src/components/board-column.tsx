@@ -1,13 +1,15 @@
 import { t } from '@madar/i18n';
-import { formatNumber, type StatusCategory } from '@madar/shared';
+import { formatNumber, type StatusCategory, type StatusColor } from '@madar/shared';
 import type { ReactNode, Ref } from 'react';
 
 import { cn } from '../lib/cn.js';
-import { statusDot } from './task-meta.js';
+import { statusColorDot, statusDot } from './task-meta.js';
 
 export interface BoardColumnProps {
   title: string;
   category: StatusCategory;
+  /** A department status colour (plan phase-3-step-19a); defaults to the category's dot. */
+  color?: StatusColor;
   count: number;
   children?: ReactNode;
   /** Shown under the cards (e.g. quick add). */
@@ -23,6 +25,7 @@ export interface BoardColumnProps {
 export function BoardColumn({
   title,
   category,
+  color,
   count,
   children,
   footer,
@@ -39,7 +42,7 @@ export function BoardColumn({
       )}
     >
       <header className="flex items-center gap-2 px-2 py-2">
-        <span aria-hidden className={cn('size-2.5 rounded-full', statusDot[category])} />
+        <span aria-hidden className={cn('size-2.5 rounded-full', color ? statusColorDot[color] : statusDot[category])} />
         <h3 className="font-bold text-ink">{title}</h3>
         <span className="rounded-full bg-surface px-2 text-xs font-semibold text-ink-muted">
           {formatNumber(count)}

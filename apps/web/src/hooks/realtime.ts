@@ -9,6 +9,7 @@ import { applyLiveMessage } from '@/lib/chat';
 
 import {
   calendarKeys,
+  configKeys,
   chatKeys,
   dashboardKeys,
   letterKeys,
@@ -45,7 +46,8 @@ export function useRealtime(enabled: boolean, tenantId?: string): boolean {
         | 'meetings'
         | 'requests'
         | 'progress'
-        | 'kudos',
+        | 'kudos'
+        | 'configs',
     ) => {
       pending.add(what);
       clearTimeout(timer);
@@ -90,6 +92,7 @@ export function useRealtime(enabled: boolean, tenantId?: string): boolean {
         if (pending.has('chat')) {
           void client.invalidateQueries({ queryKey: ['chat', 'conversation'] });
         }
+        if (pending.has('configs')) void client.invalidateQueries({ queryKey: configKeys.all });
         pending.clear();
       }, 250);
     };
@@ -106,6 +109,7 @@ export function useRealtime(enabled: boolean, tenantId?: string): boolean {
         refresh('requests');
         refresh('progress');
         refresh('kudos');
+        refresh('configs');
         refresh('chat');
         // Open conversations may have missed messages: reload them.
         void client.invalidateQueries({ queryKey: ['chat', 'messages'] });
@@ -123,6 +127,7 @@ export function useRealtime(enabled: boolean, tenantId?: string): boolean {
     socket.on(REALTIME_EVENTS.requestsChanged, () => refresh('requests'));
     socket.on(REALTIME_EVENTS.progressChanged, () => refresh('progress'));
     socket.on(REALTIME_EVENTS.kudosChanged, () => refresh('kudos'));
+    socket.on(REALTIME_EVENTS.moduleConfigChanged, () => refresh('configs'));
     socket.on(REALTIME_EVENTS.chatChanged, () => refresh('chat'));
     // The one event with data (ADR 0022): straight into the open conversation's cache.
     socket.on(CHAT_SOCKET.message, (message: Message) => {

@@ -29,37 +29,71 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 
 import { t } from '@madar/i18n';
-import type { StatusCategory, Task } from '@madar/shared';
+import {
+  allStatuses,
+  defaultStatus,
+  type ModuleConfig,
+  type StatusCategory,
+  type StatusColor,
+  type Task,
+} from '@madar/shared';
 import { BoardColumn, TaskCard, useToast } from '@madar/ui';
 
-import { GoalTag } from '@/components/goals/goal-tag';
+import { TaskTags } from '@/components/work/task-tags';
+import { useModuleConfigs } from '@/hooks/module-config';
 import { useMoveTask } from '@/hooks/work';
 import { errorMessage } from '@/lib/errors';
 
-/** Board columns: the core workflow (canceled tasks stay off the board). */
-const COLUMNS = ['todo', 'in_progress', 'done'] as const;
-type Column = (typeof COLUMNS)[number];
-type Columns = Record<Column, string[]>;
+/**
+ * A board column: a department's own status (one department shown), or a status category (work
+ * from several departments; plan phase-3-step-19a). Canceled work stays off the board.
+ */
+interface Column {
+  id: string;
+  title: string;
+  category: StatusCategory;
+  color?: StatusColor;
+}
+type Columns = Record<string, string[]>;
+
+const CATEGORY_COLUMNS: Column[] = (['todo', 'in_progress', 'done'] as const).map((c) => ({
+  id: c,
+  title: t(`work.status.${c}`),
+  category: c,
+}));
+
+function columnsFor(config: ModuleConfig | null): Column[] {
+  if (!config) return CATEGORY_COLUMNS;
+  return allStatuses(config)
+    .filter((s) => s.category !== 'canceled')
+    .map((s) => ({ id: `status:${s.key}`, title: s.label, category: s.category, color: s.color }));
+}
+
+/** The column a task sits in: its own status, else the first column of its category. */
+function homeOf(task: Task, columns: Column[]): Column | undefined {
+  return (
+    columns.find((c) => c.id === `status:${task.statusKey}`) ??
+    columns.find((c) => c.id === task.statusCategory) ??
+    columns.find((c) => c.category === task.statusCategory)
+  );
+}
 
 /** Columns keep the shared board order (`sortKey`), whatever order the list arrived in. */
-function columnsOf(tasks: Task[]): Columns {
-  const columns: Columns = { todo: [], in_progress: [], done: [] };
+function columnsOf(tasks: Task[], columns: Column[]): Columns {
+  const result: Columns = Object.fromEntries(columns.map((c) => [c.id, [] as string[]]));
   const byBoardOrder = [...tasks].sort((a, b) =>
     a.sortKey < b.sortKey ? -1 : a.sortKey > b.sortKey ? 1 : 0,
   );
   for (const task of byBoardOrder) {
-    if ((COLUMNS as readonly string[]).includes(task.statusCategory)) {
-      columns[task.statusCategory as Column].push(task.id);
-    }
+    const home = homeOf(task, columns);
+    if (home) result[home.id]?.push(task.id);
   }
-  return columns;
+  return result;
 }
-
-const statusLabel = (column: StatusCategory) => t(`work.status.${column}`);
 
 /** Column a draggable or droppable belongs to (set as dnd-kit data on cards and columns). */
 const columnData = (data: { current?: Record<string, unknown> } | undefined) =>
-  data?.current?.column as Column | undefined;
+  data?.current?.column as string | undefined;
 
 /**
  * Keyboard: ←/→ jump straight to the neighbouring column (whatever the reading direction);
@@ -73,7 +107,11 @@ const coordinateGetter: KeyboardCoordinateGetter = (event, args) => {
     if (from) {
       const center = from.left + from.width / 2;
       const toward = event.code === 'ArrowLeft' ? -1 : 1;
-      const target = COLUMNS.map((c) => droppableRects.get(c))
+      const target = [...droppableRects.entries()]
+        .filter(
+          ([id]) => typeof id === 'string' && (id.startsWith('status:') || CATEGORY_IDS.has(id)),
+        )
+        .map(([, rect]) => rect)
         .filter((rect): rect is NonNullable<typeof rect> => Boolean(rect))
         .filter((rect) => (rect.left + rect.width / 2 - center) * toward > 0)
         .sort(
@@ -93,21 +131,32 @@ export interface TaskBoardProps {
   listKey: readonly unknown[];
   today: string;
   hideProject?: boolean;
+  /** One department's board uses its own statuses as columns. */
+  departmentId?: string | null;
 }
 
+const CATEGORY_IDS = new Set<UniqueIdentifier>(CATEGORY_COLUMNS.map((c) => c.id));
+
 /** Kanban board: drag cards within and across columns (mouse, touch and keyboard). */
-export function TaskBoard({ tasks, listKey, today, hideProject }: TaskBoardProps) {
+export function TaskBoard({ tasks, listKey, today, hideProject, departmentId }: TaskBoardProps) {
   const router = useRouter();
+  const { data: configs } = useModuleConfigs();
+  const configOf = (id: string) => configs?.find((c) => c.departmentId === id)?.config ?? null;
+  const config = departmentId ? configOf(departmentId) : null;
+  const COLUMNS = useMemo(() => columnsFor(config), [config]);
+  const columnById = (id: string | undefined) => COLUMNS.find((c) => c.id === id);
+  const statusLabel = (id: string) => columnById(id)?.title ?? '';
   const move = useMoveTask(listKey);
   const { toast } = useToast();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Columns | null>(null);
   const byId = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks]);
-  const base = useMemo(() => columnsOf(tasks), [tasks]);
+  const base = useMemo(() => columnsOf(tasks, COLUMNS), [tasks, COLUMNS]);
   const columns = draft ?? base;
 
-  const columnOf = (id: UniqueIdentifier, from: Columns = columns): Column | undefined =>
-    COLUMNS.find((c) => c === id) ?? COLUMNS.find((c) => from[c].includes(String(id)));
+  const columnOf = (id: UniqueIdentifier, from: Columns = columns): string | undefined =>
+    COLUMNS.find((c) => c.id === id)?.id ??
+    COLUMNS.find((c) => from[c.id]?.includes(String(id)))?.id;
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 6 } }),
@@ -142,10 +191,14 @@ export function TaskBoard({ tasks, listKey, today, hideProject }: TaskBoardProps
     if (!from || !to || from === to) return;
     setDraft((current) => {
       const cols = current ?? base;
-      const target = cols[to].filter((id) => id !== active.id);
+      const target = (cols[to] ?? []).filter((id) => id !== active.id);
       const overIndex = target.indexOf(String(over.id));
       target.splice(overIndex >= 0 ? overIndex : target.length, 0, String(active.id));
-      return { ...cols, [from]: cols[from].filter((id) => id !== active.id), [to]: target };
+      return {
+        ...cols,
+        [from]: (cols[from] ?? []).filter((id) => id !== active.id),
+        [to]: target,
+      };
     });
   };
 
@@ -158,28 +211,35 @@ export function TaskBoard({ tasks, listKey, today, hideProject }: TaskBoardProps
     const id = String(active.id);
     const task = byId.get(id);
     // `over` comes from dnd-kit and is always current; React state may lag a fast keyboard drop.
-    const column = over
-      ? (COLUMNS as readonly UniqueIdentifier[]).includes(over.id)
-        ? (over.id as Column)
-        : columnData(over.data)
-      : undefined;
-    const from = task?.statusCategory as Column | undefined;
-    if (!over || !task || !column || !from || !(COLUMNS as readonly string[]).includes(from)) {
-      return reset();
-    }
+    const column = over ? (columnById(String(over.id))?.id ?? columnData(over.data)) : undefined;
+    const from = task ? homeOf(task, COLUMNS)?.id : undefined;
+    const target = columnById(column);
+    if (!over || !task || !column || !from || !target) return reset();
+    // The status the task lands in: the column's own, or (category columns) its department's first
+    // status of that category; a reorder keeps the status it has.
+    const statusKey =
+      column === from
+        ? task.statusKey
+        : column.startsWith('status:')
+          ? column.slice('status:'.length)
+          : (() => {
+              const own = configOf(task.department.id);
+              return own ? (defaultStatus(own, task.typeKey, target.category)?.key ?? null) : null;
+            })();
+    if (!statusKey) return reset();
 
     let ids: string[];
     if (column === from) {
-      const list = base[from];
+      const list = base[from] ?? [];
       const oldIndex = list.indexOf(id);
       const overIndex = over.id === column ? list.length - 1 : list.indexOf(String(over.id));
       ids = overIndex >= 0 && overIndex !== oldIndex ? arrayMove(list, oldIndex, overIndex) : list;
     } else {
-      const shown = (draft ?? base)[column];
+      const shown = (draft ?? base)[column] ?? [];
       if (shown.includes(id)) {
         ids = shown;
       } else {
-        const list = base[column];
+        const list = base[column] ?? [];
         const overIndex = list.indexOf(String(over.id));
         ids = [...list];
         ids.splice(overIndex >= 0 ? overIndex : list.length, 0, id);
@@ -192,25 +252,27 @@ export function TaskBoard({ tasks, listKey, today, hideProject }: TaskBoardProps
 
     const next: Columns = {
       ...base,
-      [from]: base[from].filter((taskId) => taskId !== id),
+      [from]: (base[from] ?? []).filter((taskId) => taskId !== id),
       [column]: ids,
     };
     const moved: Task = {
       ...task,
-      statusKey: column,
-      statusCategory: column,
-      completedAt: column === 'done' ? (task.completedAt ?? new Date().toISOString()) : null,
+      statusKey,
+      statusCategory: target.category,
+      completedAt:
+        target.category === 'done' ? (task.completedAt ?? new Date().toISOString()) : null,
     };
+    const shownIds = new Set(COLUMNS.flatMap((c) => next[c.id] ?? []));
     const optimistic = [
       ...COLUMNS.flatMap((c) =>
-        next[c]
+        (next[c.id] ?? [])
           .map((taskId) => (taskId === id ? moved : byId.get(taskId)))
           .filter((t): t is Task => Boolean(t)),
       ),
-      ...tasks.filter((t) => !(COLUMNS as readonly string[]).includes(t.statusCategory)),
+      ...tasks.filter((t) => !shownIds.has(t.id) && t.id !== id),
     ];
     move.mutate(
-      { id, statusKey: column, afterTaskId, beforeTaskId, optimistic },
+      { id, statusKey, afterTaskId, beforeTaskId, optimistic },
       {
         onError: (error) =>
           toast({ tone: 'error', title: t('tasks.moveFailed'), description: errorMessage(error) }),
@@ -240,16 +302,19 @@ export function TaskBoard({ tasks, listKey, today, hideProject }: TaskBoardProps
         className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-4 md:mx-0 md:snap-none md:px-0"
       >
         {COLUMNS.map((column) => (
-          <DroppableColumn key={column} column={column} count={columns[column].length}>
-            <SortableContext items={columns[column]} strategy={verticalListSortingStrategy}>
-              {columns[column].map((taskId) => {
+          <DroppableColumn key={column.id} column={column} count={columns[column.id]?.length ?? 0}>
+            <SortableContext
+              items={columns[column.id] ?? []}
+              strategy={verticalListSortingStrategy}
+            >
+              {(columns[column.id] ?? []).map((taskId) => {
                 const task = byId.get(taskId);
                 if (!task) return null;
                 return (
                   <SortableTask
                     key={taskId}
                     task={task}
-                    column={column}
+                    column={column.id}
                     today={today}
                     hideProject={hideProject}
                     onOpen={() => router.push(`/tasks/${taskId}`)}
@@ -287,11 +352,12 @@ function DroppableColumn({
   count: number;
   children: React.ReactNode;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: column, data: { column } });
+  const { setNodeRef, isOver } = useDroppable({ id: column.id, data: { column: column.id } });
   return (
     <BoardColumn
-      title={statusLabel(column)}
-      category={column}
+      title={column.title}
+      category={column.category}
+      color={column.color}
       count={count}
       bodyRef={setNodeRef}
       highlighted={isOver}
@@ -309,7 +375,7 @@ function SortableTask({
   onOpen,
 }: {
   task: Task;
-  column: Column;
+  column: string;
   today: string;
   hideProject?: boolean;
   onOpen: () => void;
@@ -342,7 +408,7 @@ function SortableTask({
       subtasks={task.subtasks}
       commentCount={task.commentCount}
       assigneeName={task.assignee?.displayName}
-      tag={task.keyResult ? <GoalTag keyResult={task.keyResult} /> : undefined}
+      tag={<TaskTags task={task} status={false} />}
       compact
     />
   );

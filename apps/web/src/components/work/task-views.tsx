@@ -153,6 +153,12 @@ export function TaskViews({ params, showAssignee, emptyDescription, toolbar }: T
           listKey={workKeys.tasks(listParams)}
           today={today}
           hideProject={Boolean(params.projectId)}
+          departmentId={
+            params.departmentId ??
+            (tasks.length > 0 && tasks.every((t) => t.department.id === tasks[0]?.department.id)
+              ? tasks[0]?.department.id
+              : null)
+          }
         />
       ) : tasks.length === 0 ? (
         <Card>

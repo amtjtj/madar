@@ -77,6 +77,7 @@ import {
   SuggestionDemo,
   WeekDemo,
   ValueTagDemo,
+  DepartmentDemo,
 } from './interactive';
 import { Code, Panel, Section } from './section';
 
@@ -536,6 +537,12 @@ export default function DesignSystemPage() {
         <Section id="gamification" title={t('designSystem.sections.gamification')}>
           <Panel>
             <GamificationDemo />
+          </Panel>
+        </Section>
+
+        <Section id="department" title={t('designSystem.sections.department')}>
+          <Panel>
+            <DepartmentDemo />
           </Panel>
         </Section>
 

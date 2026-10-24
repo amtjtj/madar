@@ -142,3 +142,10 @@ export const aiKeys = {
   summary: (scope: string, departmentId: string | undefined, week: string | undefined) =>
     ['ai', 'summary', scope, departmentId ?? null, week ?? null] as const,
 };
+
+/** Department configs and templates (plan phase-3-step-19a). */
+export const configKeys = {
+  all: ['module-configs'] as const,
+  detail: (departmentId: string) => ['module-configs', departmentId] as const,
+  templates: ['templates'] as const,
+};

@@ -29,7 +29,7 @@ import {
 
 import { PageHeader } from '@/components/app-shell';
 import { AskLink } from '@/components/assistant/ask-link';
-import { GoalTag } from '@/components/goals/goal-tag';
+import { TaskTags } from '@/components/work/task-tags';
 import { CalendarPreview } from '@/components/home/calendar-preview';
 import { CompanyView } from '@/components/home/company-view';
 import { MyGoalsCard } from '@/components/home/my-goals-card';
@@ -294,7 +294,7 @@ function TodayPlan({ today }: { today: Today }) {
                   projectName={task.project?.name}
                   subtasks={task.subtasks}
                   commentCount={task.commentCount}
-                  tag={task.keyResult ? <GoalTag keyResult={task.keyResult} /> : undefined}
+                  tag={<TaskTags task={task} />}
                   source={task.source}
                   progress={task.progress}
                   attachmentCount={task.attachmentCount}

@@ -4,17 +4,27 @@ import { Plus } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 
 import { t } from '@madar/i18n';
-import { TASK_PRIORITIES, type TaskPriority } from '@madar/shared';
+import {
+  defaultType,
+  fieldsOf,
+  TASK_PRIORITIES,
+  type FieldValue as Value,
+  type TaskPriority,
+} from '@madar/shared';
 import {
   Button,
   CheckboxField,
   DatePicker,
+  FieldInput,
   Modal,
   SelectField,
   TextField,
   useToast,
 } from '@madar/ui';
 
+import { useModuleConfigs } from '@/hooks/module-config';
+import { useDepartments, useMembers } from '@/hooks/queries';
+import { useMe } from '@/hooks/use-me';
 import { useCreateTask } from '@/hooks/work';
 import { errorMessage } from '@/lib/errors';
 
@@ -24,11 +34,33 @@ export interface NewTaskButtonProps {
   /** Default for «add to today». */
   addToToday?: boolean;
   projectId?: string;
+  /** The department the task goes to (a project's or the filtered one); else the member picks. */
+  departmentId?: string | null;
 }
 
 /** Floating «new task» button on mobile, a regular button from md up; opens the full form. */
-export function NewTaskButton({ today, addToToday = true, projectId }: NewTaskButtonProps) {
+export function NewTaskButton({
+  today,
+  addToToday = true,
+  projectId,
+  departmentId: fixedDepartment,
+}: NewTaskButtonProps) {
   const [open, setOpen] = useState(false);
+  const { data: me } = useMe();
+  const { data: departments } = useDepartments();
+  const { data: configs } = useModuleConfigs();
+  // Departments I add work to (not those I only view); a project decides for itself.
+  const mine = (me?.member?.departments ?? []).filter((d) => d.deptRole !== 'viewer');
+  const [chosenDepartment, setChosenDepartment] = useState<string | null>(null);
+  const departmentId = fixedDepartment ?? chosenDepartment ?? mine[0]?.id ?? null;
+  const config = configs?.find((c) => c.departmentId === departmentId)?.config ?? null;
+  const [chosenType, setChosenType] = useState<string | null>(null);
+  const type =
+    config?.workItemTypes.find((w) => w.key === chosenType) ??
+    (config ? defaultType(config) : null);
+  const fields = config && type ? fieldsOf(config, type.key) : [];
+  const [values, setValues] = useState<Record<string, Value>>({});
+  const { data: members } = useMembers();
   const [title, setTitle] = useState('');
   const [dueOn, setDueOn] = useState<string | null>(null);
   const [priority, setPriority] = useState<TaskPriority>('normal');
@@ -41,13 +73,24 @@ export function NewTaskButton({ today, addToToday = true, projectId }: NewTaskBu
     setDueOn(null);
     setPriority('normal');
     setToToday(addToToday);
+    setChosenType(null);
+    setValues({});
   };
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (!title.trim()) return;
     create.mutate(
-      { title: title.trim(), dueOn, priority, addToToday: toToday, projectId },
+      {
+        title: title.trim(),
+        dueOn,
+        priority,
+        addToToday: toToday,
+        projectId,
+        // The type and its fields only when the form knew them (the API then checks required ones).
+        ...(!projectId && departmentId && { departmentId }),
+        ...(type && { typeKey: type.key, customFields: values }),
+      },
       {
         onSuccess: () => {
           toast({ tone: 'success', title: t('today.created') });
@@ -83,6 +126,32 @@ export function NewTaskButton({ today, addToToday = true, projectId }: NewTaskBu
           required
           autoFocus
         />
+        {!projectId && !fixedDepartment && mine.length > 1 && (
+          <SelectField
+            label={t('task.department')}
+            value={departmentId ?? ''}
+            onChange={(e) => {
+              setChosenDepartment(e.target.value);
+              setChosenType(null);
+              setValues({});
+            }}
+            options={mine.map((d) => ({
+              value: d.id,
+              label: departments?.find((x) => x.id === d.id)?.name ?? '',
+            }))}
+          />
+        )}
+        {config && config.workItemTypes.length > 1 && type && (
+          <SelectField
+            label={t('task.type')}
+            value={type.key}
+            onChange={(e) => {
+              setChosenType(e.target.value);
+              setValues({});
+            }}
+            options={config.workItemTypes.map((w) => ({ value: w.key, label: w.label }))}
+          />
+        )}
         <DatePicker label={t('today.dueLabel')} value={dueOn} onChange={setDueOn} today={today} />
         <SelectField
           label={t('today.priorityLabel')}
@@ -90,6 +159,23 @@ export function NewTaskButton({ today, addToToday = true, projectId }: NewTaskBu
           onChange={(e) => setPriority(e.target.value as TaskPriority)}
           options={TASK_PRIORITIES.map((p) => ({ value: p, label: t(`work.priority.${p}`) }))}
         />
+        {fields.map((field) => (
+          <FieldInput
+            key={`${type?.key}-${field.key}`}
+            field={field}
+            value={values[field.key]}
+            onChange={(value) =>
+              setValues((current) => {
+                const rest = Object.fromEntries(
+                  Object.entries(current).filter(([key]) => key !== field.key),
+                );
+                return value === null ? rest : { ...rest, [field.key]: value };
+              })
+            }
+            today={today}
+            members={field.type === 'member' ? (members ?? []) : []}
+          />
+        ))}
         <CheckboxField
           label={t('today.addToTodayCheckbox')}
           checked={toToday}

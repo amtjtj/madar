@@ -4,7 +4,7 @@ import Link from 'next/link';
 
 import { t } from '@madar/i18n';
 import {
-  DEFAULT_WORKFLOW,
+  statusesOf,
   TASK_PRIORITIES,
   type Task,
   type TaskPriority,
@@ -13,6 +13,7 @@ import {
 import { Avatar, DatePicker, SelectField, SourceBadge, rankText, useToast } from '@madar/ui';
 
 import { KeyResultSelect } from '@/components/goals/key-result-select';
+import { useDepartmentConfig } from '@/hooks/module-config';
 import { useAssignees, useProjects, useTodayDate, useUpdateTask } from '@/hooks/work';
 import { errorMessage } from '@/lib/errors';
 
@@ -24,6 +25,16 @@ export function TaskFields({ task }: { task: Task }) {
   const { data: people } = useAssignees(task.project?.id);
   const { data: projects } = useProjects();
   const disabled = !task.can.edit;
+  const config = useDepartmentConfig(task.department.id);
+  // The task type's workflow (plan phase-3-step-19a); until configs load, just the current status.
+  const statuses = config ? statusesOf(config, task.typeKey) : [];
+  const statusOptions = statuses.some((s) => s.key === task.statusKey)
+    ? statuses.map((s) => ({ value: s.key, label: s.label }))
+    : [
+        { value: task.statusKey, label: t(`work.status.${task.statusCategory}`) },
+        ...statuses.map((s) => ({ value: s.key, label: s.label })),
+      ];
+  const types = config?.workItemTypes ?? [];
 
   const save = (changes: Omit<UpdateTaskRequest, 'version'>) =>
     update.mutate(
@@ -43,15 +54,26 @@ export function TaskFields({ task }: { task: Task }) {
 
   return (
     <div className="flex flex-col gap-4">
+      {types.length > 1 && (
+        <SelectField
+          label={t('task.type')}
+          value={task.typeKey}
+          disabled={disabled}
+          onChange={(e) => save({ typeKey: e.target.value })}
+          options={[
+            ...(types.some((type) => type.key === task.typeKey)
+              ? []
+              : [{ value: task.typeKey, label: task.typeKey }]),
+            ...types.map((type) => ({ value: type.key, label: type.label })),
+          ]}
+        />
+      )}
       <SelectField
         label={t('task.status')}
         value={task.statusKey}
         disabled={disabled}
         onChange={(e) => save({ statusKey: e.target.value })}
-        options={DEFAULT_WORKFLOW.map((s) => ({
-          value: s.key,
-          label: t(`work.status.${s.category}`),
-        }))}
+        options={statusOptions}
       />
       <SelectField
         label={t('task.priority')}

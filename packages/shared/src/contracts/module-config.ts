@@ -10,6 +10,8 @@ export const templateSummary = z.object({
   description: z.string(),
   types: z.array(z.string()),
   statuses: z.array(statusDef),
+  /** The config a department gets from it (the editor works out mappings from it). */
+  config: moduleConfig,
 });
 export type TemplateSummary = z.infer<typeof templateSummary>;
 

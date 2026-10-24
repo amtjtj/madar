@@ -6,7 +6,7 @@ import { t } from '@madar/i18n';
 import { formatNumber, type Task } from '@madar/shared';
 import { SortableList, TaskCard, useToast } from '@madar/ui';
 
-import { GoalTag } from '@/components/goals/goal-tag';
+import { TaskTags } from '@/components/work/task-tags';
 import { useToggleDone } from '@/hooks/work';
 import { useXpFor } from '@/hooks/progress';
 import { errorMessage } from '@/lib/errors';
@@ -57,7 +57,7 @@ export function TaskList({ tasks, today, showAssignee, hideProject, onReorder }:
       subtasks={task.subtasks}
       commentCount={task.commentCount}
       assigneeName={showAssignee ? task.assignee?.displayName : undefined}
-      tag={task.keyResult ? <GoalTag keyResult={task.keyResult} /> : undefined}
+      tag={<TaskTags task={task} />}
       source={task.source}
       progress={task.progress}
       attachmentCount={task.attachmentCount}

@@ -37,6 +37,8 @@ import {
   ReactionPicker,
 } from './components/chat.js';
 
+import { FieldInput, FieldValue, StatusChip } from './components/department.js';
+
 afterEach(cleanup);
 
 describe('getInitials', () => {
@@ -644,5 +646,55 @@ describe('assistant', () => {
     expect(onChange).toHaveBeenLastCalledWith([items[0]]);
     fireEvent.click(screen.getByRole('button', { name: 'افزودن ردیف' }));
     expect(onChange).toHaveBeenLastCalledWith([...items, { key: 'c', title: '', dueOn: null }]);
+  });
+});
+
+describe('department fields (step 19a)', () => {
+  const kind = {
+    key: 'kind',
+    label: 'کانال',
+    type: 'multiselect' as const,
+    required: true,
+    options: [
+      { key: 'phone', label: 'تلفن' },
+      { key: 'chat', label: 'چت' },
+    ],
+  };
+
+  it('shows a status in its colour and values in Persian', () => {
+    render(<StatusChip label="منتظر مشتری" color="amber" />);
+    expect(screen.getByText('منتظر مشتری')).toBeTruthy();
+    render(
+      <FieldValue
+        field={{ key: 'price', label: 'مبلغ', type: 'money', required: false }}
+        value={18000000}
+      />,
+    );
+    expect(screen.getByText(/۱۸٬۰۰۰٬۰۰۰/)).toBeTruthy();
+    render(<FieldValue field={kind} value={['chat']} />);
+    expect(screen.getByText('چت')).toBeTruthy();
+  });
+
+  it('toggles multiselect options and clears when none is left', () => {
+    const onChange = vi.fn();
+    render(<FieldInput field={kind} value={['phone']} onChange={onChange} today="2026-10-24" />);
+    fireEvent.click(screen.getByRole('button', { name: 'چت' }));
+    expect(onChange).toHaveBeenLastCalledWith(['phone', 'chat']);
+    fireEvent.click(screen.getByRole('button', { name: 'تلفن' }));
+    expect(onChange).toHaveBeenLastCalledWith(null);
+  });
+
+  it('reads Persian digits in a money field', () => {
+    const onChange = vi.fn();
+    render(
+      <FieldInput
+        field={{ key: 'price', label: 'مبلغ', type: 'money', required: false }}
+        value={undefined}
+        onChange={onChange}
+        today="2026-10-24"
+      />,
+    );
+    fireEvent.change(screen.getByLabelText('مبلغ'), { target: { value: '۲۵۰٬۰۰۰' } });
+    expect(onChange).toHaveBeenLastCalledWith(250000);
   });
 });

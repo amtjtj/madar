@@ -9,11 +9,17 @@ import {
   formatCalendarDate,
   formatNumber,
   mentionToken,
+  STATUS_COLORS,
+  TYPE_ICONS,
   type ReactionEmoji,
   type ValueTag,
 } from '@madar/shared';
 import {
   Avatar,
+  FieldInput,
+  FieldValue,
+  StatusChip,
+  TypeIcon,
   ValueTagPicker,
   SuggestionList,
   type Suggestion,
@@ -750,4 +756,47 @@ export function SuggestionDemo({ today }: { today: string }) {
 export function ValueTagDemo() {
   const [tag, setTag] = useState<ValueTag | null>('help');
   return <ValueTagPicker label={t('kudos.tag')} value={tag} onChange={setTag} />;
+}
+
+/** Department configs (plan phase-3-step-19a): statuses, work types and custom fields. */
+export function DepartmentDemo() {
+  const [channels, setChannels] = useState<string[] | null>(['telegram']);
+  const field = {
+    key: 'channels',
+    label: t('templates.fields.channels'),
+    type: 'multiselect' as const,
+    required: false,
+    options: (['instagram', 'telegram', 'website'] as const).map((o) => ({
+      key: o,
+      label: t(`templates.options.${o}`),
+    })),
+  };
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap gap-2">
+        {STATUS_COLORS.map((color) => (
+          <StatusChip key={color} label={t(`departmentConfig.colors.${color}`)} color={color} />
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-3 text-ink-muted">
+        {TYPE_ICONS.map((icon) => (
+          <span key={icon} className="inline-flex items-center gap-1.5 text-sm">
+            <TypeIcon icon={icon} />
+            {t(`departmentConfig.icons.${icon}`)}
+          </span>
+        ))}
+      </div>
+      <FieldInput
+        field={field}
+        value={channels ?? undefined}
+        onChange={(value) => setChannels(Array.isArray(value) ? value : null)}
+        today="2026-10-24"
+      />
+      <FieldValue field={field} value={channels ?? undefined} />
+      <FieldValue
+        field={{ key: 'amount', label: '', type: 'money', required: false }}
+        value={18_000_000}
+      />
+    </div>
+  );
 }

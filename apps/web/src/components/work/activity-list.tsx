@@ -1,8 +1,17 @@
 'use client';
 
 import { t, type MessageKey } from '@madar/i18n';
-import { formatPercent, formatRelativeTime, toPersianDigits, type Activity } from '@madar/shared';
+import {
+  allStatuses,
+  formatPercent,
+  formatRelativeTime,
+  STATUS_CATEGORIES,
+  toPersianDigits,
+  type Activity,
+  type ModuleConfig,
+} from '@madar/shared';
 
+import { useDepartmentConfig } from '@/hooks/module-config';
 import { useActivity } from '@/hooks/work';
 
 const KNOWN_VERBS = [
@@ -33,19 +42,28 @@ const KNOWN_FIELDS = [
   'status',
   'keyResultId',
   'progressMode',
+  'type',
+  'fields',
 ];
-const statusName = (key: unknown) =>
-  typeof key === 'string' ? t(`work.status.${key}` as MessageKey) : '';
+/** A status as its department names it; a key the config dropped falls back to the core names. */
+function statusName(key: unknown, config: ModuleConfig | null): string {
+  if (typeof key !== 'string') return '';
+  const own = config ? allStatuses(config).find((s) => s.key === key) : undefined;
+  if (own) return own.label;
+  return (STATUS_CATEGORIES as readonly string[]).includes(key)
+    ? t(`work.status.${key}` as MessageKey)
+    : t('task.formerStatus');
+}
 
-function describe(entry: Activity): string {
+function describe(entry: Activity, config: ModuleConfig | null): string {
   const actor = entry.actor?.displayName ?? t('task.someone');
   if (!KNOWN_VERBS.includes(entry.verb)) return actor;
   if (entry.verb === 'status_changed') {
     const status = entry.changes?.status;
     return t('task.verbs.status_changed', {
       actor,
-      from: statusName(status?.from),
-      to: statusName(status?.to),
+      from: statusName(status?.from, config),
+      to: statusName(status?.to, config),
     });
   }
   if (entry.verb === 'progress') {
@@ -91,8 +109,9 @@ function changedFields(entry: Activity): string | null {
 }
 
 /** The task's history: who changed what, newest first. */
-export function ActivityList({ taskId }: { taskId: string }) {
+export function ActivityList({ taskId, departmentId }: { taskId: string; departmentId: string }) {
   const { data: activity } = useActivity(taskId);
+  const config = useDepartmentConfig(departmentId);
   if (!activity?.length) return null;
   return (
     <section aria-labelledby="activity-title" className="flex flex-col gap-3">
@@ -109,7 +128,7 @@ export function ActivityList({ taskId }: { taskId: string }) {
                 aria-hidden
                 className="absolute -start-[1.4rem] top-1.5 size-2.5 rounded-full border-2 border-surface bg-line-strong"
               />
-              <span className="text-ink">{describe(entry)}</span>
+              <span className="text-ink">{describe(entry, config)}</span>
               {fields && <span className="text-ink-muted">{fields}</span>}
               {note && <q className="text-ink-muted">{note}</q>}
               <time dateTime={entry.createdAt} className="text-xs text-ink-subtle">

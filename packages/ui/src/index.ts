@@ -204,3 +204,15 @@ export {
   type KudosCardProps,
   type ValueTagPickerProps,
 } from './components/kudos.js';
+export {
+  FieldInput,
+  FieldValue,
+  StatusChip,
+  StatusDot,
+  TypeIcon,
+  type FieldInputProps,
+  type FieldValueProps,
+  type MemberOption,
+  type StatusChipProps,
+  type TypeIconProps,
+} from './components/department.js';

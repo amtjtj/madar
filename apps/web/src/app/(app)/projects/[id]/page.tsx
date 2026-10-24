@@ -85,7 +85,12 @@ export default function ProjectPage() {
           )}
         </div>
         {project.can.createTask && (
-          <NewTaskButton today={today} addToToday={false} projectId={project.id} />
+          <NewTaskButton
+            today={today}
+            addToToday={false}
+            projectId={project.id}
+            departmentId={project.department?.id}
+          />
         )}
       </div>
 

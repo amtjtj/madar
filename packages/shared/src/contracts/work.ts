@@ -4,20 +4,9 @@ import { attachment } from '../files.js';
 import { RANK_REASONS, TASK_SOURCES } from '../task-priority.js';
 import { PROGRESS_STEP, TASK_PROGRESS_MODES } from '../task-progress.js';
 
-/** Core default workflow until department templates provide their own (ADR 0004). */
+/** Every department status belongs to one of these (ADR 0004); reports read only the category. */
 export const STATUS_CATEGORIES = ['todo', 'in_progress', 'done', 'canceled'] as const;
 export type StatusCategory = (typeof STATUS_CATEGORIES)[number];
-
-export const DEFAULT_WORKFLOW: ReadonlyArray<{ key: string; category: StatusCategory }> = [
-  { key: 'todo', category: 'todo' },
-  { key: 'in_progress', category: 'in_progress' },
-  { key: 'done', category: 'done' },
-  { key: 'canceled', category: 'canceled' },
-];
-
-export function categoryOf(statusKey: string): StatusCategory | null {
-  return DEFAULT_WORKFLOW.find((s) => s.key === statusKey)?.category ?? null;
-}
 
 export const TASK_PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const;
 export type TaskPriority = (typeof TASK_PRIORITIES)[number];
