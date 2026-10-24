@@ -143,6 +143,9 @@ export async function seedGamification(handle: DbHandle, tenantId: string): Prom
       if (xp.onTime) {
         await grant(tx, { ...base, reason: 'on_time', amount: xp.onTime }, settings.dailyXpCap);
       }
+      if (xp.helped) {
+        await grant(tx, { ...base, reason: 'helped', amount: xp.helped }, settings.dailyXpCap);
+      }
     }
 
     // Three weeks of closed days: mostly complete, a missed day here and there further back.
@@ -195,7 +198,8 @@ export async function seedGamification(handle: DbHandle, tenantId: string): Prom
           .innerJoin(s.users, eq(s.users.id, s.members.userId))
       ).map((r) => [r.username, r.id]),
     );
-    for (const [i, k] of SEED_KUDOS.entries()) {
+    // Oldest first, so the ids (time-ordered) follow the dates on the home card.
+    for (const [i, k] of [...SEED_KUDOS].reverse().entries()) {
       const from = byName.get(k.from);
       const to = byName.get(k.to);
       if (!from || !to) continue;

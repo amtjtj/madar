@@ -92,6 +92,8 @@ const APPEND_ONLY = [
   'leaves',
   'xp_ledger',
   'member_badges',
+  // Only `hidden_at` is updatable, by the receiver (its own test below).
+  'kudos',
 ];
 /** Tables the app may update but never delete from. */
 const NO_DELETE = [
@@ -115,7 +117,6 @@ const NO_DELETE = [
   'approval_requests',
   'streak_days',
   'member_stats',
-  'kudos',
   'member_counters',
 ];
 
@@ -605,10 +606,20 @@ describe.skipIf(!hasDatabase)('tenant isolation (RLS)', () => {
         tx.execute(sql`update kudos set message = 'x', hidden_at = null`),
       ),
     ).rejects.toThrow();
+    await expect(
+      withTenant(app.db, { tenantId: a.tenantId, memberId: a.memberId }, (tx) =>
+        tx.execute(sql`update kudos set message = 'x', private = true, hidden_at = now()`),
+      ),
+    ).rejects.toThrow();
     const hidden = await withTenant(app.db, { tenantId: a.tenantId, memberId: a.memberId }, (tx) =>
       tx.execute(sql`update kudos set hidden_at = now()`),
     );
     expect(hidden.rowCount).toBe(1);
+    // Never another company's kudos.
+    const theirs = await withTenant(app.db, { tenantId: a.tenantId, memberId: a.memberId }, (tx) =>
+      tx.execute(sql`update kudos set hidden_at = now() where tenant_id = ${b.tenantId}`),
+    );
+    expect(theirs.rowCount).toBe(0);
     // Nobody thanks themselves, and a kudos never names another company's people.
     await expect(
       withTenant(app.db, { tenantId: a.tenantId }, (tx) =>

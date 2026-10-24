@@ -186,6 +186,18 @@ export const BADGES = [
 ] as const satisfies readonly BadgeDefinition[];
 export type BadgeKey = (typeof BADGES)[number]['key'];
 
+/**
+ * Counters whose badges only their owner sees: a level or streak badge on a profile would show
+ * the level and streak ADR 0029 keeps private.
+ */
+export const PRIVATE_BADGE_COUNTERS: readonly CounterKey[] = ['level', 'longest_streak'];
+
+/** Whether colleagues may see this badge on a profile. */
+export function isPublicBadge(key: string): boolean {
+  const badge = BADGES.find((b) => b.key === key);
+  return !!badge && !PRIVATE_BADGE_COUNTERS.includes(badge.counter);
+}
+
 /** Badges a set of counters reaches (whether or not they were awarded already). */
 export function badgesReached(counters: Partial<Record<CounterKey, number>>): BadgeKey[] {
   return BADGES.filter((b) => (counters[b.counter] ?? 0) >= b.gte).map((b) => b.key);

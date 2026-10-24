@@ -30,7 +30,7 @@ test('Ali thanks Zahra for finished work; she reads it on her progress and earns
   await dialog.getByRole('button', { name: 'همکاری' }).click();
   await dialog.getByLabel('یک خط بنویس').fill('دیشب صف را نجات دادی');
   await dialog.getByRole('button', { name: 'بفرست' }).click();
-  await expect(page.getByText('تشکرت رسید.')).toBeVisible();
+  await expect(page.getByText('تشکرت رسید.', { exact: true })).toBeVisible();
 
   // Zahra: on «پیشرفت من», the thanks and her first badge.
   const zahraPage = await browser.newPage({ viewport: page.viewportSize() ?? undefined });

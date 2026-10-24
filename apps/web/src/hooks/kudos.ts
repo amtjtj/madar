@@ -15,7 +15,7 @@ import { api } from '@/lib/api';
 import { kudosKeys, progressKeys } from './keys';
 
 /** Kudos a member received, or (no member) the company's latest public ones (ADR 0030). */
-export function useKudos(member: string | null, limit = KUDOS_PAGE) {
+export function useKudos(member: string | null, limit = KUDOS_PAGE, enabled = true) {
   return useInfiniteQuery({
     queryKey: [...kudosKeys.list(member), limit],
     initialPageParam: undefined as string | undefined,
@@ -26,6 +26,7 @@ export function useKudos(member: string | null, limit = KUDOS_PAGE) {
       return api<KudosItem[]>(`/api/kudos?${params.toString()}`);
     },
     getNextPageParam: (last) => (last.length === limit ? last.at(-1)?.id : undefined),
+    enabled,
   });
 }
 
@@ -48,12 +49,12 @@ export function useGiveKudos() {
   });
 }
 
-/** Hide a thanks from my profile; optimistic in my own list. */
-export function useHideKudos(memberId: string) {
+/** Hide a thanks from my profile (my lists refetch; colleagues get the realtime hint). */
+export function useHideKudos() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api(`/api/kudos/${id}/hide`, { method: 'POST' }),
-    onSettled: () => void client.invalidateQueries({ queryKey: kudosKeys.list(memberId) }),
+    onSettled: () => void client.invalidateQueries({ queryKey: ['kudos', 'list'] }),
   });
 }
 

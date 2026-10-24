@@ -178,7 +178,7 @@ function ReceivedKudosCard() {
   const { data: me } = useMe();
   const memberId = me?.member?.id ?? '';
   const kudos = useKudos(memberId || null);
-  const hide = useHideKudos(memberId);
+  const hide = useHideKudos();
   const items = memberId ? (kudos.data?.pages.flat() ?? []) : [];
   return (
     <Card id="kudos" className="scroll-mt-20">
@@ -189,7 +189,18 @@ function ReceivedKudosCard() {
         ) : items.length ? (
           <KudosList items={items} onHide={(id) => hide.mutate(id)} />
         ) : (
-          <p className="py-2 text-sm text-ink-muted">{t('kudos.emptyProfile')}</p>
+          <p className="py-2 text-sm text-ink-muted">
+            {t('kudos.emptyProfile')}
+            {kudos.hasNextPage && (
+              <Button
+                variant="ghost"
+                loading={kudos.isFetchingNextPage}
+                onClick={() => void kudos.fetchNextPage()}
+              >
+                {t('kudos.more')}
+              </Button>
+            )}
+          </p>
         )}
       </CardContent>
     </Card>

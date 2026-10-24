@@ -47,7 +47,6 @@ import {
   ApprovalTimeline,
   BadgeGrid,
   KudosCard,
-  ValueTagPicker,
   LevelBar,
   LevelUpMark,
   StreakFlame,
@@ -77,6 +76,7 @@ import {
   CalendarDemo,
   SuggestionDemo,
   WeekDemo,
+  ValueTagDemo,
 } from './interactive';
 import { Code, Panel, Section } from './section';
 
@@ -881,7 +881,7 @@ function GamificationDemo() {
         taskTitle={t('designSystem.gamification.task')}
         when={t('designSystem.gamification.when')}
       />
-      <ValueTagPicker label={t('kudos.tag')} value="help" onChange={() => undefined} />
+      <ValueTagDemo />
       <BadgeGrid
         items={[
           { key: 'first_task', tier: 'bronze', earned: true },

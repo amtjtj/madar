@@ -199,7 +199,7 @@ export function BadgeGrid({ items, className }: { items: BadgeGridItem[]; classN
                   hideLabel
                   label={t(`ui.gamification.badges.${b.key}.hint`)}
                 />
-                <span className="text-center text-[11px] text-ink-muted tabular-nums">
+                <span className="text-center text-xs text-ink-muted tabular-nums">
                   {t('ui.gamification.badgeProgress', {
                     value: formatNumber(b.value),
                     goal: formatNumber(b.goal),

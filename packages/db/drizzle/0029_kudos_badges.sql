@@ -44,7 +44,11 @@ CREATE INDEX "kudos_to_idx" ON "kudos" USING btree ("tenant_id","to_member_id","
 CREATE INDEX "kudos_from_week_idx" ON "kudos" USING btree ("tenant_id","from_member_id","week_start");--> statement-breakpoint
 -- Kudos and badges (phase 3, step 18b). Kudos are never edited or deleted; the receiver may hide
 -- one from their profile. Badges are kept for good. Counters belong to the worker.
-GRANT SELECT, INSERT, UPDATE ON kudos, member_counters TO madar_app;
+GRANT SELECT, INSERT ON kudos TO madar_app;
+--> statement-breakpoint
+GRANT UPDATE (hidden_at) ON kudos TO madar_app;
+--> statement-breakpoint
+GRANT SELECT, INSERT, UPDATE ON member_counters TO madar_app;
 --> statement-breakpoint
 GRANT SELECT, INSERT ON member_badges TO madar_app;
 --> statement-breakpoint
@@ -56,4 +60,5 @@ SELECT app.enable_tenant_rls('member_badges');
 --> statement-breakpoint
 -- Only the receiver changes a kudos, and only by hiding it (the rest is checked by the API too).
 CREATE POLICY receiver_hides_only ON kudos AS RESTRICTIVE FOR UPDATE TO madar_app
-  USING (to_member_id = app.current_member_id()) WITH CHECK (hidden_at IS NOT NULL);
+  USING (to_member_id = app.current_member_id())
+  WITH CHECK (to_member_id = app.current_member_id() AND hidden_at IS NOT NULL);

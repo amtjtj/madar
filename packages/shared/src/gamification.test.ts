@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BADGES,
   badgesReached,
+  isPublicBadge,
   currentStreak,
   dayStatus,
   isCompleteDay,
@@ -118,5 +119,15 @@ describe('badges', () => {
       'streak_20',
       'level_5',
     ]);
+  });
+});
+
+describe('badge privacy', () => {
+  it('keeps level and streak badges to their owner', () => {
+    expect(isPublicBadge('tasks_10')).toBe(true);
+    expect(isPublicBadge('kudos_5')).toBe(true);
+    expect(isPublicBadge('level_5')).toBe(false);
+    expect(isPublicBadge('streak_20')).toBe(false);
+    expect(isPublicBadge('nope')).toBe(false);
   });
 });

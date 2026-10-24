@@ -4,6 +4,7 @@ import {
   BADGES,
   KUDOS_SAME_PERSON_MAX,
   calendarDateIn,
+  isPublicBadge,
   weekStartOf,
   type GiveKudosRequest,
   type KudosAllowance,
@@ -133,10 +134,25 @@ export class KudosService {
       const [row] = await tx
         .update(s.kudos)
         .set({ hiddenAt: new Date() })
-        .where(and(eq(s.kudos.id, id), eq(s.kudos.toMemberId, ctx.memberId)))
-        .returning({ id: s.kudos.id });
-      if (!row) throw notFound('Kudos');
-      await emitEvent(tx, 'kudos.hidden', { kudosId: id, toMemberId: ctx.memberId }, ctx.memberId);
+        .where(
+          and(eq(s.kudos.id, id), eq(s.kudos.toMemberId, ctx.memberId), isNull(s.kudos.hiddenAt)),
+        )
+        .returning({ id: s.kudos.id, private: s.kudos.private });
+      if (!row) {
+        // Already hidden is fine; anything else is not mine to hide.
+        const [mine] = await tx
+          .select({ id: s.kudos.id })
+          .from(s.kudos)
+          .where(and(eq(s.kudos.id, id), eq(s.kudos.toMemberId, ctx.memberId)));
+        if (!mine) throw notFound('Kudos');
+        return;
+      }
+      await emitEvent(
+        tx,
+        'kudos.hidden',
+        { kudosId: id, toMemberId: ctx.memberId, private: row.private },
+        ctx.memberId,
+      );
     });
   }
 
@@ -180,7 +196,12 @@ export class KudosService {
       return {
         ...member,
         departments,
-        badges: settings.enabled ? await earnedBadges(tx, memberId) : [],
+        // Level and streak badges are their owner's alone (ADR 0029).
+        badges: settings.enabled
+          ? (await earnedBadges(tx, memberId)).filter(
+              (b) => memberId === ctx.memberId || isPublicBadge(b.key),
+            )
+          : [],
         gamification: settings.enabled,
         me: memberId === ctx.memberId,
       };

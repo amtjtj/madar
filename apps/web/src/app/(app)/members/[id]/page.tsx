@@ -3,7 +3,7 @@
 import { use } from 'react';
 
 import { t } from '@madar/i18n';
-import { Avatar, BadgeGrid, Card, CardContent, EmptyState, Skeleton } from '@madar/ui';
+import { Avatar, BadgeGrid, Button, Card, CardContent, EmptyState, Skeleton } from '@madar/ui';
 
 import { PageHeader } from '@/components/app-shell';
 import { KudosList } from '@/components/kudos/kudos-list';
@@ -18,7 +18,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   const { id } = use(params);
   const { data: profile, isPending, isError } = useProfile(id);
   const kudos = useKudos(id);
-  const hide = useHideKudos(id);
+  const hide = useHideKudos();
   if (isError) return <EmptyState title={t('profile.notFound')} />;
   if (isPending || !profile) {
     return (
@@ -72,7 +72,18 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                 onHide={profile.me ? (kudosId) => hide.mutate(kudosId) : undefined}
               />
             ) : (
-              <p className="py-2 text-sm text-ink-muted">{t('kudos.emptyProfile')}</p>
+              <p className="py-2 text-sm text-ink-muted">
+                {t('kudos.emptyProfile')}
+                {kudos.hasNextPage && (
+                  <Button
+                    variant="ghost"
+                    loading={kudos.isFetchingNextPage}
+                    onClick={() => void kudos.fetchNextPage()}
+                  >
+                    {t('kudos.more')}
+                  </Button>
+                )}
+              </p>
             )}
           </CardContent>
         </Card>

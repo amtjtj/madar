@@ -149,12 +149,11 @@ export class RealtimeConsumer implements EventConsumer {
     }
     if (event.type === 'kudos.given' || event.type === 'kudos.hidden') {
       // A public thanks shows on the home card for everyone; a private one only to the two.
-      const rooms =
-        event.type === 'kudos.given' && !p.private
-          ? [everyoneRoom(t)]
-          : [String(p.toMemberId), ...(p.fromMemberId ? [String(p.fromMemberId)] : [])].map((m) =>
-              memberRoom(t, m),
-            );
+      const rooms = !p.private
+        ? [everyoneRoom(t)]
+        : [String(p.toMemberId), ...(p.fromMemberId ? [String(p.fromMemberId)] : [])].map((m) =>
+            memberRoom(t, m),
+          );
       emits.push(() => this.emitter.to(rooms).emit(REALTIME_EVENTS.kudosChanged));
       return;
     }

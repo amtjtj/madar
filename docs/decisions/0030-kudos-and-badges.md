@@ -13,7 +13,7 @@ Phase 3, step 18b (`docs/plans/phase-3-step-18b.md`): the second half of «گی�
   - never yourself (`kudos_self`, also a check constraint);
   - the task must be visible to the giver;
   - refused while gamification is off (`gamification_off`).
-  Kudos are never edited or deleted. The receiver may hide one from their profile (`hidden_at`), the only change a restrictive RLS policy allows, and only to the receiver.
+  Kudos are never edited or deleted. The receiver may hide one from their profile: the app role may update only the `hidden_at` column, and a restrictive RLS policy allows it only to the receiver. Hiding twice is a no-op.
 - **Who reads** (`visibleKudos`): a public thanks, everyone in the company; a private one, only its giver and receiver. A task title is shown only to readers who see the task. Lists are by time only; no endpoint counts, compares or orders people by kudos or badges.
 - **XP**: receiving a thanks pays 5 (`kudos_received`), giving pays nothing so nobody trades thanks. Finishing work a colleague asked for in a shared project (source `request`) pays 5 more (`helped`), taken back with the task like the rest.
 - **Badges**: 15 ready-made badges defined in code (`BADGES` in `packages/shared/src/gamification.ts`), each a counter and a threshold. The counters are:
@@ -21,8 +21,8 @@ Phase 3, step 18b (`docs/plans/phase-3-step-18b.md`): the second half of «گی�
   - best streak and best level;
   - kudos received and kudos given;
   - goal check-ins on one's own goals.
-  `refreshCounters()` recounts them from their sources whenever one may have moved (task completed, reopened or deleted, kudos, check-in, a longer best streak, a new level) and caches them in `member_counters`. Counting from the source means a capped, reopened or deleted task can never leave a counter wrong. A badge reached is inserted once into `member_badges` (insert-only) and kept for good, even if its counter falls later. `member.badge_earned` notifies the member.
-- **Profiles** (`/members/:id`): name, departments, earned badges and public kudos received. Never XP, level or streak (ADR 0029); locked badges and counters are shown only to their owner (`/api/me/badges`).
+  Counters follow the XP limits: a personal task with weight 1 counts for nothing, and check-ins count once per key result and Jalali week. `refreshCounters()` recounts them from their sources whenever one may have moved (task completed, reopened or deleted, kudos, check-in, a longer best streak, a new level) and caches them in `member_counters`. Counting from the source means a capped, reopened or deleted task can never leave a counter wrong. A badge reached is inserted once into `member_badges` (insert-only) and kept for good, even if its counter falls later. `member.badge_earned` notifies the member.
+- **Profiles** (`/members/:id`): name, departments, earned badges and public kudos received. Never XP, level or streak (ADR 0029): level and streak badges (`PRIVATE_BADGE_COUNTERS`) are shown only to their owner, like locked badges and counters (`/api/me/badges`).
 - **Notifications**: `kudos_received` (to the receiver, without the message, so push never carries it) and `badge_earned`, through `Notifier` with quiet hours. Realtime hint `kudos.changed` to the two people, and to the whole company for a public thanks (the home card).
 - **Screens**:
   - `ThankDialog` (from a finished task's assignee, a profile and the home card);

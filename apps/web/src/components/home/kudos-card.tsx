@@ -16,9 +16,10 @@ import { useMyProgress } from '@/hooks/progress';
  */
 export function RecentKudosCard() {
   const { data: progress } = useMyProgress();
-  const { data } = useKudos(null, 3);
+  const { data } = useKudos(null, 3, !!progress?.enabled);
   const items = data?.pages[0] ?? [];
-  if (!progress?.enabled) return null;
+  // Hidden while empty or switched off (thanking stays on profiles and tasks).
+  if (!progress?.enabled || !items.length) return null;
   return (
     <Card>
       <CardContent className="flex flex-col gap-2 pt-4">
@@ -29,11 +30,7 @@ export function RecentKudosCard() {
           </h2>
           <ThankDialog />
         </div>
-        {items.length ? (
-          <KudosList items={items} />
-        ) : (
-          <p className="text-sm text-ink-muted">{t('kudos.empty')}</p>
-        )}
+        <KudosList items={items} />
       </CardContent>
     </Card>
   );

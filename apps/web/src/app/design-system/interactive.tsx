@@ -10,9 +10,11 @@ import {
   formatNumber,
   mentionToken,
   type ReactionEmoji,
+  type ValueTag,
 } from '@madar/shared';
 import {
   Avatar,
+  ValueTagPicker,
   SuggestionList,
   type Suggestion,
   CalendarDnd,
@@ -743,4 +745,9 @@ export function SuggestionDemo({ today }: { today: string }) {
       }}
     />
   );
+}
+
+export function ValueTagDemo() {
+  const [tag, setTag] = useState<ValueTag | null>('help');
+  return <ValueTagPicker label={t('kudos.tag')} value={tag} onChange={setTag} />;
 }

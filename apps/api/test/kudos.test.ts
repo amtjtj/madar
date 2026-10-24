@@ -246,6 +246,18 @@ describe.skipIf(!hasDatabase)('kudos and badges (ADR 0030)', () => {
     ).toHaveLength(1);
   });
 
+  it('a personal task of weight 1 counts towards no badge, like it earns almost no XP', async () => {
+    const tasksTen = () =>
+      reza.c
+        .get('/api/me/badges')
+        .then((r) => (r.body as MyBadge[]).find((b) => b.key === 'tasks_10')?.value);
+    const before = await tasksTen();
+    const mine = (await reza.c.post('/api/tasks', { title: 'مرتب کردن پوشه‌ها' })).body;
+    await reza.c.patch(`/api/tasks/${mine.id}`, { statusKey: 'done', version: mine.version });
+    await settle();
+    expect(await tasksTen()).toBe(before);
+  });
+
   it('a profile shows badges but never XP, and another company reaches none of it', async () => {
     const profile = (await zahra.c.get(`/api/members/${reza.memberId}/profile`))
       .body as MemberProfile;
