@@ -35,3 +35,4 @@ Template: Status · Date · Context · Decision · Alternatives considered · Co
 | 0027 | Who defines goals, projects and work; sub-goals | Accepted |
 | 0028 | Requests and approvals (leave, expense, general) | Accepted |
 | 0029 | XP, levels and streaks | Accepted |
+| 0030 | Kudos and badges | Accepted |

@@ -5,14 +5,86 @@ import {
   currentStreak,
   dayStatus,
   longestStreak,
+  KUDOS_XP,
   taskXp,
+  weekStartOf,
+  zonedInstant,
+  type ValueTag,
   type StreakStatus,
 } from '@madar/shared';
 import { and, asc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 
+import { refreshCounters } from '../gamification/counters.js';
 import { grant } from '../gamification/ledger.js';
 import { loadGamificationSettings } from '../gamification/settings.js';
 import { loadWorkCalendar } from '../notifications/calendar.js';
+
+const SEED_KUDOS: Array<{
+  from: string;
+  to: string;
+  tag: ValueTag;
+  message: string;
+  daysAgo: number;
+  private?: boolean;
+}> = [
+  {
+    from: 'ali.rezaei',
+    to: 'zahra.mohammadi',
+    tag: 'teamwork',
+    message: 'دیشب صف تیکت‌های فوری را پوشش دادی، ممنون!',
+    daysAgo: 1,
+  },
+  {
+    from: 'maryam.ahmadi',
+    to: 'hossein.yousefi',
+    tag: 'quality',
+    message: 'گزارش تیکت‌های احراز هویت خیلی دقیق بود.',
+    daysAgo: 2,
+  },
+  {
+    from: 'negar.rezaei',
+    to: 'behrad.mousavi',
+    tag: 'speed',
+    message: 'باگ موجودی را قبل از اوج بازار درست کردی.',
+    daysAgo: 3,
+  },
+  {
+    from: 'zahra.mohammadi',
+    to: 'ali.rezaei',
+    tag: 'help',
+    message: 'ممنون که پاسخ‌های آماده را با من مرور کردی.',
+    daysAgo: 5,
+  },
+  {
+    from: 'arash.taheri',
+    to: 'shiva.kazemi',
+    tag: 'initiative',
+    message: 'ایده کمپین پاییز عالی بود.',
+    daysAgo: 6,
+  },
+  {
+    from: 'pouya.ghasemi',
+    to: 'negar.rezaei',
+    tag: 'learning',
+    message: 'جلسه مرور کد خیلی چیز یادم داد.',
+    daysAgo: 9,
+  },
+  {
+    from: 'hossein.yousefi',
+    to: 'maryam.ahmadi',
+    tag: 'help',
+    message: 'ممنون که شیفت پنجشنبه را جابه‌جا کردی.',
+    daysAgo: 10,
+    private: true,
+  },
+  {
+    from: 'leila.sadeghi',
+    to: 'niloufar.sharifi',
+    tag: 'teamwork',
+    message: 'جذب نیروی پاییز با تو خیلی روان پیش رفت.',
+    daysAgo: 12,
+  },
+];
 
 /** Days of streak history the demo company gets. */
 const STREAK_DAYS = 21;
@@ -113,6 +185,51 @@ export async function seedGamification(handle: DbHandle, tenantId: string): Prom
           set: stats,
         });
     }
+
+    // A few thanks between the demo people over the last weeks, public and one private (ADR 0030).
+    const byName = new Map(
+      (
+        await tx
+          .select({ id: s.members.id, username: s.users.username })
+          .from(s.members)
+          .innerJoin(s.users, eq(s.users.id, s.members.userId))
+      ).map((r) => [r.username, r.id]),
+    );
+    for (const [i, k] of SEED_KUDOS.entries()) {
+      const from = byName.get(k.from);
+      const to = byName.get(k.to);
+      if (!from || !to) continue;
+      const day = addDays(today, -k.daysAgo);
+      const at = zonedInstant(day, '11:00', timeZone);
+      const [row] = await tx
+        .insert(s.kudos)
+        .values({
+          fromMemberId: from,
+          toMemberId: to,
+          valueTag: k.tag,
+          message: k.message,
+          private: k.private ?? false,
+          weekStart: weekStartOf(day),
+          createdAt: new Date(at.getTime() + i * 60_000),
+        })
+        .returning({ id: s.kudos.id });
+      if (!row) continue;
+      await grant(
+        tx,
+        {
+          memberId: to,
+          reason: 'kudos_received',
+          amount: KUDOS_XP,
+          sourceKey: `kudos:${row.id}`,
+          day,
+          at,
+        },
+        settings.dailyXpCap,
+      );
+    }
+
+    // Badges the history already reaches.
+    for (const person of people) await refreshCounters(tx, person.id, timeZone);
 
     // Everything so far is history: the worker skips it.
     for (const consumer of ['gamification', 'notifications', 'push']) {
