@@ -70,15 +70,15 @@ BACKUP_S3_BUCKET=
 BACKUP_S3_ACCESS_KEY=
 BACKUP_S3_SECRET_KEY=
 
-# The assistant (ADR 0025), off until set up (docs/deploy.md, «دستیار»): add `ai,llm-cpu`
-# (or `ai,llm-gpu`) to COMPOSE_PROFILES, set AI_SERVICE_URL=http://ai:4200 and put the model in
+# The assistant (ADR 0025), off until set up (docs/deploy.md, «دستیار»): add "ai,llm-cpu"
+# (or "ai,llm-gpu") to COMPOSE_PROFILES, set AI_SERVICE_URL=http://ai:4200 and put the model in
 # ./models. Each company still turns it on in its settings.
 AI_SERVICE_URL=
 AI_SERVICE_TOKEN=$(secret 32)
 LLM_MODEL=qwen2.5-7b-instruct
 LLM_MODEL_FILE=qwen2.5-7b-instruct-q4_k_m.gguf
 LLM_THREADS=4
-# Embeddings for «از مدار بپرس» (ADR 0026): bge-m3 in ./models, run by the `embed` service.
+# Embeddings for «از مدار بپرس» (ADR 0026): bge-m3 in ./models, run by the "embed" service.
 EMBED_MODEL=bge-m3
 EMBED_MODEL_FILE=bge-m3-Q8_0.gguf
 EMBED_THREADS=2
