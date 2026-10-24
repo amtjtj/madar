@@ -114,6 +114,10 @@ if [ "$current" != "$tag" ]; then
   [ -n "$current" ] && echo "$current" > .deploy/previous
   echo "$tag" > .deploy/current
 fi
+# Caddy and the backup loop read their config files from the repo: apply an updated Caddyfile
+# (graceful, no dropped connections) and restart the backup loop on the current backup.sh.
+compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null
+compose restart backup >/dev/null
 docker tag "madar-api:$tag" madar-api:latest
 docker tag "madar-web:$tag" madar-web:latest
 ai_enabled && docker tag "madar-ai:$tag" madar-ai:latest
