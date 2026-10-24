@@ -34,6 +34,7 @@ import { CalendarPreview } from '@/components/home/calendar-preview';
 import { CompanyView } from '@/components/home/company-view';
 import { MyGoalsCard } from '@/components/home/my-goals-card';
 import { TodayMeetings } from '@/components/meetings/today-meetings';
+import { WaitingRequestsCard } from '@/components/requests/waiting-card';
 import { TeamView } from '@/components/home/team-view';
 import { InstallCard } from '@/components/pwa/install';
 import { NewTaskButton } from '@/components/work/new-task-button';
@@ -158,11 +159,13 @@ function Home() {
           <TodaySkeleton />
         ) : tab === 'company' ? (
           <>
+            <WaitingRequestsCard />
             <CompanyView />
             <CalendarPreview />
           </>
         ) : tab === 'team' ? (
           <>
+            <WaitingRequestsCard />
             <TeamView
               departments={teamDepartments}
               departmentId={departmentId}
@@ -182,6 +185,7 @@ function TodayTab() {
   const { data: today, isPending } = useToday();
   return (
     <>
+      <WaitingRequestsCard />
       <TodayMeetings />
       {isPending || !today ? <TodaySkeleton /> : <TodayPlan today={today} />}
       <CalendarPreview />

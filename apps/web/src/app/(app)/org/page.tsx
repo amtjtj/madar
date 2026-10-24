@@ -1,6 +1,6 @@
 'use client';
 
-import { CalendarClock, CalendarDays, ChevronLeft } from 'lucide-react';
+import { CalendarClock, CalendarDays, ChevronLeft, Inbox } from 'lucide-react';
 import Link from 'next/link';
 
 import { t } from '@madar/i18n';
@@ -25,6 +25,12 @@ export default function OrgPage() {
       label: t('calendar.nav'),
       href: '/calendar',
       icon: <CalendarDays aria-hidden />,
+    },
+    {
+      key: '/requests',
+      label: t('requests.nav'),
+      href: '/requests',
+      icon: <Inbox aria-hidden />,
     },
     ...useOrgNavItems(),
   ];

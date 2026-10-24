@@ -14,6 +14,7 @@ const layerKind: Record<CalendarLayer, CalendarLayerKind | 'holiday'> = {
   projects: 'project',
   periods: 'period',
   holidays: 'holiday',
+  leaves: 'leave',
 };
 
 /** «لایه‌ها»: each layer on or off. */

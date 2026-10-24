@@ -39,6 +39,8 @@ export interface SeedPerson {
   head?: boolean;
   /** Username of the direct manager. */
   manager?: string;
+  /** A manager in the department (not its head): may create projects there (ADR 0027). */
+  deptManager?: boolean;
   roles?: SystemRole[];
 }
 
@@ -75,6 +77,7 @@ export const SEED_PEOPLE: SeedPerson[] = [
     title: 'مدیر محصول',
     department: 'eng',
     manager: 'amir.hosseini',
+    deptManager: true,
   },
   {
     username: 'negar.rezaei',

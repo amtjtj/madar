@@ -98,6 +98,16 @@ export const meetingKeys = {
 };
 
 /** The personal calendar (ADR 0024). */
+/** Requests and approvals (ADR 0028). */
+export const requestKeys = {
+  all: ['requests'] as const,
+  list: (box: string) => ['requests', 'list', box] as const,
+  counts: ['requests', 'counts'] as const,
+  one: (id: string) => ['requests', 'one', id] as const,
+  route: (kind: string, amount: number | null) => ['requests', 'route', kind, amount] as const,
+  settings: ['settings', 'approvals'] as const,
+};
+
 export const calendarKeys = {
   all: ['calendar'] as const,
   range: (from: string, to: string, layers: string[], member = '') =>

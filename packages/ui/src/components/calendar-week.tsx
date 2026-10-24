@@ -432,6 +432,7 @@ const eventChip: Record<CalendarLayerKind, string> = {
   meeting: 'bg-layer-meeting-soft border-layer-meeting',
   project: 'bg-layer-project-soft border-layer-project',
   period: 'bg-layer-period-soft border-layer-period',
+  leave: 'bg-layer-leave-soft border-layer-leave',
 };
 
 const DefaultLink: LinkComponent = ({ children, ...props }) => <a {...props}>{children}</a>;

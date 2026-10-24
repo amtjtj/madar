@@ -42,8 +42,13 @@ import {
   TextField,
   ThemeToggle,
   cn,
+  AmountText,
+  ApprovalTimeline,
   DecisionItem,
   MeetingRow,
+  RequestKindBadge,
+  RequestRow,
+  RequestStatusBadge,
   MeetingTypeBadge,
   MinutesEvidenceCard,
   ResponseBadge,
@@ -464,6 +469,58 @@ export default function DesignSystemPage() {
         <Section id="letters" title={t('designSystem.sections.letters')}>
           <Panel>
             <LettersDemo />
+          </Panel>
+        </Section>
+
+        <Section id="requests" title={t('designSystem.sections.requests')}>
+          <Panel>
+            <div className="flex max-w-xl flex-col gap-4">
+              <div className="divide-y divide-line rounded-2xl border border-line bg-surface p-1">
+                <RequestRow
+                  href="#requests"
+                  kind="leave"
+                  title={t('designSystem.requests.leave')}
+                  status="pending"
+                  person={t('designSystem.requests.person')}
+                  when={t('designSystem.requests.when')}
+                />
+                <RequestRow
+                  href="#requests"
+                  kind="expense"
+                  title={t('designSystem.requests.expense')}
+                  status="approved"
+                  person={t('designSystem.requests.person')}
+                  when={t('designSystem.requests.when')}
+                  amountToman={18_000_000}
+                />
+                <RequestRow
+                  href="#requests"
+                  kind="general"
+                  title={t('designSystem.requests.general')}
+                  status="rejected"
+                  when={t('designSystem.requests.when')}
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <RequestKindBadge kind="leave" />
+                <RequestKindBadge kind="expense" />
+                <RequestKindBadge kind="general" />
+                <RequestStatusBadge status="pending" />
+                <RequestStatusBadge status="canceled" />
+                <AmountText toman={1_250_000} />
+              </div>
+              <ApprovalTimeline
+                steps={[
+                  {
+                    approver: t('designSystem.requests.boss'),
+                    decision: 'approved',
+                    comment: t('designSystem.requests.comment'),
+                    when: t('designSystem.requests.stamp'),
+                  },
+                  { approver: t('designSystem.requests.ceo'), decision: null, current: true },
+                ]}
+              />
+            </div>
           </Panel>
         </Section>
 

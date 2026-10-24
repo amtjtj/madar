@@ -314,6 +314,7 @@ export class CalendarService {
               project: null,
               period: null,
               leave: {
+                requestId: leave.requestId,
                 kind: leave.kind,
                 startsAt: leave.startsAt?.toISOString() ?? null,
                 endsAt: leave.endsAt?.toISOString() ?? null,

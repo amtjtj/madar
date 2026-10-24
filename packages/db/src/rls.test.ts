@@ -511,9 +511,10 @@ describe.skipIf(!hasDatabase)('tenant isolation (RLS)', () => {
       expect(pending.rowCount).toBe(1);
       // A leave for another company's member.
       const [leave] = await tx.select().from(s.leaves).limit(1);
+      if (!leave) throw new Error('fixture leave missing');
       await expect(
         tx.transaction((inner) =>
-          inner.insert(s.leaves).values({ ...leave!, id: uuidv7(), memberId: b.memberId }),
+          inner.insert(s.leaves).values({ ...leave, id: uuidv7(), memberId: b.memberId }),
         ),
       ).rejects.toThrow();
     });

@@ -55,6 +55,12 @@ export function notificationText(n: Notification, timeZone?: string): string {
       time: formatTime(startsAt, timeZone),
     });
   }
+  if (
+    n.kind === 'request_decided' &&
+    (n.data.status === 'approved' || n.data.status === 'rejected')
+  ) {
+    return t(`notifications.kinds.request_decided_${n.data.status}`, { actor });
+  }
   return t(`notifications.kinds.${n.kind}`, { actor, title: n.title, date });
 }
 
@@ -63,6 +69,7 @@ export function notificationHref(n: Notification): string {
   if (n.subjectType === 'meeting') return `/meetings/${n.subjectId}`;
   if (n.subjectType === 'conversation') return `/chat/${n.subjectId}`;
   if (n.subjectType === 'goal') return `/goals/${n.subjectId}`;
+  if (n.subjectType === 'request') return `/requests/${n.subjectId}`;
   if (n.subjectType === 'report') {
     const params = new URLSearchParams({ scope: String(n.data.scope ?? 'company') });
     if (typeof n.data.departmentId === 'string') params.set('departmentId', n.data.departmentId);

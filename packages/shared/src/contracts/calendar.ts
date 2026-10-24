@@ -70,6 +70,7 @@ export const calendarItem = z.object({
   /** An approved leave: daily, or hourly with its times. */
   leave: z
     .object({
+      requestId: z.uuid(),
       kind: z.enum(['daily', 'hourly']),
       startsAt: z.iso.datetime().nullable(),
       endsAt: z.iso.datetime().nullable(),

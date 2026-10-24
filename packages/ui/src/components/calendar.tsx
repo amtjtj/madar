@@ -4,6 +4,7 @@ import {
   CalendarCheck,
   CheckSquare,
   Flag,
+  Palmtree,
   FolderKanban,
   Users,
   type LucideIcon,
@@ -15,7 +16,7 @@ import { DropDay } from './calendar-week.js';
 import type { LinkComponent } from './navigation.js';
 
 /** What a calendar item is, for its colour and icon (ADR 0024). */
-export type CalendarLayerKind = 'task' | 'plan' | 'meeting' | 'project' | 'period';
+export type CalendarLayerKind = 'task' | 'plan' | 'meeting' | 'project' | 'period' | 'leave';
 
 const layerIcon: Record<CalendarLayerKind, LucideIcon> = {
   task: CheckSquare,
@@ -23,6 +24,7 @@ const layerIcon: Record<CalendarLayerKind, LucideIcon> = {
   meeting: Users,
   project: FolderKanban,
   period: Flag,
+  leave: Palmtree,
 };
 const layerDot: Record<CalendarLayerKind, string> = {
   task: 'bg-layer-task',
@@ -30,6 +32,7 @@ const layerDot: Record<CalendarLayerKind, string> = {
   meeting: 'bg-layer-meeting',
   project: 'bg-layer-project',
   period: 'bg-layer-period',
+  leave: 'bg-layer-leave',
 };
 const layerChip: Record<CalendarLayerKind, string> = {
   task: 'bg-layer-task-soft text-ink',
@@ -37,6 +40,7 @@ const layerChip: Record<CalendarLayerKind, string> = {
   meeting: 'bg-layer-meeting-soft text-ink',
   project: 'bg-layer-project-soft text-ink',
   period: 'bg-layer-period-soft text-ink',
+  leave: 'bg-layer-leave-soft text-ink',
 };
 
 const DefaultLink: LinkComponent = ({ children, ...props }) => <a {...props}>{children}</a>;

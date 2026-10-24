@@ -236,6 +236,9 @@
   --color-layer-project-soft: var(--accent-soft);
   --color-layer-period: var(--warning);
   --color-layer-period-soft: var(--warning-soft);
+  /* Approved leaves (ADR 0028): the streak colour, warm and calm, never alarming. */
+  --color-layer-leave: var(--streak);
+  --color-layer-leave-soft: var(--streak-soft);
   --color-chart-2: var(--chart-2);
   --color-info-soft: var(--info-soft);
   --color-info-ink: var(--info-ink);

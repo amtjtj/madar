@@ -13,6 +13,7 @@ import {
   Clock,
   FolderKanban,
   House,
+  Inbox,
   FileText,
   ListTodo,
   Paperclip,
@@ -49,6 +50,7 @@ import { ChatLink } from '@/components/chat/chat-link';
 import { useAiStatus } from '@/hooks/ai';
 import { LetterLink } from '@/components/letters/letter-link';
 import { useChatUnread } from '@/hooks/chat';
+import { useRequestCounts } from '@/hooks/requests';
 import { useLetterUnread } from '@/hooks/letters';
 import { useInstall, usePushSync } from '@/hooks/pwa';
 import { useCan } from '@/hooks/queries';
@@ -155,6 +157,12 @@ export function useOrgNavItems(): NavItem[] {
             icon: <Paperclip aria-hidden />,
           },
           {
+            key: '/org/approvals',
+            label: t('requests.settings.short'),
+            href: '/org/approvals',
+            icon: <Inbox aria-hidden />,
+          },
+          {
             key: '/org/assistant',
             label: t('assistant.settingsShort'),
             href: '/org/assistant',
@@ -186,6 +194,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const askItems = useAskNavItem();
   const { data: unreadLetters = 0 } = useLetterUnread();
   const { data: unreadChat = 0 } = useChatUnread();
+  const { data: requestCounts } = useRequestCounts();
+  const waitingRequests = requestCounts?.pending ?? 0;
   // Weekly reports: company-wide readers and department managers (sidebar only; the phone tab
   // bar is full, and phones reach reports from the home dashboards and notifications).
   const member = me?.member;
@@ -221,6 +231,13 @@ export function AppShell({ children }: { children: ReactNode }) {
       href: '/calendar',
       icon: <CalendarDays aria-hidden />,
     },
+    {
+      key: '/requests',
+      label: t('requests.nav'),
+      href: '/requests',
+      icon: <Inbox aria-hidden />,
+      count: waitingRequests,
+    },
     ...askItems,
     ...(readsReports
       ? [
@@ -249,6 +266,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     pathname === '/org' ||
     activeKey === '/meetings' ||
     activeKey === '/calendar' ||
+    activeKey === '/requests' ||
     activeKey === '/ask' ||
     orgItems.some((i) => i.key === activeKey)
       ? '/org'

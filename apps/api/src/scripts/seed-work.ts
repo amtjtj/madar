@@ -58,7 +58,7 @@ export const SEED_PROJECTS: SeedProject[] = [
     department: 'eng',
     visibility: 'department',
     owner: 'amir.hosseini',
-    members: ['pouya.ghasemi', 'negar.rezaei', 'maryam.ahmadi'],
+    members: ['pouya.ghasemi', 'negar.rezaei', 'maryam.ahmadi', 'hossein.yousefi'],
     dueIn: 21,
   },
   {
@@ -152,6 +152,8 @@ export const SEED_TASKS: SeedTask[] = [
     // A colleague's request (same level, not a manager).
     by: 'zahra.mohammadi',
     assignee: 'ali.rezaei',
+    // Colleagues give each other work only inside a shared project (ADR 0027).
+    project: 'sla',
     dueIn: 3,
   },
   {
@@ -272,6 +274,7 @@ export const SEED_TASKS: SeedTask[] = [
     title: 'رفع باگ نمایش موجودی بعد از فروش',
     by: 'mahsa.abbasi',
     assignee: 'behrad.mousavi',
+    project: 'app2',
     dueIn: -1,
     priority: 'urgent',
     comments: [{ by: 'behrad.mousavi', body: 'مشکل از کش سمت کلاینت است، امروز درست می‌شود.' }],
@@ -313,7 +316,13 @@ export const SEED_TASKS: SeedTask[] = [
     dueIn: 3,
     priority: 'high',
   },
-  { title: 'بازبینی کد ماژول برداشت', by: 'negar.rezaei', assignee: 'amir.hosseini', dueIn: 1 },
+  {
+    title: 'بازبینی کد ماژول برداشت',
+    by: 'negar.rezaei',
+    assignee: 'amir.hosseini',
+    project: 'kyc',
+    dueIn: 1,
+  },
   { title: 'نوشتن تست بار برای ساعات اوج', by: 'mahsa.abbasi', assignee: 'mahsa.abbasi', dueIn: 8 },
   { title: 'جلسه برنامه‌ریزی اسپرینت بعد', by: 'kian.nouri', assignee: 'kian.nouri', dueIn: 4 },
   {

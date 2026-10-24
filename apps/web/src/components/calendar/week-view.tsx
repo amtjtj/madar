@@ -35,6 +35,7 @@ const chipTone = {
   meeting: 'bg-layer-meeting-soft',
   project: 'bg-layer-project-soft',
   period: 'bg-layer-period-soft',
+  leave: 'bg-layer-leave-soft',
 } as const;
 const ALL_DAY_SHOWN = 3;
 

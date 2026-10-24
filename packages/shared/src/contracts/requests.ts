@@ -99,6 +99,8 @@ export const requestSummary = z.object({
   status: z.enum(REQUEST_STATUSES),
   requester: person,
   department: z.object({ id: z.uuid(), name: z.string() }),
+  /** The kind's form, for wording the row (a leave's dates, an expense's category). */
+  data: z.union([leaveData, expenseData, generalData]),
   /** Expense only. */
   amountToman: z.number().int().nullable(),
   /** Whose decision it waits on (pending only). */
@@ -121,7 +123,6 @@ export const requestStep = z.object({
 export type RequestStep = z.infer<typeof requestStep>;
 
 export const requestDetail = requestSummary.extend({
-  data: z.union([leaveData, expenseData, generalData]),
   steps: z.array(requestStep),
   /** Working days a daily leave takes (holidays and days off not counted). */
   leaveDays: z.number().int().nullable(),

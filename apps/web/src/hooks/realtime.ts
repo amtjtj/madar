@@ -13,6 +13,7 @@ import {
   dashboardKeys,
   letterKeys,
   meetingKeys,
+  requestKeys,
   notificationKeys,
   workKeys,
 } from './keys';
@@ -32,7 +33,15 @@ export function useRealtime(enabled: boolean, tenantId?: string): boolean {
     let timer: ReturnType<typeof setTimeout> | undefined;
     // Several hints often arrive together (a move emits status + completion): refetch once.
     const refresh = (
-      what: 'work' | 'today' | 'notifications' | 'letters' | 'chat' | 'chatLists' | 'meetings',
+      what:
+        | 'work'
+        | 'today'
+        | 'notifications'
+        | 'letters'
+        | 'chat'
+        | 'chatLists'
+        | 'meetings'
+        | 'requests',
     ) => {
       pending.add(what);
       clearTimeout(timer);
@@ -52,6 +61,10 @@ export function useRealtime(enabled: boolean, tenantId?: string): boolean {
           void client.invalidateQueries({ queryKey: notificationKeys.all });
         }
         if (pending.has('letters')) void client.invalidateQueries({ queryKey: letterKeys.all });
+        if (pending.has('requests')) {
+          void client.invalidateQueries({ queryKey: requestKeys.all });
+          void client.invalidateQueries({ queryKey: calendarKeys.all });
+        }
         if (pending.has('meetings')) {
           void client.invalidateQueries({ queryKey: meetingKeys.all });
           void client.invalidateQueries({ queryKey: calendarKeys.all });
@@ -78,6 +91,7 @@ export function useRealtime(enabled: boolean, tenantId?: string): boolean {
         refresh('notifications');
         refresh('letters');
         refresh('meetings');
+        refresh('requests');
         refresh('chat');
         // Open conversations may have missed messages: reload them.
         void client.invalidateQueries({ queryKey: ['chat', 'messages'] });
@@ -92,6 +106,7 @@ export function useRealtime(enabled: boolean, tenantId?: string): boolean {
     socket.on(REALTIME_EVENTS.notificationsChanged, () => refresh('notifications'));
     socket.on(REALTIME_EVENTS.lettersChanged, () => refresh('letters'));
     socket.on(REALTIME_EVENTS.meetingsChanged, () => refresh('meetings'));
+    socket.on(REALTIME_EVENTS.requestsChanged, () => refresh('requests'));
     socket.on(REALTIME_EVENTS.chatChanged, () => refresh('chat'));
     // The one event with data (ADR 0022): straight into the open conversation's cache.
     socket.on(CHAT_SOCKET.message, (message: Message) => {

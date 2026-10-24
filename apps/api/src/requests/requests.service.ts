@@ -476,6 +476,7 @@ export class RequestsService {
         status: row.status,
         requester: { id: row.requesterId, displayName: e?.requesterName ?? '' },
         department: { id: row.departmentId, name: e?.departmentName ?? '' },
+        data: row.data as RequestSummary['data'],
         amountToman: row.amountRial === null ? null : row.amountRial / 10,
         waitingOn:
           row.status === 'pending' && e?.waitingId
@@ -528,7 +529,6 @@ export class RequestsService {
     const approverId = row.snapshot.approvers[row.currentStep];
     return {
       ...summary,
-      data: row.data as RequestDetail['data'],
       steps,
       leaveDays,
       // A request's files are part of the record: nobody deletes them.

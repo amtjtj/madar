@@ -52,6 +52,8 @@ export function itemHref(item: CalendarItem): string {
       return `/projects/${item.id}`;
     case 'period':
       return '/goals';
+    case 'leave':
+      return `/requests/${item.leave?.requestId ?? ''}`;
   }
 }
 
@@ -60,11 +62,18 @@ export function itemTitle(item: CalendarItem): string {
     return t('calendar.periodEnd', { name: periodName(item.period) });
   }
   if (item.kind === 'project') return t('calendar.projectEnd', { title: item.title ?? '' });
+  if (item.kind === 'leave') return t('calendar.leaveDay');
   return item.title ?? '';
 }
 
 /** «۱۰:۰۰ تا ۱۱:۰۰» for a meeting; nothing for an all-day item. */
 export function itemTime(item: CalendarItem, timeZone?: string): string | undefined {
+  if (item.leave?.startsAt && item.leave.endsAt) {
+    return t('meetings.time', {
+      start: formatTime(new Date(item.leave.startsAt), timeZone),
+      end: formatTime(new Date(item.leave.endsAt), timeZone),
+    });
+  }
   if (!item.meeting) return undefined;
   return t('meetings.time', {
     start: formatTime(new Date(item.meeting.startsAt), timeZone),

@@ -33,6 +33,7 @@ import { AccountsService } from '../auth/accounts.service.js';
 import { AttachmentsService } from '../files/attachments.service.js';
 import { ChatService } from '../chat/chat.service.js';
 import { MeetingsService } from '../meetings/meetings.service.js';
+import { RequestsService } from '../requests/requests.service.js';
 import { EvidenceService } from '../evidence/evidence.service.js';
 import { LettersService } from '../letters/letters.service.js';
 import { FILE_STORAGE, objectKeyFor, type FileStorage } from '../files/storage.js';
@@ -153,7 +154,7 @@ async function main(): Promise<void> {
         departments: [
           {
             departmentId: departmentIds.get(person.department) ?? '',
-            deptRole: person.head ? 'head' : 'member',
+            deptRole: person.head ? 'head' : person.deptManager ? 'manager' : 'member',
             isPrimary: true,
           },
         ],
@@ -301,7 +302,8 @@ async function main(): Promise<void> {
       }
     }
 
-    // Goals: the current season, each goal created by its owner, with check-in history.
+    // Goals: the current season with check-in history. A person's own goal is defined by their
+    // manager (ADR 0027); the owner only checks in.
     const goalsService = app.get(GoalsService);
     const keyResults = app.get(KeyResultsService);
     const period = (await goalsService.periods(ctx)).find((p) => p.current);
@@ -309,8 +311,13 @@ async function main(): Promise<void> {
     const goalIds = new Map<string, string>();
     const krIds = new Map<string, string>();
     for (const g of SEED_GOALS) {
-      const goal = await goalsService.create(await as(g.owner), {
+      const definer =
+        g.level === 'individual'
+          ? (SEED_PEOPLE.find((p) => p.username === g.owner)?.manager ?? g.owner)
+          : g.owner;
+      const goal = await goalsService.create(await as(definer), {
         periodId: period.id,
+        ownerId: idOf(g.owner),
         level: g.level,
         departmentId: g.department ? departmentIds.get(g.department) : undefined,
         parentId: g.parent ? goalIds.get(g.parent) : null,
@@ -659,6 +666,57 @@ async function main(): Promise<void> {
     await meetings.respond(await as('ali.rezaei'), weekly.id, 'accepted');
     await meetings.respond(await as('zahra.mohammadi'), weekly.id, 'accepted');
     await meetings.respond(await as('hossein.yousefi'), weekly.id, 'declined');
+
+    // Requests (plan phase-3-step-17b): Ali's approved leave next week, Zahra's headset waiting
+    // on the CEO after Maryam, Hossein's shift change waiting on Maryam, one turned down.
+    const requests = app.get(RequestsService);
+    let leaveDay = addDays(today, 7);
+    while (persianWeekdayOfCalendarDate(leaveDay) !== 0) leaveDay = addDays(leaveDay, 1);
+    const leave = await requests.create(await as('ali.rezaei'), {
+      kind: 'leave',
+      data: {
+        kind: 'daily',
+        startsOn: leaveDay,
+        endsOn: addDays(leaveDay, 1),
+        note: 'سفر خانوادگی',
+      },
+    });
+    await requests.decide(await as('maryam.ahmadi'), leave.id, {
+      decision: 'approved',
+      comment: 'خوش بگذرد؛ زهرا تیکت‌های فوری را پوشش می‌دهد.',
+    });
+    const headset = await requests.create(await as('zahra.mohammadi'), {
+      kind: 'expense',
+      data: {
+        amountToman: 18_000_000,
+        category: 'equipment',
+        description: 'هدست بی‌سیم برای شیفت شب پشتیبانی',
+      },
+      uploadIds: [],
+    });
+    await requests.decide(await as('maryam.ahmadi'), headset.id, {
+      decision: 'approved',
+      comment: '',
+    });
+    await requests.create(await as('hossein.yousefi'), {
+      kind: 'general',
+      title: 'جابه‌جایی شیفت پنجشنبه',
+      data: { body: 'پنجشنبه آینده شیفت صبح را با زهرا عوض کنیم؟' },
+      uploadIds: [],
+    });
+    const course = await requests.create(await as('ali.rezaei'), {
+      kind: 'expense',
+      data: {
+        amountToman: 4_500_000,
+        category: 'training',
+        description: 'دوره آنلاین مدیریت تیکت',
+      },
+      uploadIds: [],
+    });
+    await requests.decide(await as('maryam.ahmadi'), course.id, {
+      decision: 'rejected',
+      comment: 'همین دوره را منابع انسانی ماه بعد برای همه برگزار می‌کند.',
+    });
 
     for (const [title, krKey] of Object.entries(SEED_TASK_LINKS)) {
       const task = taskRefs.get(title);
