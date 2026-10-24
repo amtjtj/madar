@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  BADGES,
+  badgesReached,
   currentStreak,
   dayStatus,
   isCompleteDay,
@@ -21,19 +23,23 @@ describe('XP', () => {
   it('weighs work by the manager’s weight and pays a little extra on time', () => {
     expect(
       taskXp({ weight: 3, source: 'assigned', dueOn: '2026-10-25', completedOn: '2026-10-25' }),
-    ).toEqual({ completed: 30, onTime: 15 });
+    ).toEqual({ completed: 30, onTime: 15, helped: 0 });
     expect(
       taskXp({ weight: 3, source: 'assigned', dueOn: '2026-10-24', completedOn: '2026-10-25' }),
-    ).toEqual({ completed: 30, onTime: 0 });
+    ).toEqual({ completed: 30, onTime: 0, helped: 0 });
     expect(
       taskXp({ weight: 1, source: 'assigned', dueOn: null, completedOn: '2026-10-25' }),
-    ).toEqual({ completed: 10, onTime: 0 });
+    ).toEqual({ completed: 10, onTime: 0, helped: 0 });
+    // A colleague's request inside a shared project: a little extra for helping.
+    expect(
+      taskXp({ weight: 1, source: 'request', dueOn: null, completedOn: '2026-10-25' }),
+    ).toEqual({ completed: 10, onTime: 0, helped: 5 });
   });
 
   it('gives a self-made task with no weight almost nothing', () => {
     expect(
       taskXp({ weight: 1, source: 'personal', dueOn: '2026-10-30', completedOn: '2026-10-25' }),
-    ).toEqual({ completed: 2, onTime: 0 });
+    ).toEqual({ completed: 2, onTime: 0, helped: 0 });
     // A manager who weighs their own task gets the weight.
     expect(
       taskXp({ weight: 2, source: 'personal', dueOn: null, completedOn: '2026-10-25' }).completed,
@@ -95,5 +101,22 @@ describe('streaks', () => {
     // A day never closed (here Thursday the 29th) is skipped, not counted as missed.
     expect(currentStreak(days.filter((d) => d.day !== '2026-10-29'))).toBe(3);
     expect(currentStreak(days.slice(0, 1))).toBe(0);
+  });
+});
+
+describe('badges', () => {
+  it('are reached by their counters, each once in the catalog', () => {
+    expect(new Set(BADGES.map((b) => b.key)).size).toBe(BADGES.length);
+    expect(badgesReached({})).toEqual([]);
+    expect(badgesReached({ tasks_completed: 12, kudos_given: 1 })).toEqual([
+      'first_task',
+      'tasks_10',
+      'first_thanks',
+    ]);
+    expect(badgesReached({ longest_streak: 20, level: 5 })).toEqual([
+      'streak_5',
+      'streak_20',
+      'level_5',
+    ]);
   });
 });

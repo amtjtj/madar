@@ -50,7 +50,15 @@ export async function createTenantFixture(handle: DbHandle, label = 't'): Promis
       username: `${label}.${suffix}`,
     })
     .returning({ id: s.users.id });
-  if (!tenant || !user) throw new Error('fixture insert failed');
+  const [peerUser] = await handle.db
+    .insert(s.users)
+    .values({
+      name: `peer ${suffix}`,
+      email: `${uuidv7()}@users.madar.invalid`,
+      username: `${label}.peer.${suffix}`,
+    })
+    .returning({ id: s.users.id });
+  if (!tenant || !user || !peerUser) throw new Error('fixture insert failed');
 
   return withTenant(handle.db, { tenantId: tenant.id, userId: user.id }, async (tx) => {
     const [member] = await tx
@@ -333,6 +341,26 @@ export async function createTenantFixture(handle: DbHandle, label = 't'): Promis
       longestStreak: 1,
       streakThrough: '2026-10-26',
     });
+    // Kudos need two people: a colleague thanks the member for the task.
+    const [peer] = await tx
+      .insert(s.members)
+      .values({ userId: peerUser.id, displayName: `peer ${suffix}` })
+      .returning({ id: s.members.id });
+    if (!peer) throw new Error('fixture peer missing');
+    await tx.insert(s.kudos).values({
+      fromMemberId: peer.id,
+      toMemberId: member.id,
+      valueTag: 'teamwork',
+      message: 'ممنون',
+      taskId: task.id,
+      weekStart: '2026-10-24',
+    });
+    await tx.insert(s.memberCounters).values({
+      memberId: member.id,
+      counterKey: 'kudos_received',
+      value: 1,
+    });
+    await tx.insert(s.memberBadges).values({ memberId: member.id, badgeKey: 'first_task' });
     await tx.insert(s.pushSubscriptions).values({
       memberId: member.id,
       endpoint: `https://fcm.googleapis.com/fcm/send/${suffix}`,

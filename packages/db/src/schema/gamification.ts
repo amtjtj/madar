@@ -13,6 +13,7 @@ import {
   integer,
   pgEnum,
   pgTable,
+  boolean,
   primaryKey,
   text,
   timestamp,
@@ -21,6 +22,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import { createdAt, id, tenantId } from './columns.js';
+import { tasks } from './work.js';
 import { tenants } from './control.js';
 import { members } from './org.js';
 
@@ -29,6 +31,8 @@ export const xpReason = pgEnum('xp_reason', [
   'on_time',
   'goal_checkin',
   'reversal',
+  'kudos_received',
+  'helped',
 ]);
 export const streakStatus = pgEnum('streak_status', [
   'completed',
@@ -108,6 +112,95 @@ export const memberStats = pgTable(
     primaryKey({ columns: [t.tenantId, t.memberId] }),
     foreignKey({
       name: 'member_stats_member_fk',
+      columns: [t.tenantId, t.memberId],
+      foreignColumns: [members.tenantId, members.id],
+    }).onDelete('restrict'),
+  ],
+);
+
+export const valueTag = pgEnum('value_tag', [
+  'teamwork',
+  'help',
+  'quality',
+  'speed',
+  'learning',
+  'initiative',
+]);
+
+/**
+ * A colleague's thanks (plan phase-3-step-18b). Never edited or deleted; the receiver may hide it
+ * from their profile (`hidden_at`, the only change a restrictive RLS policy allows).
+ */
+export const kudos = pgTable(
+  'kudos',
+  {
+    id: id(),
+    tenantId: tenantId().references(() => tenants.id, { onDelete: 'cascade' }),
+    fromMemberId: uuid('from_member_id').notNull(),
+    toMemberId: uuid('to_member_id').notNull(),
+    valueTag: valueTag('value_tag').notNull(),
+    message: text('message').notNull(),
+    taskId: uuid('task_id'),
+    private: boolean('private').notNull().default(false),
+    hiddenAt: timestamp('hidden_at', { withTimezone: true }),
+    /** Saturday of the giver's Jalali week (the allowance). */
+    weekStart: date('week_start', { mode: 'string' }).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check('kudos_not_self', sql`${t.fromMemberId} <> ${t.toMemberId}`),
+    foreignKey({
+      name: 'kudos_from_fk',
+      columns: [t.tenantId, t.fromMemberId],
+      foreignColumns: [members.tenantId, members.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'kudos_to_fk',
+      columns: [t.tenantId, t.toMemberId],
+      foreignColumns: [members.tenantId, members.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'kudos_task_fk',
+      columns: [t.tenantId, t.taskId],
+      foreignColumns: [tasks.tenantId, tasks.id],
+    }).onDelete('restrict'),
+    index('kudos_to_idx').on(t.tenantId, t.toMemberId, t.id),
+    index('kudos_from_week_idx').on(t.tenantId, t.fromMemberId, t.weekStart),
+  ],
+);
+
+/** What badges count (written only by the worker). */
+export const memberCounters = pgTable(
+  'member_counters',
+  {
+    tenantId: tenantId().references(() => tenants.id, { onDelete: 'cascade' }),
+    memberId: uuid('member_id').notNull(),
+    counterKey: text('counter_key').notNull(),
+    value: integer('value').notNull().default(0),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.memberId, t.counterKey] }),
+    foreignKey({
+      name: 'member_counters_member_fk',
+      columns: [t.tenantId, t.memberId],
+      foreignColumns: [members.tenantId, members.id],
+    }).onDelete('restrict'),
+  ],
+);
+
+/** A badge earned for good (insert-only). */
+export const memberBadges = pgTable(
+  'member_badges',
+  {
+    tenantId: tenantId().references(() => tenants.id, { onDelete: 'cascade' }),
+    memberId: uuid('member_id').notNull(),
+    badgeKey: text('badge_key').notNull(),
+    awardedAt: timestamp('awarded_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.memberId, t.badgeKey] }),
+    foreignKey({
+      name: 'member_badges_member_fk',
       columns: [t.tenantId, t.memberId],
       foreignColumns: [members.tenantId, members.id],
     }).onDelete('restrict'),

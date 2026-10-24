@@ -22,4 +22,6 @@ export const REALTIME_EVENTS = {
   requestsChanged: 'requests.changed',
   /** My XP, level or streak changed (only to me, ADR 0029). */
   progressChanged: 'progress.changed',
+  /** Someone thanked someone (step 18b): the two people, and everyone for a public one. */
+  kudosChanged: 'kudos.changed',
 } as const;

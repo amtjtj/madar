@@ -75,6 +75,9 @@ const DATA_PLANE = [
   'xp_ledger',
   'streak_days',
   'member_stats',
+  'kudos',
+  'member_counters',
+  'member_badges',
 ] as const;
 
 /** Tables the app may only append to (no UPDATE/DELETE grant). */
@@ -88,6 +91,7 @@ const APPEND_ONLY = [
   'approval_steps',
   'leaves',
   'xp_ledger',
+  'member_badges',
 ];
 /** Tables the app may update but never delete from. */
 const NO_DELETE = [
@@ -111,6 +115,8 @@ const NO_DELETE = [
   'approval_requests',
   'streak_days',
   'member_stats',
+  'kudos',
+  'member_counters',
 ];
 
 describe.skipIf(!hasDatabase)('tenant isolation (RLS)', () => {
@@ -579,6 +585,58 @@ describe.skipIf(!hasDatabase)('tenant isolation (RLS)', () => {
       );
       expect(excused.rowCount).toBe(1);
     });
+  });
+
+  it('kudos are hidden only by their receiver and never edited; badges are kept', async () => {
+    // As the giver (the peer): nothing to change.
+    const [k] = await withTenant(app.db, { tenantId: a.tenantId }, (tx) =>
+      tx.select().from(s.kudos).limit(1),
+    );
+    if (!k) throw new Error('fixture kudos missing');
+    const asGiver = await withTenant(
+      app.db,
+      { tenantId: a.tenantId, memberId: k.fromMemberId },
+      (tx) => tx.execute(sql`update kudos set hidden_at = now()`),
+    );
+    expect(asGiver.rowCount).toBe(0);
+    // As the receiver: hiding works, rewriting the message does not.
+    await expect(
+      withTenant(app.db, { tenantId: a.tenantId, memberId: a.memberId }, (tx) =>
+        tx.execute(sql`update kudos set message = 'x', hidden_at = null`),
+      ),
+    ).rejects.toThrow();
+    const hidden = await withTenant(app.db, { tenantId: a.tenantId, memberId: a.memberId }, (tx) =>
+      tx.execute(sql`update kudos set hidden_at = now()`),
+    );
+    expect(hidden.rowCount).toBe(1);
+    // Nobody thanks themselves, and a kudos never names another company's people.
+    await expect(
+      withTenant(app.db, { tenantId: a.tenantId }, (tx) =>
+        tx.insert(s.kudos).values({
+          fromMemberId: a.memberId,
+          toMemberId: a.memberId,
+          valueTag: 'help',
+          message: 'خودم',
+          weekStart: '2026-10-24',
+        }),
+      ),
+    ).rejects.toThrow();
+    await expect(
+      withTenant(app.db, { tenantId: a.tenantId }, (tx) =>
+        tx.insert(s.kudos).values({
+          fromMemberId: a.memberId,
+          toMemberId: b.memberId,
+          valueTag: 'help',
+          message: 'دیگری',
+          weekStart: '2026-10-24',
+        }),
+      ),
+    ).rejects.toThrow();
+    await expect(
+      withTenant(app.db, { tenantId: a.tenantId }, (tx) =>
+        tx.execute(sql`delete from member_badges`),
+      ),
+    ).rejects.toThrow();
   });
 
   it('transaction-local settings do not leak to the next query on the same connection', async () => {

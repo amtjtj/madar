@@ -1,6 +1,13 @@
 import { z } from 'zod';
 
-import { STREAK_STATUSES, XP_REASONS } from '../gamification.js';
+import {
+  BADGE_TIERS,
+  BADGES,
+  COUNTER_KEYS,
+  STREAK_STATUSES,
+  VALUE_TAGS,
+  XP_REASONS,
+} from '../gamification.js';
 import { calendarDate } from './work.js';
 
 /** The company's gamification settings (in `tenants.settings.gamification`, ADR 0029). */
@@ -10,6 +17,8 @@ export const gamificationSettings = z.object({
   completeDayPercent: z.number().int().min(10).max(100).default(70),
   /** XP one person may earn in one day from work and goals. */
   dailyXpCap: z.number().int().min(20).max(1000).default(150),
+  /** Thanks each person may give in a Jalali week (step 18b). */
+  kudosPerWeek: z.number().int().min(1).max(20).default(5),
 });
 export type GamificationSettings = z.infer<typeof gamificationSettings>;
 
@@ -73,3 +82,77 @@ export const streakDay = z.object({
   done: z.number().int(),
 });
 export type StreakDay = z.infer<typeof streakDay>;
+
+const personRef = z.object({ id: z.uuid(), displayName: z.string() });
+
+export const giveKudosRequest = z.object({
+  toMemberId: z.uuid(),
+  valueTag: z.enum(VALUE_TAGS),
+  message: z.string().trim().min(3).max(280),
+  taskId: z.uuid().optional(),
+  private: z.boolean().default(false),
+});
+export type GiveKudosRequest = z.infer<typeof giveKudosRequest>;
+
+export const kudosItem = z.object({
+  id: z.uuid(),
+  from: personRef,
+  to: personRef,
+  valueTag: z.enum(VALUE_TAGS),
+  message: z.string(),
+  /** The task, only when the reader sees it too. */
+  task: z.object({ id: z.uuid(), title: z.string() }).nullable(),
+  private: z.boolean(),
+  /** Hidden by the receiver from their profile (still shown to the two of them). */
+  hidden: z.boolean(),
+  createdAt: z.iso.datetime(),
+});
+export type KudosItem = z.infer<typeof kudosItem>;
+
+export const KUDOS_PAGE = 20;
+export const listKudosQuery = z.object({
+  /** Kudos received by this member; without it, the company's latest public ones. */
+  member: z.uuid().optional(),
+  before: z.uuid().optional(),
+  limit: z.coerce.number().int().min(1).max(KUDOS_PAGE).default(KUDOS_PAGE),
+});
+export type ListKudosQuery = z.infer<typeof listKudosQuery>;
+
+export const kudosAllowance = z.object({
+  enabled: z.boolean(),
+  perWeek: z.number().int(),
+  left: z.number().int(),
+  weekStart: calendarDate,
+});
+export type KudosAllowance = z.infer<typeof kudosAllowance>;
+
+const badgeKey = z.enum(BADGES.map((b) => b.key) as [string, ...string[]]);
+
+export const earnedBadge = z.object({
+  key: badgeKey,
+  tier: z.enum(BADGE_TIERS),
+  awardedAt: z.iso.datetime(),
+});
+export type EarnedBadge = z.infer<typeof earnedBadge>;
+
+/** A colleague's profile: who they are and the badges they earned (never XP, level or streak). */
+export const memberProfile = z.object({
+  id: z.uuid(),
+  displayName: z.string(),
+  departments: z.array(z.object({ id: z.uuid(), name: z.string(), deptRole: z.string() })),
+  badges: z.array(earnedBadge),
+  gamification: z.boolean(),
+  me: z.boolean(),
+});
+export type MemberProfile = z.infer<typeof memberProfile>;
+
+/** Every badge with my state and my progress towards it (only mine). */
+export const myBadge = z.object({
+  key: badgeKey,
+  tier: z.enum(BADGE_TIERS),
+  counter: z.enum(COUNTER_KEYS),
+  value: z.number().int(),
+  goal: z.number().int(),
+  awardedAt: z.iso.datetime().nullable(),
+});
+export type MyBadge = z.infer<typeof myBadge>;

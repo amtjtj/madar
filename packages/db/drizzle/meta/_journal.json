@@ -204,6 +204,13 @@
       "when": 1792815570324,
       "tag": "0028_best_level",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1792825820010,
+      "tag": "0029_kudos_badges",
+      "breakpoints": true
     }
   ]
 }
