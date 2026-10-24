@@ -44,6 +44,7 @@ const HANDLED = [
   'request.advanced',
   'request.decided',
   'request.canceled',
+  'member.progress_changed',
 ];
 
 /**
@@ -136,6 +137,12 @@ export class RealtimeConsumer implements EventConsumer {
       if (rooms.length) {
         emits.push(() => this.emitter.to(rooms).emit(REALTIME_EVENTS.meetingsChanged));
       }
+      return;
+    }
+    if (event.type === 'member.progress_changed' && p.memberId) {
+      // XP and streak are only ever the member's own (ADR 0029).
+      const room = memberRoom(t, String(p.memberId));
+      emits.push(() => this.emitter.to(room).emit(REALTIME_EVENTS.progressChanged));
       return;
     }
     if (event.type.startsWith('request.') && p.requestId) {

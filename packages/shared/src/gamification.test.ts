@@ -32,11 +32,11 @@ describe('XP', () => {
 
   it('gives a self-made task with no weight almost nothing', () => {
     expect(
-      taskXp({ weight: 1, source: 'self', dueOn: '2026-10-30', completedOn: '2026-10-25' }),
+      taskXp({ weight: 1, source: 'personal', dueOn: '2026-10-30', completedOn: '2026-10-25' }),
     ).toEqual({ completed: 2, onTime: 0 });
     // A manager who weighs their own task gets the weight.
     expect(
-      taskXp({ weight: 2, source: 'self', dueOn: null, completedOn: '2026-10-25' }).completed,
+      taskXp({ weight: 2, source: 'personal', dueOn: null, completedOn: '2026-10-25' }).completed,
     ).toBe(20);
   });
 

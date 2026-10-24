@@ -8,6 +8,8 @@ import { KnowledgeIndexJob } from '../ai/knowledge-job.js';
 import { ReportSummaryJob } from '../ai/summary-job.js';
 import { FilesCleanupJob } from '../files/cleanup-job.js';
 import { FILE_STORAGE, createStorage } from '../files/storage.js';
+import { GamificationConsumer } from '../gamification/gamification.consumer.js';
+import { StreakJob } from '../gamification/streak-job.js';
 import { MeetingJobs } from '../meetings/meeting-jobs.js';
 import { NotificationsConsumer } from '../notifications/notifications.consumer.js';
 import { NotificationsCoreModule } from '../notifications/notifications.module.js';
@@ -29,10 +31,12 @@ import { SchedulerService } from './scheduler.service.js';
     redisProvider,
     {
       provide: EVENT_CONSUMERS,
-      inject: [NotificationsConsumer, RealtimeConsumer, PushConsumer],
+      inject: [NotificationsConsumer, RealtimeConsumer, PushConsumer, GamificationConsumer],
       useFactory: (...consumers: EventConsumer[]) => consumers,
     },
     RealtimeConsumer,
+    GamificationConsumer,
+    StreakJob,
     pushSenderProvider,
     PushDeliveries,
     PushConsumer,
@@ -48,6 +52,7 @@ import { SchedulerService } from './scheduler.service.js';
     KnowledgeIndexJob,
   ],
   exports: [
+    StreakJob,
     ReportSummaryJob,
     KnowledgeIndexJob,
     FilesCleanupJob,

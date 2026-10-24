@@ -129,6 +129,7 @@ export class Notifier {
         .where(and(eq(s.meetings.id, subjectId), visibleMeetings(actor)));
       return Boolean(row);
     }
+    if (subjectType === 'progress') return subjectId === actor.memberId;
     if (subjectType === 'request') {
       const [row] = await tx
         .select({ id: s.approvalRequests.id })

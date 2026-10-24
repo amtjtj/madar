@@ -26,6 +26,7 @@ const HANDLED = [
   'request.submitted',
   'request.advanced',
   'request.decided',
+  'member.level_up',
 ];
 
 /** Turns domain events into in-app notifications. */
@@ -81,6 +82,21 @@ export class NotificationsConsumer implements EventConsumer {
             title: '',
             data: { kind: request.kind, ...(decided ? { status: String(p.status) } : {}) },
           },
+          dedupeKey: `event:${event.id}`,
+        });
+        return;
+      }
+      case 'member.level_up': {
+        // Only to the member: their level is nobody else's business (ADR 0029).
+        const memberId = String(p.memberId);
+        await this.notifier.notify(tx, {
+          ...base,
+          actorId: null,
+          recipientId: memberId,
+          kind: 'level_up',
+          subjectType: 'progress',
+          subjectId: memberId,
+          payload: { title: '', data: { level: Number(p.level) } },
           dedupeKey: `event:${event.id}`,
         });
         return;

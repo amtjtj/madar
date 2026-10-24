@@ -26,7 +26,7 @@ export const GOAL_CHECKIN_XP = 5;
 
 export interface TaskXpInput {
   weight: number;
-  /** ADR 0017: `self` when the assignee made the task for themselves. */
+  /** ADR 0017: `personal` when the assignee made the task for themselves. */
   source: string | null;
   dueOn: string | null;
   /** The company's calendar day the task was finished on. */
@@ -36,7 +36,7 @@ export interface TaskXpInput {
 /** XP for finishing a task, split by reason (before the daily cap). */
 export function taskXp(input: TaskXpInput): { completed: number; onTime: number } {
   const weight = Math.min(5, Math.max(1, Math.round(input.weight)));
-  const selfMade = input.source === 'self' && weight === 1;
+  const selfMade = input.source === 'personal' && weight === 1;
   if (selfMade) return { completed: SELF_TASK_XP, onTime: 0 };
   const onTime = input.dueOn !== null && input.completedOn <= input.dueOn;
   return { completed: XP_PER_WEIGHT * weight, onTime: onTime ? ON_TIME_PER_WEIGHT * weight : 0 };

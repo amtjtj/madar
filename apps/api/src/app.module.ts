@@ -24,6 +24,7 @@ import { EvidenceModule } from './evidence/evidence.module.js';
 import { LettersModule } from './letters/letters.module.js';
 import { MeetingsModule } from './meetings/meetings.module.js';
 import { RequestsModule } from './requests/requests.module.js';
+import { GamificationModule } from './gamification/gamification.module.js';
 import { WorkModule } from './work/work.module.js';
 
 @Module({
@@ -43,6 +44,7 @@ import { WorkModule } from './work/work.module.js';
     ChatModule,
     MeetingsModule,
     RequestsModule,
+    GamificationModule,
     CalendarModule,
     AiModule,
     GoalsModule,

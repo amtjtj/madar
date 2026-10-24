@@ -7,6 +7,7 @@ import { ReportSummaryJob } from '../ai/summary-job.js';
 import { ENV } from '../config/config.module.js';
 import type { Env } from '../config/env.js';
 import { FilesCleanupJob } from '../files/cleanup-job.js';
+import { StreakJob } from '../gamification/streak-job.js';
 import { MeetingJobs } from '../meetings/meeting-jobs.js';
 import { RemindersService } from '../notifications/reminders.service.js';
 import { WeeklyReportsJob } from '../reports/weekly-job.js';
@@ -26,7 +27,7 @@ const MEETING_REMINDERS_MS = 60_000;
 
 /**
  * Recurring jobs (BullMQ job schedulers). Every 15 minutes: due reminders, weekly report snapshots,
- * the cleanup of unreachable files and making weekly meetings ahead. Every minute: meeting
+ * the cleanup of unreachable files, making weekly meetings ahead and closing streak days. Every minute: meeting
  * reminders and the assistant's knowledge index. Every 10 minutes: the assistant's report summaries.
  */
 @Injectable()
@@ -51,6 +52,7 @@ export class SchedulerService implements OnModuleDestroy {
     private readonly meetings: MeetingJobs,
     private readonly summaries: ReportSummaryJob,
     private readonly knowledge: KnowledgeIndexJob,
+    private readonly streaks: StreakJob,
   ) {}
 
   async start(): Promise<void> {
@@ -71,6 +73,7 @@ export class SchedulerService implements OnModuleDestroy {
           ['weekly reports', () => this.weeklyReports.runAll()],
           ['files cleanup', () => this.filesCleanup.runAll()],
           ['weekly meetings', () => this.meetings.generateAll()],
+          ['streak days', () => this.streaks.runAll()],
         ];
         for (const [name, run] of steps) {
           await run().catch((error: unknown) => this.logger.error(`${name}: ${String(error)}`));

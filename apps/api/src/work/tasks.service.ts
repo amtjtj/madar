@@ -1108,6 +1108,7 @@ function taskEventPayload(task: TaskRow) {
     // For gamification later: work assigned from above can weigh differently (ADR 0017).
     source: task.source,
     sourceCeo: task.sourceCeo,
+    completedAt: task.completedAt?.toISOString() ?? null,
   };
 }
 
