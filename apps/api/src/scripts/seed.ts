@@ -58,6 +58,7 @@ import { SEED_GOALS, SEED_PROJECT_LINKS, SEED_TASK_LINKS } from './seed-goals.js
 import { SEED_HISTORY, SEED_PROJECTS, SEED_TASKS } from './seed-work.js';
 
 import { demoMode } from './demo.js';
+import { seedGamification } from './seed-gamification.js';
 
 const logger = new Logger('Seed');
 /** Summary lines go straight to stdout (the Nest logger is limited to warnings while seeding). */
@@ -760,6 +761,9 @@ async function main(): Promise<void> {
         .set({ settings: sql`${s.tenants.settings} || '{"ai":{"enabled":true}}'::jsonb` })
         .where(eq(s.tenants.id, tenantId)),
     );
+
+    // XP from the finished work and three weeks of streaks (ADR 0029).
+    await seedGamification(handle, tenantId);
 
     // Weekly reports for the last three finished weeks, as the worker would have stored them.
     const thisWeek = weekStartOf(today);
