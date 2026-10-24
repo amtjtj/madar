@@ -37,6 +37,7 @@ describe.skipIf(!hasDatabase)('requests and approvals (ADR 0028)', () => {
   let maryam: Person; // support head, Ali's manager
   let ali: Person;
   let zahra: Person; // support, no manager of her own
+  let kian: Person; // support manager (not the head), no manager of his own
   let reza: Person; // marketing
   let hr: Person; // hr_manager role
   let director: Person; // oversight over approvals
@@ -72,6 +73,10 @@ describe.skipIf(!hasDatabase)('requests and approvals (ADR 0028)', () => {
       displayName: 'زهرا محمدی',
       departments: dept(support.id),
     });
+    kian = await memberSession(app, env, owner, {
+      displayName: 'کیان نوری',
+      departments: dept(support.id, 'manager'),
+    });
     reza = await memberSession(app, env, owner, { departments: dept(marketing.id) });
     hr = await memberSession(app, env, owner, { roles: ['hr_manager'], departments: [] });
     director = await memberSession(app, env, owner, { departments: dept(office.id) });
@@ -95,8 +100,10 @@ describe.skipIf(!hasDatabase)('requests and approvals (ADR 0028)', () => {
       ownerId,
     ]);
     expect(await route(zahra, 'kind=expense&amountToman=5000000')).toEqual([maryam.memberId]);
-    // The head herself goes to the leadership.
+    // The head herself goes to the leadership, never to a manager below her.
     expect(await route(maryam, 'kind=leave')).toEqual([ownerId]);
+    // A department manager goes to the head.
+    expect(await route(kian, 'kind=leave')).toEqual([maryam.memberId]);
   });
 
   it('a leave goes to the manager; only the right people see it', async () => {
@@ -244,12 +251,36 @@ describe.skipIf(!hasDatabase)('requests and approvals (ADR 0028)', () => {
       })
     ).body;
     await owner.post(`/api/members/${maryam.memberId}/suspend`);
+    // It waits on the leadership now: in their box and count.
+    const box = (await owner.get('/api/requests?box=pending')).body as RequestSummary[];
+    expect(box.map((r) => r.id)).toContain(waiting.id);
+    expect((await owner.get('/api/requests/counts')).body.pending).toBeGreaterThanOrEqual(1);
     const standIn = await owner.post(`/api/requests/${waiting.id}/decide`, {
       decision: 'approved',
     });
     expect(standIn.status).toBe(200);
     expect(standIn.body.steps[0].decidedBy).toMatchObject({ id: ownerId });
     await owner.post(`/api/members/${maryam.memberId}/activate`);
+  });
+
+  it('keeps its approvers when the manager changes later', async () => {
+    const open = (
+      await ali.c.post('/api/requests', {
+        kind: 'general',
+        title: 'کتاب آموزشی',
+        data: { body: 'خرید یک کتاب برای تیم' },
+      })
+    ).body as RequestDetail;
+    expect(
+      (await owner.patch(`/api/members/${ali.memberId}`, { managerId: zahra.memberId })).status,
+    ).toBe(200);
+    const after = (await ali.c.get(`/api/requests/${open.id}`)).body as RequestDetail;
+    expect(after.steps.map((st) => st.approver.id)).toEqual([maryam.memberId]);
+    expect(
+      (await zahra.c.post(`/api/requests/${open.id}/decide`, { decision: 'approved' })).status,
+    ).toBe(404);
+    await owner.patch(`/api/members/${ali.memberId}`, { managerId: maryam.memberId });
+    await ali.c.post(`/api/requests/${open.id}/cancel`);
   });
 
   it('the threshold is the company’s setting; another company reaches none of it', async () => {

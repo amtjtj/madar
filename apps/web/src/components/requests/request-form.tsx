@@ -2,11 +2,13 @@
 
 import { FileText, Palmtree, Receipt, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 
 import { t } from '@madar/i18n';
 import {
+  addDays,
   EXPENSE_CATEGORIES,
+  LEAVE_MAX_DAYS,
   formatNumber,
   REQUEST_KINDS,
   toLatinDigits,
@@ -101,16 +103,33 @@ function KindForm({ kind }: { kind: RequestKind }) {
   const [body, setBody] = useState('');
 
   const amountToman = Number(toLatinDigits(amount).replace(/[^\d]/g, '')) || null;
-  const route = useRequestRoute(kind, kind === 'expense' ? amountToman : null);
+  const amountTooSmall = amountToman !== null && amountToman < 1_000;
+  // The route follows the amount once typing pauses, not on every key.
+  const [routeAmount, setRouteAmount] = useState<number | null>(null);
+  useEffect(() => {
+    const timer = setTimeout(() => setRouteAmount(amountToman), 400);
+    return () => clearTimeout(timer);
+  }, [amountToman]);
+  const route = useRequestRoute(kind, kind === 'expense' ? routeAmount : null);
+  const dateError =
+    leaveKind === 'daily' && startsOn && endsOn
+      ? endsOn < startsOn
+        ? t('requests.form.dateOrder')
+        : endsOn > addDays(startsOn, LEAVE_MAX_DAYS - 1)
+          ? t('requests.form.tooLong', { days: formatNumber(LEAVE_MAX_DAYS) })
+          : undefined
+      : undefined;
   const approvers = route.data?.approvers ?? [];
 
   const request = (): CreateRequestRequest | null => {
     const uploadIds = uploads.map((u) => u.id);
     if (kind === 'leave') {
       if (leaveKind === 'daily') {
-        if (!startsOn) return null;
-        const end = endsOn && endsOn >= startsOn ? endsOn : startsOn;
-        return { kind, data: { kind: 'daily', startsOn, endsOn: end, note: note.trim() } };
+        if (!startsOn || dateError) return null;
+        return {
+          kind,
+          data: { kind: 'daily', startsOn, endsOn: endsOn ?? startsOn, note: note.trim() },
+        };
       }
       if (!startsOn || fromTime >= toTime) return null;
       return {
@@ -119,7 +138,7 @@ function KindForm({ kind }: { kind: RequestKind }) {
       };
     }
     if (kind === 'expense') {
-      if (!amountToman || description.trim().length < 3) return null;
+      if (!amountToman || amountTooSmall || description.trim().length < 3) return null;
       return {
         kind,
         data: { amountToman, category, description: description.trim() },
@@ -166,12 +185,19 @@ function KindForm({ kind }: { kind: RequestKind }) {
                     onChange={setStartsOn}
                     today={today}
                   />
-                  <DatePicker
-                    label={t('requests.form.to')}
-                    value={endsOn}
-                    onChange={setEndsOn}
-                    today={today}
-                  />
+                  <div className="flex flex-col gap-1">
+                    <DatePicker
+                      label={t('requests.form.to')}
+                      value={endsOn}
+                      onChange={setEndsOn}
+                      today={today}
+                    />
+                    {dateError && (
+                      <p role="alert" className="text-sm text-danger-ink">
+                        {dateError}
+                      </p>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="grid gap-3 sm:grid-cols-3">
@@ -215,6 +241,7 @@ function KindForm({ kind }: { kind: RequestKind }) {
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   onBlur={() => amountToman && setAmount(formatNumber(amountToman))}
+                  error={amountTooSmall ? t('requests.form.amountMin') : undefined}
                   required
                 />
                 <SelectField
@@ -283,7 +310,7 @@ function KindForm({ kind }: { kind: RequestKind }) {
               <div>
                 <FilePicker
                   label={
-                    kind === 'expense' ? t('requests.form.invoice') : t('meetings.minutes.attach')
+                    kind === 'expense' ? t('requests.form.invoice') : t('requests.form.attach')
                   }
                   onFiles={(picked) =>
                     void files

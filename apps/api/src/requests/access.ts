@@ -21,9 +21,22 @@ export function readsAllRequests(actor: Actor): boolean {
   return leadsCompany(actor) || actor.oversight.includes('approval');
 }
 
+/** HR: by role or oversight, not the `leave.read` grant the administrator also holds (ADR 0028). */
 function readsLeaves(actor: Actor): boolean {
   return actor.roles.includes('hr_manager') || actor.oversight.includes('leave');
 }
 
 /** The approver whose decision an open request waits on (SQL text of a member id). */
 export const currentApprover = sql`(${s.approvalRequests.snapshot} -> 'approvers' ->> ${s.approvalRequests.currentStep})`;
+
+/**
+ * Open requests that wait on me: my step, or, for the leadership, a step whose approver is no
+ * longer active (they may stand in, ADR 0028).
+ */
+export function waitingOn(actor: Actor): SQL {
+  const mine = sql`${currentApprover} = ${actor.memberId}::text`;
+  const orphaned = leadsCompany(actor)
+    ? sql` or not exists (select 1 from members m where m.id::text = ${currentApprover} and m.status = 'active')`
+    : sql``;
+  return sql`(${s.approvalRequests.status} = 'pending' and (${mine}${orphaned}))`;
+}

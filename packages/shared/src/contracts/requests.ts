@@ -31,12 +31,18 @@ export type RequestBox = (typeof REQUEST_BOXES)[number];
 /** A quarter-hour wall-clock time in the company's time zone. */
 export const quarterTime = z.string().regex(/^([01]\d|2[0-3]):(00|15|30|45)$/);
 
+/** The longest daily leave one request may cover, in calendar days. */
+export const LEAVE_MAX_DAYS = 90;
+
 const note = z.string().trim().max(1000).default('');
 
 export const leaveData = z.discriminatedUnion('kind', [
   z
     .object({ kind: z.literal('daily'), startsOn: calendarDate, endsOn: calendarDate, note })
-    .refine((d) => d.startsOn <= d.endsOn, { message: 'ends before it starts' }),
+    .refine((d) => d.startsOn <= d.endsOn, { message: 'ends before it starts' })
+    .refine((d) => d.endsOn <= addDays(d.startsOn, LEAVE_MAX_DAYS - 1), {
+      message: 'too long',
+    }),
   z
     .object({
       kind: z.literal('hourly'),
@@ -160,7 +166,10 @@ export interface ApprovalPeople {
   requesterId: string;
   /** The requester's reporting line, direct manager first (`members.manager_id`). */
   managerChain: readonly string[];
-  /** Heads first, then managers, of the requester's primary department. */
+  /**
+   * Heads first, then managers, of the requester's primary department, above the requester only
+   * (none for a head, heads only for a manager).
+   */
   departmentManagers: readonly string[];
   /** The leadership (owners, executives), active only. */
   leaders: readonly string[];

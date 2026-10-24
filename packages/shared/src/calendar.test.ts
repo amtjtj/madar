@@ -29,7 +29,7 @@ describe('calendar ranges', () => {
       calendarQuery.parse({ from: '2026-10-01', to: '2026-10-02', layers: 'tasks,x,meetings' })
         .layers,
     ).toEqual(['tasks', 'meetings']);
-    expect(calendarQuery.parse({ from: '2026-10-01', to: '2026-10-02' }).layers).toHaveLength(6);
+    expect(calendarQuery.parse({ from: '2026-10-01', to: '2026-10-02' }).layers).toHaveLength(7);
     expect(calendarQuery.safeParse({ from: '2026-10-01', to: '2026-11-11' }).success).toBe(true);
     expect(calendarQuery.safeParse({ from: '2026-10-01', to: '2026-11-12' }).success).toBe(false);
     expect(calendarQuery.safeParse({ from: '2026-10-05', to: '2026-10-01' }).success).toBe(false);

@@ -9,19 +9,21 @@ import { Button, Card, CardContent, EmptyState, Skeleton, TextField, useToast } 
 import { PageHeader } from '@/components/app-shell';
 import { useApprovalSettings, useSaveApprovalSettings } from '@/hooks/requests';
 import { useCan } from '@/hooks/queries';
+import { useMe } from '@/hooks/use-me';
 import { errorMessage } from '@/lib/errors';
 
 /** «گردش تایید» (ADR 0028): the expense amount above which the leadership approves too. */
 export default function ApprovalSettingsPage() {
   const can = useCan();
+  const { data: me } = useMe();
   const { data, isPending } = useApprovalSettings();
-  if (!can('tenant.manage')) {
+  if (me && !can('tenant.manage')) {
     return <EmptyState title={t('errors.forbidden')} />;
   }
   return (
     <>
       <PageHeader title={t('requests.settings.title')} />
-      {isPending || !data ? (
+      {!me || isPending || !data ? (
         <Skeleton className="h-40 rounded-2xl" />
       ) : (
         <ThresholdForm initial={data.expenseThresholdToman} />

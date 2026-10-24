@@ -27,7 +27,7 @@ import { attachmentRows, bindUploads, toAttachment } from '../files/attachments-
 import { loadWorkCalendar } from '../notifications/calendar.js';
 import { leadsCompany } from '../work/access.js';
 import { managementChain } from '../work/ranking.js';
-import { currentApprover, visibleRequests } from './access.js';
+import { currentApprover, visibleRequests, waitingOn } from './access.js';
 
 type RequestRow = typeof s.approvalRequests.$inferSelect;
 
@@ -134,7 +134,7 @@ export class RequestsService {
       const me = ctx.memberId;
       const box: SQL =
         query.box === 'pending'
-          ? sql`(${s.approvalRequests.status} = 'pending' and ${currentApprover} = ${me})`
+          ? waitingOn(ctx.actor)
           : query.box === 'mine'
             ? eq(s.approvalRequests.requesterId, me)
             : sql`exists (select 1 from approval_steps st where st.request_id = ${s.approvalRequests.id} and st.decided_by = ${me})`;
@@ -159,9 +159,7 @@ export class RequestsService {
       const [row] = await tx
         .select({ n: sql<number>`count(*)::int` })
         .from(s.approvalRequests)
-        .where(
-          and(eq(s.approvalRequests.status, 'pending'), sql`${currentApprover} = ${ctx.memberId}`),
-        );
+        .where(and(waitingOn(ctx.actor), visibleRequests(ctx.actor)));
       return { pending: row?.n ?? 0 };
     });
   }
@@ -340,6 +338,11 @@ export class RequestsService {
               )
           )
             .sort((a, b) => (a.role === b.role ? 0 : a.role === 'head' ? -1 : 1))
+            // Only someone above me: a head goes to the leadership, a manager to a head.
+            .filter((r, _i, all) => {
+              const mine = all.find((x) => x.id === ctx.memberId)?.role;
+              return mine === 'head' ? false : mine === 'manager' ? r.role === 'head' : true;
+            })
             .map((r) => r.id),
         )
       : [];
@@ -369,6 +372,10 @@ export class RequestsService {
 
   /** A leave takes working time and does not overlap an approved leave of the same person. */
   private async checkLeave(tx: Tx, ctx: TenantContext, memberId: string, data: LeaveData) {
+    // One leave check per person at a time, so two overlapping approvals cannot both pass.
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${`leave:${memberId}`}, 0))`,
+    );
     const { calendar, timeZone } = await loadWorkCalendar(tx, ctx.tenantId);
     const from = data.kind === 'daily' ? data.startsOn : data.on;
     const to = data.kind === 'daily' ? data.endsOn : data.on;

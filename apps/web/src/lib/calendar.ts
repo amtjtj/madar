@@ -14,13 +14,20 @@ import type { CalendarLayerKind } from '@madar/ui';
 import { periodName } from './goals';
 
 const LAYERS_KEY = 'madar.calendar.layers';
+const KNOWN_KEY = 'madar.calendar.knownLayers';
 
-/** The layers this device last chose (all when nothing or nothing valid is stored). */
+/**
+ * The layers this device last chose (all when nothing or nothing valid is stored). A layer added
+ * since the choice was saved starts on.
+ */
 export function loadLayers(): CalendarLayer[] {
   try {
     const stored = JSON.parse(localStorage.getItem(LAYERS_KEY) ?? 'null') as unknown;
     if (Array.isArray(stored)) {
-      return CALENDAR_LAYERS.filter((l) => stored.includes(l));
+      const known = JSON.parse(localStorage.getItem(KNOWN_KEY) ?? 'null') as unknown;
+      // Choices saved before the list was remembered knew the six layers before «مرخصی».
+      const seen = Array.isArray(known) ? known : CALENDAR_LAYERS.filter((l) => l !== 'leaves');
+      return CALENDAR_LAYERS.filter((l) => stored.includes(l) || !seen.includes(l));
     }
   } catch {
     // A convenience only.
@@ -31,6 +38,7 @@ export function loadLayers(): CalendarLayer[] {
 export function saveLayers(layers: CalendarLayer[]): void {
   try {
     localStorage.setItem(LAYERS_KEY, JSON.stringify(layers));
+    localStorage.setItem(KNOWN_KEY, JSON.stringify(CALENDAR_LAYERS));
   } catch {
     // A convenience only.
   }

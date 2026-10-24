@@ -71,6 +71,8 @@ export class NotificationsConsumer implements EventConsumer {
         const recipientId = String(decided ? p.requesterId : p.approverId);
         await this.notifier.notify(tx, {
           ...base,
+          // The next approver reads who asked, not who approved the step before.
+          ...(event.type === 'request.advanced' ? { actorId: String(p.requesterId) } : {}),
           recipientId,
           kind: decided ? 'request_decided' : 'request_waiting',
           subjectType: 'request',

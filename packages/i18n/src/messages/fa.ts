@@ -1572,6 +1572,10 @@ export const fa = {
       submit: 'فرستادن',
       submitted: 'درخواست فرستاده شد',
       timeOrder: 'ساعت پایان باید بعد از ساعت شروع باشد.',
+      dateOrder: 'روز پایان باید همان روز شروع یا بعد از آن باشد.',
+      tooLong: 'هر درخواست مرخصی حداکثر {days} روز را می‌گیرد.',
+      amountMin: 'مبلغ دست‌کم ۱٬۰۰۰ تومان است.',
+      attach: 'پیوست',
     },
     detail: {
       notFound: 'این درخواست پیدا نشد',
@@ -1890,6 +1894,11 @@ export const fa = {
       key_result_created: 'افزودن نتیجه کلیدی به هدف شرکت',
       key_result_updated: 'ویرایش نتیجه کلیدی هدف شرکت',
       key_result_archived: 'بایگانی نتیجه کلیدی',
+      request_submitted: 'ثبت درخواست',
+      request_approved: 'تایید درخواست',
+      request_rejected: 'رد درخواست',
+      request_canceled: 'لغو درخواست',
+      approval_settings_updated: 'تغییر سقف تایید هزینه',
     },
   },
   work: {
