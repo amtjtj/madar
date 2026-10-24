@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One command on a fresh Ubuntu 24.04 server: prepares it and deploys Madar (docs/deploy.md §0).
+# One command on a fresh Ubuntu 24.04 server: prepares it and deploys Madar (docs/deploy.md, «راه سریع»).
 #   git clone https://github.com/amtjtj/madar.git ~/madar && cd ~/madar
 #   scripts/deploy/install.sh demo.example.ir you@example.com --demo   # demo company, nightly reset
 #   scripts/deploy/install.sh app.example.ir you@example.com           # a real company, no sample data

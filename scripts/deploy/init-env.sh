@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Writes the production .env with random secrets (docs/deploy.md, step 3). Never overwrites.
+# Writes the production .env with random secrets (docs/deploy.md, step 6). Never overwrites.
 #   scripts/deploy/init-env.sh demo.example.ir you@example.com [--demo]
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
@@ -70,7 +70,7 @@ BACKUP_S3_BUCKET=
 BACKUP_S3_ACCESS_KEY=
 BACKUP_S3_SECRET_KEY=
 
-# The assistant (ADR 0025), off until set up (docs/deploy.md, «دستیار»): add "ai,llm-cpu"
+# The assistant (ADR 0025), off until set up (docs/deploy.md, appendix «ه»): add "ai,llm-cpu"
 # (or "ai,llm-gpu") to COMPOSE_PROFILES, set AI_SERVICE_URL=http://ai:4200 and put the model in
 # ./models. Each company still turns it on in its settings.
 AI_SERVICE_URL=

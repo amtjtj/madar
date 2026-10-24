@@ -127,7 +127,8 @@ Requirements: Node 22.12+ (24 LTS recommended), pnpm 10 (`corepack enable`), Doc
 | Attachments in development | stored in `.data/files` (git-ignored); `STORAGE_DRIVER=s3` with `S3_*` for an S3-compatible service |
 | Install the licensed Abar Low fonts (git-ignored) | `pnpm fonts:install <dir-with-AbarLow-files>` |
 | Generate Web Push (VAPID) keys for `.env` (after a build) | `pnpm --filter @madar/api vapid:generate` |
-| Production: fresh Ubuntu server in one command (`docs/deploy.md` §0) | `scripts/deploy/install.sh <domain> <email> [--demo]` |
+| Production: fresh Ubuntu server in one command (`docs/deploy.md`, «راه سریع») | `scripts/deploy/install.sh <domain> <email> [--demo]` |
+| Production settings template (every variable explained) | `.env.production.example` (the server's `.env` is written by `init-env.sh`) |
 | Production: first settings / deploy or update / health (on the server; `docs/deploy.md`) | `scripts/deploy/init-env.sh <domain> <email> [--demo]` / `scripts/deploy/deploy.sh` / `scripts/deploy/status.sh` |
 | Production: backup now / restore / smoke-test a demo stack | `scripts/deploy/backup-now.sh` / `scripts/deploy/restore.sh <file>` / `scripts/deploy/smoke.sh [--restore]` |
 | The production stack on your own computer, with the demo company at https://localhost (`docs/local-demo.md`) | `scripts/deploy/local-demo.sh [update\|stop\|start\|reset\|remove]` (after new commits: `update`) |
@@ -141,6 +142,6 @@ Notes:
 - Without Docker, any local Postgres 16+ and Redis 7+ work; point `DATABASE_URL`/`REDIS_URL` at them.
 - If Playwright cannot download its browser, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to a local Chromium.
 - Markdown files are not formatted by Prettier (Persian tables); keep them tidy by hand.
-- The assistant (ADR 0025) is off unless `AI_SERVICE_URL` is set and the company turns it on; `pnpm dev` does not start the AI service. In production it is the compose profile `ai` plus `llm-cpu` or `llm-gpu` (`docs/deploy.md` §11).
+- The assistant (ADR 0025) is off unless `AI_SERVICE_URL` is set and the company turns it on; `pnpm dev` does not start the AI service. In production it is the compose profile `ai` plus `llm-cpu` or `llm-gpu` (`docs/deploy.md`, appendix «ه»).
 - PostgreSQL needs the pgvector extension (ADR 0026): production and `pnpm db:up` build `madar-postgres:18-pgvector0.8.1` from `docker/postgres.Dockerfile`; a local Postgres needs its pgvector package (Ubuntu: `postgresql-16-pgvector`). With the AI service on, the worker indexes each company every minute (`knowledge-index` queue); `AI_ASK_MAX_DISTANCE=0.9` suits the fake embedding, 0.6 suits bge-m3.
 - Production (ADR 0016): `docker/compose.prod.yml` behind Caddy, images from `docker/*.Dockerfile`. A new environment variable the API reads also goes into the `x-app-env` block there, `.env.example` and `scripts/deploy/init-env.sh`. The demo script for the pilot meeting is `docs/demo-script.md`.

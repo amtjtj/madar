@@ -35,7 +35,7 @@ Constraints:
   - automatic HTTPS, or the operator's own certificate (`CADDY_TLS`), or `tls internal` for local tests;
   - HTTP/2 and HTTP/3, zstd/gzip;
   - HSTS, `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy` and `Permissions-Policy`;
-  - a Content-Security-Policy in report-only mode until it has run quietly;
+  - a Content-Security-Policy, report-only at first and enforced since 2026-10-24 once the main screens ran without violations (Zod runs `jitless` in the browser, so no `unsafe-eval` is needed);
   - a request id passed to the API;
   - a JSON access log without query strings.
 - **Configuration:** `scripts/deploy/init-env.sh` writes `.env` with random passwords for the owner, app and worker roles, plus the auth secret and signup code. The first `deploy.sh` adds our own VAPID keys. In production the API and worker refuse to start with development secrets, an http origin, no signup code or a development database password.

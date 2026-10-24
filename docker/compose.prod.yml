@@ -200,7 +200,7 @@ services:
     logging: *logging
 
   # The model on CPU (COMPOSE_PROFILES=ai,llm-cpu): llama.cpp's OpenAI-compatible server with a
-  # GGUF file downloaded once into ./models (docs/deploy.md, «دستیار»). Slow but needs no GPU.
+  # GGUF file downloaded once into ./models (docs/deploy.md, appendix «ه»). Slow but needs no GPU.
   llm-cpu:
     image: ${LLM_CPU_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-b5350}
     profiles: [llm-cpu]

@@ -12,6 +12,9 @@ ARG PGVECTOR_URL=https://github.com/pgvector/pgvector/archive/refs/tags/v${PGVEC
 # Optional: a proxy's CA certificate, passed as `--secret id=ca,src=<file>` (build only).
 RUN --mount=type=secret,id=ca,required=false \
     set -eux; \
+    # apk trusts only the system bundle: add the proxy's CA for this step, restored below.
+    bundle=/etc/ssl/certs/ca-certificates.crt; cp "$bundle" /tmp/ca-bundle.orig; \
+    [ -f /run/secrets/ca ] && cat /run/secrets/ca >> "$bundle"; \
     apk add --no-cache --virtual .build-deps build-base curl; \
     ca=""; [ -f /run/secrets/ca ] && ca="--cacert /run/secrets/ca"; \
     curl -fsSL $ca "$PGVECTOR_URL" -o /tmp/pgvector.tar.gz; \
@@ -20,4 +23,5 @@ RUN --mount=type=secret,id=ca,required=false \
     # Portable (no -march=native) and without LLVM bitcode, so no clang is needed.
     make OPTFLAGS="" with_llvm=no; make install with_llvm=no; \
     cd /; rm -rf /tmp/pgvector /tmp/pgvector.tar.gz; \
-    apk del .build-deps
+    apk del .build-deps; \
+    cp /tmp/ca-bundle.orig "$bundle"; rm /tmp/ca-bundle.orig

@@ -13,6 +13,7 @@ out/
 .env
 .env.*
 !.env.example
+!.env.production.example
 
 # local data (attachments in development, ADR 0019)
 .data/

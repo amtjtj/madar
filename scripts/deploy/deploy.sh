@@ -41,7 +41,7 @@ fi
 
 if [ "$build" = 1 ]; then
   docker buildx version >/dev/null 2>&1 \
-    || fail "Docker BuildKit (buildx) is missing: sudo apt install docker-buildx (docs/deploy.md §2)"
+    || fail "Docker BuildKit (buildx) is missing: sudo apt install docker-buildx (docs/deploy.md, step 3)"
   if [ -d .git ]; then
     tag=$(git rev-parse --short HEAD)
     # Local edits get their own tag, so they never overwrite the image of a clean commit.
