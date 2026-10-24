@@ -243,7 +243,8 @@ export function FieldInput({
         const latin = toLatinDigits(raw)
           .replace(/[٬,\s]/g, '')
           .replace('٫', '.');
-        if (!latin) return null;
+        // Plain digits and one decimal point only (no `1e5` or `0x10`).
+        if (!/^-?\d+(\.\d+)?$/.test(latin)) return null;
         const n = field.type === 'money' ? Number(latin.replace(/\D/g, '')) : Number(latin);
         return Number.isFinite(n) ? n : null;
       };

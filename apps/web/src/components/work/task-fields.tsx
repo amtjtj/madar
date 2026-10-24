@@ -63,7 +63,7 @@ export function TaskFields({ task }: { task: Task }) {
           options={[
             ...(types.some((type) => type.key === task.typeKey)
               ? []
-              : [{ value: task.typeKey, label: task.typeKey }]),
+              : [{ value: task.typeKey, label: t('task.formerType') }]),
             ...types.map((type) => ({ value: type.key, label: type.label })),
           ]}
         />

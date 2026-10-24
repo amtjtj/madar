@@ -520,6 +520,7 @@ export const fa = {
   },
   task: {
     formerStatus: 'وضعیت قبلی',
+    formerType: 'نوع قبلی',
     type: 'نوع',
     details: 'جزئیات',
     detailsEdit: 'ویرایش',
@@ -2169,6 +2170,9 @@ export const fa = {
       noTarget: 'وضعیتی از همین دسته در تنظیمات تازه نیست؛ یکی نگه دار یا بساز.',
     },
     untitled: 'بی‌نام',
+    changedElsewhere:
+      'کس دیگری همین حالا این تنظیمات را ذخیره کرد. تغییرهای تو هنوز ذخیره نشده‌اند؛ برای دیدن نسخه تازه، دوباره بارگیری کن (تغییرهای تو کنار می‌روند).',
+    reload: 'بارگیری نسخه تازه',
     notFound: 'این دپارتمان پیدا نشد',
   },
   departments: {
@@ -2304,6 +2308,8 @@ export const fa = {
       member_suspended: 'غیرفعال کردن عضو',
       member_activated: 'فعال کردن عضو',
       department_created: 'ساخت دپارتمان',
+      department_config_saved: 'تغییر تنظیمات کار دپارتمان',
+      department_template_applied: 'اعمال قالب روی دپارتمان',
       department_updated: 'ویرایش دپارتمان',
       department_archived: 'بایگانی دپارتمان',
       department_oversight_changed: 'تغییر دسترسی ناظر',

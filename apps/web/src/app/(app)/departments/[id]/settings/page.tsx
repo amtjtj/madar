@@ -44,8 +44,7 @@ export default function DepartmentSettingsPage({ params }: { params: Promise<{ i
           <Skeleton className="h-64 rounded-2xl" />
         </div>
       ) : (
-        // A newer version (saved here or elsewhere) starts a fresh draft.
-        <ConfigEditor key={detail.version} detail={detail} canEdit={canEdit} />
+        <ConfigEditor detail={detail} canEdit={canEdit} />
       )}
     </>
   );

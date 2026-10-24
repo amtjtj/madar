@@ -307,7 +307,10 @@ export function validateFieldValues(
     values[key] = value;
   }
   if (requireAll) {
-    const missing = fields.find((f) => f.required && values[f.key] === undefined);
+    // A yes/no field always has an answer: an untouched checkbox means «no».
+    const missing = fields.find(
+      (f) => f.required && f.type !== 'boolean' && values[f.key] === undefined,
+    );
     if (missing)
       return { ok: false, error: { code: 'required_field_missing', field: missing.key } };
   }

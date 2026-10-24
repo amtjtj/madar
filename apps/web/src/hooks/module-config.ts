@@ -3,7 +3,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   allStatuses,
-  defaultType,
   typeOf,
   type ApplyTemplateRequest,
   type DepartmentConfig,
@@ -67,8 +66,6 @@ export function useTaskLook(): (
   );
 }
 
-export { defaultType };
-
 export function useTemplates() {
   return useQuery({
     queryKey: configKeys.templates,
@@ -96,6 +93,7 @@ function useAfterConfigChange() {
 
 export function useSaveConfig(departmentId: string) {
   const after = useAfterConfigChange();
+  const client = useQueryClient();
   return useMutation({
     mutationFn: (body: SaveConfigRequest) =>
       api<DepartmentConfigDetail>(`/api/departments/${departmentId}/config`, {
@@ -103,6 +101,8 @@ export function useSaveConfig(departmentId: string) {
         body,
       }),
     onSuccess: after,
+    // Someone saved first: load their version (the editor keeps the draft and says so).
+    onError: () => void client.invalidateQueries({ queryKey: configKeys.detail(departmentId) }),
   });
 }
 

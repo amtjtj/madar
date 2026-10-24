@@ -181,7 +181,22 @@ describe.skipIf(!hasDatabase)('department templates and configs (plan phase-3-st
       config: next,
       mappings: { statuses: { waiting_customer: 'done' } },
     });
-    expect(crossCategory.body.error.code).toBe('status_mapping_required');
+    expect(crossCategory.body.error).toMatchObject({
+      code: 'invalid_config',
+      details: { status: 'waiting_customer' },
+    });
+
+    const retyped: ModuleConfig = structuredClone(current.config);
+    const customer = retyped.fields.find((f) => f.key === 'customer');
+    if (customer) customer.type = 'number';
+    const retype = await owner.put(`/api/departments/${supportId}/config`, {
+      version: 1,
+      config: retyped,
+    });
+    expect(retype.body.error).toMatchObject({
+      code: 'invalid_config',
+      details: { field: 'customer' },
+    });
 
     const recategorised: ModuleConfig = structuredClone(current.config);
     const status = recategorised.workflows[0]?.statuses.find((st) => st.key === 'in_progress');
@@ -247,6 +262,20 @@ describe.skipIf(!hasDatabase)('department templates and configs (plan phase-3-st
       customFields: {},
     });
     expect(own.body).toMatchObject({ typeKey: 'bug', weight: 1, statusKey: 'backlog' });
+    // Unassigned first, taken afterwards: still the plain weight (no XP from the type's default).
+    const unassigned = await agent.c.post('/api/tasks', {
+      title: 'باگ بی‌مسئول',
+      departmentId: legacyId,
+      assigneeId: null,
+      typeKey: 'bug',
+      customFields: {},
+    });
+    expect(unassigned.body.weight).toBe(1);
+    const taken = await agent.c.patch(`/api/tasks/${unassigned.body.id}`, {
+      version: unassigned.body.version,
+      assigneeId: agent.memberId,
+    });
+    expect(taken.body.weight).toBe(1);
     const given = await head.c.post('/api/tasks', {
       title: 'تیکت برای همکار',
       departmentId: supportId,

@@ -55,7 +55,11 @@ export function NewTaskButton({
   // Departments I add work to (not those I only view); a project decides for itself.
   const mine = (me?.member?.departments ?? []).filter((d) => d.deptRole !== 'viewer');
   const [chosenDepartment, setChosenDepartment] = useState<string | null>(null);
-  const departmentId = fixedDepartment ?? chosenDepartment ?? mine[0]?.id ?? null;
+  // A project without a department lets the API pick (my primary one): then no type or fields
+  // here, since this form cannot know that department's config for sure.
+  const departmentId = projectId
+    ? (fixedDepartment ?? null)
+    : (fixedDepartment ?? chosenDepartment ?? mine[0]?.id ?? null);
   const config = configs?.find((c) => c.departmentId === departmentId)?.config ?? null;
   const [chosenType, setChosenType] = useState<string | null>(null);
   const type =

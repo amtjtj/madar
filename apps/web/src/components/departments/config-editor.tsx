@@ -53,13 +53,19 @@ import { TemplatePicker } from './template-picker';
  * here and never shown; a kept status keeps its category and a kept field its type.
  */
 export function ConfigEditor({
-  detail,
+  detail: latest,
   canEdit,
 }: {
   detail: DepartmentConfigDetail;
   canEdit: boolean;
 }) {
-  const [draft, setDraft] = useState<ModuleConfig>(() => structuredClone(detail.config));
+  // The version the draft started from; a newer one (another admin) never wipes unsaved work.
+  const [detail, setBase] = useState(latest);
+  const [draft, setDraft] = useState<ModuleConfig>(() => structuredClone(latest.config));
+  const restart = (fresh: DepartmentConfigDetail) => {
+    setBase(fresh);
+    setDraft(structuredClone(fresh.config));
+  };
   const [mappingFor, setMappingFor] = useState<{
     next: ModuleConfig;
     templateKey?: TemplateKey;
@@ -69,6 +75,9 @@ export function ConfigEditor({
   const { toast } = useToast();
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(detail.config);
+  const stale = latest.version !== detail.version;
+  // Nothing to lose: follow the newer version straight away.
+  if (stale && !dirty) restart(latest);
   const valid = moduleConfig.safeParse(draft).success;
   useEffect(() => {
     if (!dirty) return;
@@ -87,7 +96,8 @@ export function ConfigEditor({
 
   const onError = (error: unknown) => toast({ tone: 'error', title: errorMessage(error) });
   const send = (next: ModuleConfig, mappings: ConfigMappings, templateKey?: TemplateKey) => {
-    const done = () => {
+    const done = (fresh: DepartmentConfigDetail) => {
+      restart(fresh);
       setMappingFor(null);
       toast({
         tone: 'success',
@@ -130,6 +140,17 @@ export function ConfigEditor({
 
   return (
     <div className="flex flex-col gap-4 pb-28">
+      {stale && dirty && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center gap-3 rounded-xl bg-warning-soft px-4 py-3 text-sm text-warning-ink"
+        >
+          <p className="min-w-0 flex-1">{t('departmentConfig.changedElsewhere')}</p>
+          <Button type="button" size="sm" variant="secondary" onClick={() => restart(latest)}>
+            {t('departmentConfig.reload')}
+          </Button>
+        </div>
+      )}
       <Card>
         <CardHeader>
           <CardTitle>{t('departmentConfig.vocabulary.title')}</CardTitle>
@@ -620,7 +641,8 @@ function gone(detail: DepartmentConfigDetail, next: ModuleConfig) {
       .map(([key, n]) => ({
         key,
         count: n,
-        label: detail.config.workItemTypes.find((w) => w.key === key)?.label ?? key,
+        label:
+          detail.config.workItemTypes.find((w) => w.key === key)?.label ?? t('task.formerType'),
       })),
   };
 }
@@ -688,7 +710,7 @@ function MappingDialog({
               className="rounded-lg bg-warning-soft px-3 py-2 text-sm text-warning-ink"
             >
               {t('departmentConfig.mapping.status', {
-                name: s.status?.label ?? s.key,
+                name: s.status?.label ?? t('task.formerStatus'),
                 count: formatNumber(s.count),
               })}{' '}
               {t('departmentConfig.mapping.noTarget')}
@@ -697,7 +719,7 @@ function MappingDialog({
             <SelectField
               key={s.key}
               label={t('departmentConfig.mapping.status', {
-                name: s.status?.label ?? s.key,
+                name: s.status?.label ?? t('task.formerStatus'),
                 count: formatNumber(s.count),
               })}
               value={statuses[s.key] ?? ''}

@@ -18,11 +18,17 @@ import type {
   UpdateProjectRequest,
   UpdateTaskRequest,
 } from '@madar/shared';
-import { calendarDateIn } from '@madar/shared';
+import {
+  calendarDateIn,
+  defaultStatus,
+  findStatus,
+  type DepartmentConfig,
+  type StatusCategory,
+} from '@madar/shared';
 
 import { api, ApiClientError } from '@/lib/api';
 
-import { progressKeys, workKeys } from './keys';
+import { configKeys, progressKeys, workKeys } from './keys';
 import { useMe } from './use-me';
 
 export function useTasks(params: Partial<ListTasksQuery>, options: { enabled?: boolean } = {}) {
@@ -137,6 +143,31 @@ function invalidateWork(client: QueryClient) {
   ]);
 }
 
+/**
+ * The status a change lands on, as the task's department names it (plan phase-3-step-19a): a
+ * key gets its category, a category gets its first status. Unknown until configs load.
+ */
+function statusPatch(
+  client: QueryClient,
+  task: Task,
+  changes: { statusKey?: string; statusCategory?: StatusCategory },
+): Partial<Pick<Task, 'statusKey' | 'statusCategory'>> {
+  const config = client
+    .getQueryData<DepartmentConfig[]>(configKeys.all)
+    ?.find((c) => c.departmentId === task.department.id)?.config;
+  if (changes.statusKey !== undefined) {
+    const status = config ? findStatus(config, task.typeKey, changes.statusKey) : undefined;
+    return { statusKey: changes.statusKey, ...(status && { statusCategory: status.category }) };
+  }
+  if (changes.statusCategory !== undefined) {
+    const status = config ? defaultStatus(config, task.typeKey, changes.statusCategory) : null;
+    // Without a status of that category the server keeps the task where it is.
+    if (config && !status) return {};
+    return { statusCategory: changes.statusCategory, ...(status && { statusKey: status.key }) };
+  }
+  return {};
+}
+
 /** Edit a task optimistically; a version conflict refetches instead of overwriting. */
 export function useUpdateTask() {
   const client = useQueryClient();
@@ -152,9 +183,7 @@ export function useUpdateTask() {
         ...(changes.title !== undefined && { title: changes.title }),
         ...(changes.priority !== undefined && { priority: changes.priority }),
         ...(changes.dueOn !== undefined && { dueOn: changes.dueOn }),
-        // The key's category comes from the department config; the server's answer fills it in.
-        ...(changes.statusKey !== undefined && { statusKey: changes.statusKey }),
-        ...(changes.statusCategory !== undefined && { statusCategory: changes.statusCategory }),
+        ...statusPatch(client, task, changes),
       }));
       return snap;
     },
@@ -190,7 +219,7 @@ export function useSetTaskProgress() {
         ...task,
         progress: value,
         ...(value > 0 && task.statusCategory === 'todo'
-          ? { statusCategory: 'in_progress' as const }
+          ? statusPatch(client, task, { statusCategory: 'in_progress' })
           : {}),
       }));
       return snap;

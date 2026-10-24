@@ -300,11 +300,10 @@ export class TasksService {
       .limit(1);
 
     const assigneeId = input.assigneeId === undefined ? ctx.memberId : input.assigneeId;
-    // The type's default weight, except on one's own task unless one may set weights: XP follows
-    // the weight (ADR 0029), so a self-made «bug» must not pay more than a self-made «task».
-    const ownTask = assigneeId === ctx.memberId;
-    const weight =
-      input.weight ?? (ownTask && !canSetWeight(ctx.actor, departmentId) ? 1 : type.defaultWeight);
+    // The type's default weight is a manager's suggestion: it applies only for someone who may set
+    // weights. XP follows the weight (ADR 0029), so nobody else can make a «bug» pay more than a
+    // «task» (not even by creating it unassigned and taking it afterwards).
+    const weight = input.weight ?? (canSetWeight(ctx.actor, departmentId) ? type.defaultWeight : 1);
     // Where it came from is decided now, once (ADR 0017).
     const derived = assigneeId
       ? await sourceFor(tx, { actorId: ctx.memberId, assigneeId, departmentId })
@@ -469,12 +468,18 @@ export class TasksService {
         Object.assign(patch, statusFields(nextStatus, current));
         changes.status = { from: current.statusKey, to: nextStatus.key };
       }
-      if (input.customFields !== undefined) {
+      const setFields = input.customFields;
+      if (setFields !== undefined) {
         const typeFields = fieldsOf(config, typeKey);
         const before = current.customFields as FieldValues;
-        const after = checkFieldValues(typeFields, input.customFields, before, false);
-        await requireMemberValues(tx, typeFields, after);
-        const changed = Object.keys(input.customFields).filter(
+        const after = checkFieldValues(typeFields, setFields, before, false);
+        // Only the values being set: a member who left must not block edits to other fields.
+        await requireMemberValues(
+          tx,
+          typeFields,
+          Object.fromEntries(Object.entries(after).filter(([k]) => k in setFields)),
+        );
+        const changed = Object.keys(setFields).filter(
           (k) => JSON.stringify(before[k]) !== JSON.stringify(after[k]),
         );
         if (changed.length) {

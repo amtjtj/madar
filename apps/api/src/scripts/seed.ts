@@ -252,7 +252,7 @@ async function main(): Promise<void> {
         taskCount++;
         const value = item.subtaskProgress?.[i];
         if (value === 100) {
-          await tasks.update(reporter, sub.id, { statusKey: 'done', version: sub.version });
+          await tasks.update(reporter, sub.id, { statusCategory: 'done', version: sub.version });
         } else if (value) {
           await tasks.setProgress(reporter, sub.id, { value, version: sub.version });
         }
@@ -290,6 +290,7 @@ async function main(): Promise<void> {
           const created = await tasks.create(reporter, {
             title: dept.titles[(i + week) % dept.titles.length] ?? '',
             assigneeId: idOf(assignee),
+            // Every built-in template keeps the core `done` key (ADR 0031).
             statusKey: 'done',
           });
           taskCount++;

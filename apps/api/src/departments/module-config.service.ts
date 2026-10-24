@@ -154,6 +154,32 @@ export class ModuleConfigService {
     // Work in a status or type the new config drops moves where the admin says. A status moves
     // only within its category, so completion times, XP and reports stay as they are and no task
     // events are needed.
+    // A kept field keeps its type: stored values were checked against it.
+    for (const field of before.fields) {
+      const kept = next.fields.find((f) => f.key === field.key);
+      if (kept && kept.type !== field.type) {
+        throw new ApiError(HttpStatus.BAD_REQUEST, 'invalid_config', 'A field keeps its type', {
+          field: field.key,
+        });
+      }
+    }
+    // A mapping moves work within a category only; say so instead of silently moving nothing.
+    const beforeStatuses = allStatuses(before);
+    for (const [from, to] of Object.entries(mappings?.statuses ?? {})) {
+      const source = beforeStatuses.find((st) => st.key === from);
+      const target = nextStatuses.get(to);
+      if (source && target && source.category !== target.category) {
+        throw new ApiError(
+          HttpStatus.BAD_REQUEST,
+          'invalid_config',
+          'A mapping keeps the category',
+          {
+            status: from,
+          },
+        );
+      }
+    }
+
     const usage = await configUsage(tx, departmentId);
     const statusMap = mappings?.statuses ?? {};
     const typeMap = mappings?.types ?? {};
