@@ -361,6 +361,14 @@ export async function createTenantFixture(handle: DbHandle, label = 't'): Promis
       value: 1,
     });
     await tx.insert(s.memberBadges).values({ memberId: member.id, badgeKey: 'first_task' });
+    await tx.insert(s.moduleConfigs).values({
+      departmentId: department.id,
+      templateKey: 'general',
+      templateVersion: 1,
+      version: 1,
+      config: { schemaVersion: 1 },
+      createdBy: member.id,
+    });
     await tx.insert(s.pushSubscriptions).values({
       memberId: member.id,
       endpoint: `https://fcm.googleapis.com/fcm/send/${suffix}`,

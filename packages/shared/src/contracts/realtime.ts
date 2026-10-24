@@ -24,4 +24,6 @@ export const REALTIME_EVENTS = {
   progressChanged: 'progress.changed',
   /** Someone thanked someone (step 18b): the two people, and everyone for a public one. */
   kudosChanged: 'kudos.changed',
+  /** A department's statuses, work types or fields changed (plan phase-3-step-19a). */
+  moduleConfigChanged: 'module_config.changed',
 } as const;

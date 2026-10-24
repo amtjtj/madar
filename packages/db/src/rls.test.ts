@@ -78,6 +78,7 @@ const DATA_PLANE = [
   'kudos',
   'member_counters',
   'member_badges',
+  'module_configs',
 ] as const;
 
 /** Tables the app may only append to (no UPDATE/DELETE grant). */
@@ -92,6 +93,7 @@ const APPEND_ONLY = [
   'leaves',
   'xp_ledger',
   'member_badges',
+  'module_configs',
   // Only `hidden_at` is updatable, by the receiver (its own test below).
   'kudos',
 ];

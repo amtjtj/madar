@@ -1,4 +1,9 @@
-import { toPersianDigits, type OversightResource, type SystemRole } from '@madar/shared';
+import {
+  toPersianDigits,
+  type OversightResource,
+  type SystemRole,
+  type TemplateKey,
+} from '@madar/shared';
 
 /**
  * Demo company for development and demos (docs/pilot-assumptions.md §4):
@@ -9,7 +14,7 @@ export const SEED_COMPANY = { name: 'زرین‌مدار', slug: 'zarrin-madar' 
 export interface SeedDepartment {
   key: string;
   name: string;
-  templateKey: string;
+  templateKey: TemplateKey;
   oversight?: OversightResource[];
 }
 

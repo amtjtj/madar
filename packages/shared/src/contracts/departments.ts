@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { OVERSIGHT_RESOURCES } from '../permissions.js';
+import { TEMPLATE_KEYS } from '../templates.js';
 
 export const departmentNameSchema = z.string().trim().min(2).max(60);
 
@@ -22,11 +23,15 @@ export const createDepartmentRequest = z.object({
   parentId: z.uuid().nullable().optional(),
   headMemberId: z.uuid().nullable().optional(),
   color: z.string().max(20).nullable().optional(),
-  templateKey: z.string().max(40).nullable().optional(),
+  /** The built-in template the department starts from (default: general). */
+  templateKey: z.enum(TEMPLATE_KEYS).nullable().optional(),
 });
 export type CreateDepartmentRequest = z.infer<typeof createDepartmentRequest>;
 
-export const updateDepartmentRequest = createDepartmentRequest.partial();
+/** The template is applied through its own endpoint (it may need a status mapping). */
+export const updateDepartmentRequest = createDepartmentRequest
+  .omit({ templateKey: true })
+  .partial();
 export type UpdateDepartmentRequest = z.infer<typeof updateDepartmentRequest>;
 
 export const setOversightRequest = z.object({

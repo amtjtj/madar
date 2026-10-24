@@ -122,6 +122,8 @@ export const tasks = pgTable(
     typeKey: text('type_key').notNull().default('task'),
     statusKey: text('status_key').notNull().default('todo'),
     statusCategory: statusCategory('status_category').notNull().default('todo'),
+    /** Custom field values by key, checked against the department config by the API. */
+    customFields: jsonb('custom_fields').$type<Record<string, unknown>>().notNull().default({}),
     priority: taskPriority('priority').notNull().default('normal'),
     assigneeId: uuid('assignee_id'),
     reporterId: uuid('reporter_id').notNull(),

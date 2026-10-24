@@ -28,6 +28,9 @@ importers:
       '@madar/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@madar/i18n':
+        specifier: workspace:*
+        version: link:../../packages/i18n
       '@madar/shared':
         specifier: workspace:*
         version: link:../../packages/shared

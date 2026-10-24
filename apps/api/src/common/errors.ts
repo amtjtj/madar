@@ -64,6 +64,14 @@ export type ErrorCode =
   | 'kudos_limit'
   | 'kudos_same_person'
   | 'gamification_off'
+  | 'invalid_config'
+  | 'config_version_conflict'
+  | 'status_mapping_required'
+  | 'type_mapping_required'
+  | 'unknown_status'
+  | 'unknown_type'
+  | 'invalid_field_value'
+  | 'required_field_missing'
   | 'conflict';
 
 export class ApiError extends HttpException {

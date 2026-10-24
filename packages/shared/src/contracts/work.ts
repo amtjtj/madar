@@ -40,8 +40,12 @@ export const task = z.object({
   department: z.object({ id: z.uuid(), name: z.string() }),
   project: z.object({ id: z.uuid(), name: z.string() }).nullable(),
   parentId: z.uuid().nullable(),
+  /** Work item type from the department config (ADR 0004). */
+  typeKey: z.string(),
   statusKey: z.string(),
   statusCategory: z.enum(STATUS_CATEGORIES),
+  /** Custom field values by field key (plan phase-3-step-19a). */
+  customFields: z.record(z.string(), z.unknown()),
   priority: z.enum(TASK_PRIORITIES),
   assignee: personRef.nullable(),
   reporter: personRef,
@@ -87,6 +91,10 @@ export const task = z.object({
 });
 export type Task = z.infer<typeof task>;
 
+const customFieldsInput = z
+  .record(z.string().max(40), z.unknown())
+  .refine((v) => Object.keys(v).length <= 30);
+
 const titleSchema = z.string().trim().min(1).max(200);
 const descriptionSchema = z.string().trim().max(10_000).nullable();
 
@@ -102,6 +110,9 @@ export const createTaskRequest = z.object({
   priority: z.enum(TASK_PRIORITIES).optional(),
   weight: z.number().int().min(1).max(5).optional(),
   statusKey: z.string().max(40).optional(),
+  /** Defaults to the department's first work item type. */
+  typeKey: z.string().max(40).optional(),
+  customFields: customFieldsInput.optional(),
   /** Also put the new task on today's plan. */
   addToToday: z.boolean().optional(),
 });
@@ -118,6 +129,11 @@ export const updateTaskRequest = z.object({
   priority: z.enum(TASK_PRIORITIES).optional(),
   weight: z.number().int().min(1).max(5).optional(),
   statusKey: z.string().max(40).optional(),
+  /** Instead of statusKey: the department's first status of this category for the task's type. */
+  statusCategory: z.enum(STATUS_CATEGORIES).optional(),
+  typeKey: z.string().max(40).optional(),
+  /** Merged into the stored values; null clears a field. */
+  customFields: customFieldsInput.optional(),
   keyResultId: z.uuid().nullable().optional(),
   progressMode: z.enum(TASK_PROGRESS_MODES).optional(),
 });

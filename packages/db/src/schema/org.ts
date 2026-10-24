@@ -8,8 +8,10 @@ import { sql } from 'drizzle-orm';
 import {
   bigint,
   boolean,
+  check,
   foreignKey,
   index,
+  integer,
   jsonb,
   pgEnum,
   pgTable,
@@ -87,6 +89,39 @@ export const departments = pgTable(
     foreignKey({
       name: 'departments_head_fk',
       columns: [t.tenantId, t.headMemberId],
+      foreignColumns: [members.tenantId, members.id],
+    }).onDelete('restrict'),
+  ],
+);
+
+/**
+ * A department's module config (ADR 0004, plan phase-3-step-19a): append-only versions of a
+ * document validated by `moduleConfig` in @madar/shared; the highest version is the active one.
+ */
+export const moduleConfigs = pgTable(
+  'module_configs',
+  {
+    id: id(),
+    tenantId: tenantId().references(() => tenants.id, { onDelete: 'cascade' }),
+    departmentId: uuid('department_id').notNull(),
+    templateKey: text('template_key'),
+    templateVersion: integer('template_version'),
+    version: integer('version').notNull(),
+    config: jsonb('config').$type<Record<string, unknown>>().notNull(),
+    createdBy: uuid('created_by'),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    unique('module_configs_department_version_key').on(t.tenantId, t.departmentId, t.version),
+    check('module_configs_version_positive', sql`${t.version} > 0`),
+    foreignKey({
+      name: 'module_configs_department_fk',
+      columns: [t.tenantId, t.departmentId],
+      foreignColumns: [departments.tenantId, departments.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'module_configs_created_by_fk',
+      columns: [t.tenantId, t.createdBy],
       foreignColumns: [members.tenantId, members.id],
     }).onDelete('restrict'),
   ],

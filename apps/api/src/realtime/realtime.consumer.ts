@@ -47,6 +47,7 @@ const HANDLED = [
   'member.progress_changed',
   'kudos.given',
   'kudos.hidden',
+  'department.config_changed',
 ];
 
 /**
@@ -155,6 +156,14 @@ export class RealtimeConsumer implements EventConsumer {
             memberRoom(t, m),
           );
       emits.push(() => this.emitter.to(rooms).emit(REALTIME_EVENTS.kudosChanged));
+      return;
+    }
+    if (event.type === 'department.config_changed') {
+      // Configs are readable company-wide; a mapping may also have moved work between statuses.
+      emits.push(() => {
+        this.emitter.to(everyoneRoom(t)).emit(REALTIME_EVENTS.moduleConfigChanged);
+        this.emitter.to(everyoneRoom(t)).emit(REALTIME_EVENTS.workChanged);
+      });
       return;
     }
     if (event.type.startsWith('request.') && p.requestId) {

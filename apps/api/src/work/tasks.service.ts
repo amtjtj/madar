@@ -9,7 +9,16 @@ import {
 } from '@madar/db';
 import {
   calendarDateIn,
-  categoryOf,
+  defaultStatus,
+  defaultType,
+  fieldsOf,
+  findStatus,
+  typeOf,
+  validateFieldValues,
+  type FieldDef,
+  type FieldValues,
+  type ModuleConfig,
+  type StatusDef,
   mergeManualOrder,
   displayProgress,
   type Activity,
@@ -51,6 +60,7 @@ import {
   visibleProjects,
   visibleTasks,
 } from './access.js';
+import { configFor, requireMemberValues } from '../departments/module-config.js';
 import { attachmentRows, bindUploads, toAttachment } from '../files/attachments-db.js';
 import { hasSubtasks, recomputeParentProgress } from './progress.js';
 import { loadRanking, managementChain, rankOf, sourceFor, type Ranking } from './ranking.js';
@@ -69,15 +79,46 @@ function badRequest(message: string) {
   return new ApiError(HttpStatus.BAD_REQUEST, 'validation_failed', message);
 }
 
+/** A status of the task type's workflow in its department's config (plan phase-3-step-19a). */
+function requireStatus(config: ModuleConfig, typeKey: string, statusKey: string): StatusDef {
+  const status = findStatus(config, typeKey, statusKey);
+  if (!status) throw new ApiError(HttpStatus.BAD_REQUEST, 'unknown_status', 'Unknown status');
+  return status;
+}
+
+/** The first status of a category; every workflow has todo and done (the schema checks it). */
+function categoryStatus(
+  config: ModuleConfig,
+  typeKey: string,
+  category: StatusCategory,
+): StatusDef {
+  const status = defaultStatus(config, typeKey, category);
+  if (!status) throw new ApiError(HttpStatus.BAD_REQUEST, 'unknown_status', 'No such status');
+  return status;
+}
+
+function checkFieldValues(
+  fields: readonly FieldDef[],
+  input: Record<string, unknown>,
+  current: FieldValues,
+  requireAll: boolean,
+): FieldValues {
+  const result = validateFieldValues(fields, input, current, requireAll);
+  if (!result.ok) {
+    throw new ApiError(HttpStatus.BAD_REQUEST, result.error.code, 'Invalid field value', {
+      field: result.error.field,
+    });
+  }
+  return result.values;
+}
+
 /** Status side effects: category and completion time. */
-function statusFields(statusKey: string, current?: TaskRow) {
-  const category = categoryOf(statusKey);
-  if (!category) throw badRequest(`Unknown status ${statusKey}`);
+function statusFields(status: StatusDef, current?: TaskRow) {
   const wasDone = current?.statusCategory === 'done';
-  const isDone = category === 'done';
+  const isDone = status.category === 'done';
   return {
-    statusKey,
-    statusCategory: category,
+    statusKey: status.key,
+    statusCategory: status.category,
     completedAt: isDone ? (wasDone ? (current?.completedAt ?? new Date()) : new Date()) : null,
   };
 }
@@ -233,7 +274,24 @@ export class TasksService {
     if (input.assigneeId) await this.requireAssignable(tx, ctx, input.assigneeId, projectId);
     if (origin.keyResultId) await requireLinkableKeyResult(tx, ctx.actor, origin.keyResultId);
 
-    const status = statusFields(input.statusKey ?? 'todo');
+    const { config } = await configFor(tx, departmentId);
+    const type = input.typeKey ? typeOf(config, input.typeKey) : defaultType(config);
+    if (!type) throw new ApiError(HttpStatus.BAD_REQUEST, 'unknown_type', 'Unknown type');
+    const status = statusFields(
+      input.statusKey
+        ? requireStatus(config, type.key, input.statusKey)
+        : categoryStatus(config, type.key, 'todo'),
+    );
+    // A quick capture (title only) may leave required fields for later; a form that knows the
+    // type and its fields must fill them.
+    const typeFields = fieldsOf(config, type.key);
+    const customFields = checkFieldValues(
+      typeFields,
+      input.customFields ?? {},
+      {},
+      input.customFields !== undefined || input.typeKey !== undefined,
+    );
+    await requireMemberValues(tx, typeFields, customFields);
     const [last] = await tx
       .select({ sortKey: s.tasks.sortKey })
       .from(s.tasks)
@@ -242,6 +300,11 @@ export class TasksService {
       .limit(1);
 
     const assigneeId = input.assigneeId === undefined ? ctx.memberId : input.assigneeId;
+    // The type's default weight, except on one's own task unless one may set weights: XP follows
+    // the weight (ADR 0029), so a self-made «bug» must not pay more than a self-made «task».
+    const ownTask = assigneeId === ctx.memberId;
+    const weight =
+      input.weight ?? (ownTask && !canSetWeight(ctx.actor, departmentId) ? 1 : type.defaultWeight);
     // Where it came from is decided now, once (ADR 0017).
     const derived = assigneeId
       ? await sourceFor(tx, { actorId: ctx.memberId, assigneeId, departmentId })
@@ -266,7 +329,9 @@ export class TasksService {
         ...source,
         dueOn: input.dueOn ?? null,
         priority: input.priority ?? 'normal',
-        weight: input.weight ?? 1,
+        weight,
+        typeKey: type.key,
+        customFields,
         keyResultId: origin.keyResultId ?? null,
         sortKey: generateKeyBetween(last?.sortKey ?? null, null),
         ...status,
@@ -382,9 +447,40 @@ export class TasksService {
           changes[field] = { from: current[field], to: next };
         }
       }
-      if (input.statusKey !== undefined && input.statusKey !== current.statusKey) {
-        Object.assign(patch, statusFields(input.statusKey, current));
-        changes.status = { from: current.statusKey, to: input.statusKey };
+      const { config } = await configFor(tx, current.departmentId);
+      let typeKey = current.typeKey;
+      if (input.typeKey !== undefined && input.typeKey !== current.typeKey) {
+        const type = typeOf(config, input.typeKey);
+        if (!type) throw new ApiError(HttpStatus.BAD_REQUEST, 'unknown_type', 'Unknown type');
+        typeKey = type.key;
+        patch.typeKey = type.key;
+        changes.type = { from: current.typeKey, to: type.key };
+      }
+      const nextStatus =
+        input.statusKey !== undefined
+          ? requireStatus(config, typeKey, input.statusKey)
+          : input.statusCategory !== undefined && input.statusCategory !== current.statusCategory
+            ? categoryStatus(config, typeKey, input.statusCategory)
+            : // A new type keeps the status when its workflow has it, else the same category's first.
+              patch.typeKey && !findStatus(config, typeKey, current.statusKey)
+              ? categoryStatus(config, typeKey, current.statusCategory)
+              : null;
+      if (nextStatus && nextStatus.key !== current.statusKey) {
+        Object.assign(patch, statusFields(nextStatus, current));
+        changes.status = { from: current.statusKey, to: nextStatus.key };
+      }
+      if (input.customFields !== undefined) {
+        const typeFields = fieldsOf(config, typeKey);
+        const before = current.customFields as FieldValues;
+        const after = checkFieldValues(typeFields, input.customFields, before, false);
+        await requireMemberValues(tx, typeFields, after);
+        const changed = Object.keys(input.customFields).filter(
+          (k) => JSON.stringify(before[k]) !== JSON.stringify(after[k]),
+        );
+        if (changed.length) {
+          patch.customFields = after;
+          changes.fields = { from: changed, to: changed };
+        }
       }
       if (input.progressMode !== undefined && input.progressMode !== current.progressMode) {
         patch.progressMode = input.progressMode;
@@ -453,8 +549,13 @@ export class TasksService {
       const patch: Partial<typeof s.tasks.$inferInsert> = { progress: input.value };
       const statusChanges: ActivityChanges = {};
       if (input.value > 0 && current.statusCategory === 'todo') {
-        Object.assign(patch, statusFields('in_progress', current));
-        statusChanges.status = { from: current.statusKey, to: 'in_progress' };
+        // The workflow's first «in progress» status; a workflow without one keeps the status.
+        const { config } = await configFor(tx, current.departmentId);
+        const started = defaultStatus(config, current.typeKey, 'in_progress');
+        if (started) {
+          Object.assign(patch, statusFields(started, current));
+          statusChanges.status = { from: current.statusKey, to: started.key };
+        }
       }
       const [updated] = await tx
         .update(s.tasks)
@@ -517,7 +618,11 @@ export class TasksService {
       const changes: ActivityChanges = {};
       const patch: Partial<typeof s.tasks.$inferInsert> = { sortKey };
       if (input.statusKey !== current.statusKey) {
-        Object.assign(patch, statusFields(input.statusKey, current));
+        const { config } = await configFor(tx, current.departmentId);
+        Object.assign(
+          patch,
+          statusFields(requireStatus(config, current.typeKey, input.statusKey), current),
+        );
         changes.status = { from: current.statusKey, to: input.statusKey };
       }
       const [updated] = await tx
@@ -1037,6 +1142,8 @@ export class TasksService {
               ? { id: r.task.projectId, name: r.projectName }
               : null,
           parentId: r.task.parentId,
+          typeKey: r.task.typeKey,
+          customFields: r.task.customFields,
           statusKey: r.task.statusKey,
           statusCategory: r.task.statusCategory,
           priority: r.task.priority,

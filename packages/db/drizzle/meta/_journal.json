@@ -211,6 +211,13 @@
       "when": 1792825820010,
       "tag": "0029_kudos_badges",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1792838054652,
+      "tag": "0030_module_configs",
+      "breakpoints": true
     }
   ]
 }

@@ -18,7 +18,7 @@ import type {
   UpdateProjectRequest,
   UpdateTaskRequest,
 } from '@madar/shared';
-import { calendarDateIn, categoryOf } from '@madar/shared';
+import { calendarDateIn } from '@madar/shared';
 
 import { api, ApiClientError } from '@/lib/api';
 
@@ -152,10 +152,9 @@ export function useUpdateTask() {
         ...(changes.title !== undefined && { title: changes.title }),
         ...(changes.priority !== undefined && { priority: changes.priority }),
         ...(changes.dueOn !== undefined && { dueOn: changes.dueOn }),
-        ...(changes.statusKey !== undefined && {
-          statusKey: changes.statusKey,
-          statusCategory: categoryOf(changes.statusKey) ?? task.statusCategory,
-        }),
+        // The key's category comes from the department config; the server's answer fills it in.
+        ...(changes.statusKey !== undefined && { statusKey: changes.statusKey }),
+        ...(changes.statusCategory !== undefined && { statusCategory: changes.statusCategory }),
       }));
       return snap;
     },
@@ -191,7 +190,7 @@ export function useSetTaskProgress() {
         ...task,
         progress: value,
         ...(value > 0 && task.statusCategory === 'todo'
-          ? { statusKey: 'in_progress', statusCategory: 'in_progress' as const }
+          ? { statusCategory: 'in_progress' as const }
           : {}),
       }));
       return snap;
@@ -221,7 +220,12 @@ export function useToggleDone() {
   return {
     ...update,
     toggle: (task: Task, done: boolean) =>
-      update.mutateAsync({ id: task.id, version: task.version, statusKey: done ? 'done' : 'todo' }),
+      // The department's first «done» or «open» status (plan phase-3-step-19a).
+      update.mutateAsync({
+        id: task.id,
+        version: task.version,
+        statusCategory: done ? 'done' : 'todo',
+      }),
   };
 }
 
@@ -235,8 +239,10 @@ function draftTask(id: string, body: CreateTaskRequest): Task {
     department: { id: '', name: '' },
     project: null,
     parentId: body.parentId ?? null,
-    statusKey: 'todo',
+    typeKey: body.typeKey ?? '',
+    statusKey: '',
     statusCategory: 'todo',
+    customFields: {},
     priority: body.priority ?? 'normal',
     assignee: null,
     reporter: { id: '', displayName: '' },

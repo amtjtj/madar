@@ -13,6 +13,7 @@ import { createChannel } from '../chat/channels.js';
 import type { TenantContext } from '../common/context.js';
 import { ApiError, notFound } from '../common/errors.js';
 import { TenantDb } from '../database/tenant-db.service.js';
+import { createInitialConfig } from './module-config.js';
 
 type DepartmentRow = typeof s.departments.$inferSelect;
 
@@ -50,11 +51,12 @@ export class DepartmentsService {
           parentId: input.parentId ?? null,
           headMemberId: input.headMemberId ?? null,
           color: input.color ?? null,
-          templateKey: input.templateKey ?? null,
+          templateKey: input.templateKey ?? 'general',
         })
         .returning();
       if (!row) throw new Error('department insert failed');
       await createChannel(tx, { departmentId: row.id });
+      await createInitialConfig(tx, ctx, row.id, input.templateKey ?? 'general');
       if (row.headMemberId) await setHeadMembership(tx, row.id, row.headMemberId, null);
       await this.db.audit(tx, ctx, {
         action: 'department.created',
