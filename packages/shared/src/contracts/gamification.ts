@@ -7,6 +7,7 @@ import {
   STREAK_STATUSES,
   VALUE_TAGS,
   XP_REASONS,
+  type BadgeKey,
 } from '../gamification.js';
 import { calendarDate } from './work.js';
 
@@ -126,7 +127,7 @@ export const kudosAllowance = z.object({
 });
 export type KudosAllowance = z.infer<typeof kudosAllowance>;
 
-const badgeKey = z.enum(BADGES.map((b) => b.key) as [string, ...string[]]);
+const badgeKey = z.enum(BADGES.map((b) => b.key) as [BadgeKey, ...BadgeKey[]]);
 
 export const earnedBadge = z.object({
   key: badgeKey,

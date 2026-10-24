@@ -2181,6 +2181,7 @@ export const fa = {
     gamification: {
       task: 'پاسخ به تیکت‌های صف شب',
       when: 'دیروز',
+      kudos: 'دیشب صف را نجات دادی، ممنون!',
     },
     title: 'دیزاین‌سیستم مدار',
     intro:

@@ -60,11 +60,14 @@ function SettingsForm({ initial }: { initial: GamificationSettings }) {
   const [cap, setCap] = useState(formatNumber(initial.dailyXpCap));
   const capValue = Number(toLatinDigits(cap).replace(/[^\d]/g, ''));
   const capInvalid = capValue < 20 || capValue > 1000;
+  const [kudos, setKudos] = useState(formatNumber(initial.kudosPerWeek));
+  const kudosValue = Number(toLatinDigits(kudos).replace(/[^\d]/g, ''));
+  const kudosInvalid = kudosValue < 1 || kudosValue > 20;
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (capInvalid) return;
+    if (capInvalid || kudosInvalid) return;
     save.mutate(
-      { enabled, completeDayPercent: percent, dailyXpCap: capValue },
+      { enabled, completeDayPercent: percent, dailyXpCap: capValue, kudosPerWeek: kudosValue },
       {
         onSuccess: () => toast({ tone: 'success', title: t('progress.settings.saved') }),
         onError: (error) => toast({ tone: 'error', title: errorMessage(error) }),
@@ -97,6 +100,15 @@ function SettingsForm({ initial }: { initial: GamificationSettings }) {
             onChange={(e) => setCap(e.target.value)}
             onBlur={() => capValue && setCap(formatNumber(capValue))}
             error={capInvalid ? t('progress.settings.capRange') : undefined}
+            disabled={!enabled}
+          />
+          <TextField
+            label={t('progress.settings.kudos')}
+            inputMode="numeric"
+            value={kudos}
+            onChange={(e) => setKudos(e.target.value)}
+            onBlur={() => kudosValue && setKudos(formatNumber(kudosValue))}
+            error={kudosInvalid ? t('progress.settings.kudosRange') : undefined}
             disabled={!enabled}
           />
           <Button type="submit" className="self-start" loading={save.isPending}>

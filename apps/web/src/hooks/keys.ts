@@ -106,6 +106,15 @@ export const progressKeys = {
   settings: ['settings', 'gamification'] as const,
 };
 
+/** Kudos and badges (ADR 0030). */
+export const kudosKeys = {
+  all: ['kudos'] as const,
+  list: (member: string | null) => ['kudos', 'list', member] as const,
+  allowance: ['kudos', 'allowance'] as const,
+  badges: ['kudos', 'badges'] as const,
+  profile: (id: string) => ['kudos', 'profile', id] as const,
+};
+
 /** Requests and approvals (ADR 0028). */
 export const requestKeys = {
   all: ['requests'] as const,

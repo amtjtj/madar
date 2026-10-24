@@ -28,6 +28,8 @@ import { TaskProgress } from '@/components/work/task-progress';
 import { TitleEditor, DescriptionEditor } from '@/components/work/task-text';
 import { useDeleteTask, useTask, useToggleDone } from '@/hooks/work';
 import { useXpFor } from '@/hooks/progress';
+import { useMe } from '@/hooks/use-me';
+import { ThankDialog } from '@/components/kudos/thank-dialog';
 import { errorMessage } from '@/lib/errors';
 
 export default function TaskPage() {
@@ -35,6 +37,7 @@ export default function TaskPage() {
   const { data: task, isPending, isError } = useTask(id);
   const toggle = useToggleDone();
   const xpFor = useXpFor();
+  const { data: me } = useMe();
   const { toast } = useToast();
   const onError = (error: unknown) => toast({ tone: 'error', title: errorMessage(error) });
 
@@ -90,6 +93,11 @@ export default function TaskPage() {
         </div>
       </div>
       {!task.can.edit && <p className="mb-4 text-sm text-ink-muted">{t('task.readOnly')}</p>}
+      {task.statusCategory === 'done' && task.assignee && task.assignee.id !== me?.member?.id && (
+        <div className="mb-4">
+          <ThankDialog to={task.assignee} taskId={task.id} />
+        </div>
+      )}
 
       {/* Phones: progress, then the fields, then the body. Desktop: fields in the side column. */}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">

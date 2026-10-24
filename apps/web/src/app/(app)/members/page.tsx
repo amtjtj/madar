@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Check,
@@ -169,7 +171,12 @@ export default function MembersPage() {
                   />
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-bold text-ink">{m.displayName}</span>
+                      <Link
+                        href={`/members/${m.id}`}
+                        className="font-bold text-ink hover:underline"
+                      >
+                        {m.displayName}
+                      </Link>
                       {isMe && <Badge tone="primary">{t('members.you')}</Badge>}
                       {m.status === 'suspended' && (
                         <Badge tone="danger">{t('members.statusSuspended')}</Badge>

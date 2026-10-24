@@ -45,6 +45,9 @@ import {
   cn,
   AmountText,
   ApprovalTimeline,
+  BadgeGrid,
+  KudosCard,
+  ValueTagPicker,
   LevelBar,
   LevelUpMark,
   StreakFlame,
@@ -870,6 +873,22 @@ function GamificationDemo() {
         <XpRow amount={-45} reason="reversal" when={t('designSystem.gamification.when')} />
       </div>
       <LevelUpMark />
+      <KudosCard
+        from={t('designSystem.requests.person')}
+        to={t('designSystem.requests.boss')}
+        tag="teamwork"
+        message={t('designSystem.gamification.kudos')}
+        taskTitle={t('designSystem.gamification.task')}
+        when={t('designSystem.gamification.when')}
+      />
+      <ValueTagPicker label={t('kudos.tag')} value="help" onChange={() => undefined} />
+      <BadgeGrid
+        items={[
+          { key: 'first_task', tier: 'bronze', earned: true },
+          { key: 'tasks_50', tier: 'silver', earned: false, value: 32, goal: 50 },
+          { key: 'streak_60', tier: 'gold', earned: false, value: 9, goal: 60 },
+        ]}
+      />
     </div>
   );
 }

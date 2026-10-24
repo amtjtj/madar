@@ -16,6 +16,7 @@ import {
   requestKeys,
   notificationKeys,
   progressKeys,
+  kudosKeys,
   workKeys,
 } from './keys';
 
@@ -43,7 +44,8 @@ export function useRealtime(enabled: boolean, tenantId?: string): boolean {
         | 'chatLists'
         | 'meetings'
         | 'requests'
-        | 'progress',
+        | 'progress'
+        | 'kudos',
     ) => {
       pending.add(what);
       clearTimeout(timer);
@@ -66,6 +68,10 @@ export function useRealtime(enabled: boolean, tenantId?: string): boolean {
         // My day follows my plan (a hint to me only); XP follows the worker's hint to me.
         if (pending.has('progress') || pending.has('today')) {
           void client.invalidateQueries({ queryKey: progressKeys.all });
+        }
+        // Badges move with progress; kudos with their own hint.
+        if (pending.has('progress') || pending.has('kudos')) {
+          void client.invalidateQueries({ queryKey: kudosKeys.all });
         }
         if (pending.has('requests')) {
           void client.invalidateQueries({ queryKey: requestKeys.all });
@@ -99,6 +105,7 @@ export function useRealtime(enabled: boolean, tenantId?: string): boolean {
         refresh('meetings');
         refresh('requests');
         refresh('progress');
+        refresh('kudos');
         refresh('chat');
         // Open conversations may have missed messages: reload them.
         void client.invalidateQueries({ queryKey: ['chat', 'messages'] });
@@ -115,6 +122,7 @@ export function useRealtime(enabled: boolean, tenantId?: string): boolean {
     socket.on(REALTIME_EVENTS.meetingsChanged, () => refresh('meetings'));
     socket.on(REALTIME_EVENTS.requestsChanged, () => refresh('requests'));
     socket.on(REALTIME_EVENTS.progressChanged, () => refresh('progress'));
+    socket.on(REALTIME_EVENTS.kudosChanged, () => refresh('kudos'));
     socket.on(REALTIME_EVENTS.chatChanged, () => refresh('chat'));
     // The one event with data (ADR 0022): straight into the open conversation's cache.
     socket.on(CHAT_SOCKET.message, (message: Message) => {

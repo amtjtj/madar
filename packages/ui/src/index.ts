@@ -195,3 +195,12 @@ export {
   type XpRowProps,
 } from './components/gamification.js';
 export { LevelUpMark } from './components/level-up.js';
+export {
+  BadgeGrid,
+  KudosCard,
+  ValueTagIcon,
+  ValueTagPicker,
+  type BadgeGridItem,
+  type KudosCardProps,
+  type ValueTagPickerProps,
+} from './components/kudos.js';

@@ -3,6 +3,7 @@
 import { t } from '@madar/i18n';
 import { addDays, formatNumber, formatPercent, formatRelativeTime } from '@madar/shared';
 import {
+  BadgeGrid,
   Button,
   Card,
   CardContent,
@@ -15,6 +16,9 @@ import {
 } from '@madar/ui';
 
 import { PageHeader } from '@/components/app-shell';
+import { KudosList } from '@/components/kudos/kudos-list';
+import { useHideKudos, useKudos, useMyBadges } from '@/hooks/kudos';
+import { useMe } from '@/hooks/use-me';
 import { useMyProgress, useStreakDays, useXpHistory } from '@/hooks/progress';
 
 const MAP_DAYS = 12 * 7;
@@ -74,6 +78,8 @@ export default function ProgressPage() {
                 </dl>
               </CardContent>
             </Card>
+            <BadgesCard />
+            <ReceivedKudosCard />
             <StreakCard today={progress.today.date} percent={progress.completeDayPercent} />
             <HistoryCard />
           </>
@@ -138,6 +144,52 @@ function HistoryCard() {
           >
             {t('progress.more')}
           </Button>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function BadgesCard() {
+  const { data: badges } = useMyBadges();
+  return (
+    <Card>
+      <CardContent className="flex flex-col gap-3 pt-4">
+        <h2 className="font-bold text-ink">{t('progress.badgesTitle')}</h2>
+        {badges ? (
+          <BadgeGrid
+            items={badges.map((b) => ({
+              key: b.key,
+              tier: b.tier,
+              earned: b.awardedAt !== null,
+              value: b.value,
+              goal: b.goal,
+            }))}
+          />
+        ) : (
+          <Skeleton className="h-40 rounded-lg" />
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ReceivedKudosCard() {
+  const { data: me } = useMe();
+  const memberId = me?.member?.id ?? '';
+  const kudos = useKudos(memberId || null);
+  const hide = useHideKudos(memberId);
+  const items = memberId ? (kudos.data?.pages.flat() ?? []) : [];
+  return (
+    <Card id="kudos" className="scroll-mt-20">
+      <CardContent className="flex flex-col gap-1 pt-4">
+        <h2 className="font-bold text-ink">{t('kudos.receivedMine')}</h2>
+        {kudos.isPending ? (
+          <Skeleton className="h-24 rounded-lg" />
+        ) : items.length ? (
+          <KudosList items={items} onHide={(id) => hide.mutate(id)} />
+        ) : (
+          <p className="py-2 text-sm text-ink-muted">{t('kudos.emptyProfile')}</p>
         )}
       </CardContent>
     </Card>

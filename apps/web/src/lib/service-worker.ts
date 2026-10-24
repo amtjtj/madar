@@ -69,6 +69,7 @@ function urlFor(data) {
   if (data.count === 1 && data.subject && /^[0-9a-f-]{36}$/i.test(data.subject.id)) {
     if (data.subject.type === 'report') return '/reports?report=' + data.subject.id;
     if (data.subject.type === 'progress') return '/progress';
+    if (data.subject.type === 'kudos') return '/progress#kudos';
     const base = { project: '/projects/', goal: '/goals/', letter: '/letters/', conversation: '/chat/', meeting: '/meetings/', request: '/requests/' }[data.subject.type] || '/tasks/';
     return base + data.subject.id;
   }

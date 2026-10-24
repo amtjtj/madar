@@ -36,6 +36,7 @@ import { MyGoalsCard } from '@/components/home/my-goals-card';
 import { TodayMeetings } from '@/components/meetings/today-meetings';
 import { WaitingRequestsCard } from '@/components/requests/waiting-card';
 import { ProgressCard } from '@/components/home/progress-card';
+import { RecentKudosCard } from '@/components/home/kudos-card';
 import { TeamView } from '@/components/home/team-view';
 import { InstallCard } from '@/components/pwa/install';
 import { NewTaskButton } from '@/components/work/new-task-button';
@@ -164,6 +165,7 @@ function Home() {
             <WaitingRequestsCard />
             <CompanyView />
             <CalendarPreview />
+            <RecentKudosCard />
           </>
         ) : tab === 'team' ? (
           <>
@@ -174,6 +176,7 @@ function Home() {
               onDepartmentChange={(id) => go('team', id)}
             />
             <CalendarPreview />
+            <RecentKudosCard />
           </>
         ) : (
           <TodayTab />
@@ -192,6 +195,7 @@ function TodayTab() {
       <TodayMeetings />
       {isPending || !today ? <TodaySkeleton /> : <TodayPlan today={today} />}
       <CalendarPreview />
+      <RecentKudosCard />
       <MyGoalsCard />
     </>
   );
