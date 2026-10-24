@@ -82,7 +82,11 @@ export interface SeedTask {
   assignee?: string;
   project?: string;
   dueIn?: number;
-  status?: 'todo' | 'in_progress' | 'done';
+  /** A status of the department's template (step 19a), e.g. `waiting_customer` or `review`. */
+  status?: string;
+  /** Work type and custom field values from the department's template (step 19a). */
+  type?: string;
+  fields?: Record<string, unknown>;
   priority?: TaskPriority;
   /** Set by the reporter when they manage the department. */
   weight?: number;
@@ -103,6 +107,8 @@ export const SEED_TASKS: SeedTask[] = [
   // ---------- پشتیبانی ----------
   {
     title: 'پاسخ به تیکت‌های معوق صف طلا',
+    type: 'ticket',
+    fields: { channel: 'chat', category: 'gold', customer_priority: 'urgent' },
     by: 'maryam.ahmadi',
     assignee: 'ali.rezaei',
     dueIn: -1,
@@ -113,6 +119,9 @@ export const SEED_TASKS: SeedTask[] = [
   },
   {
     title: 'بررسی شکایت کارمزد خرید طلا',
+    type: 'ticket',
+    status: 'waiting_customer',
+    fields: { channel: 'phone', customer: 'آقای کاظمی', category: 'payment' },
     by: 'maryam.ahmadi',
     assignee: 'ali.rezaei',
     dueIn: 0,
@@ -194,6 +203,8 @@ export const SEED_TASKS: SeedTask[] = [
   },
   {
     title: 'پیگیری تراکنش‌های ناموفق دیروز',
+    type: 'ticket',
+    fields: { channel: 'app', category: 'payment', customer_priority: 'normal' },
     by: 'hossein.yousefi',
     assignee: 'hossein.yousefi',
     dueIn: -2,
@@ -272,6 +283,8 @@ export const SEED_TASKS: SeedTask[] = [
   },
   {
     title: 'رفع باگ نمایش موجودی بعد از فروش',
+    type: 'bug',
+    fields: { severity: 'critical', environment: 'production' },
     by: 'mahsa.abbasi',
     assignee: 'behrad.mousavi',
     project: 'app2',
@@ -318,6 +331,7 @@ export const SEED_TASKS: SeedTask[] = [
   },
   {
     title: 'بازبینی کد ماژول برداشت',
+    status: 'review',
     by: 'negar.rezaei',
     assignee: 'amir.hosseini',
     project: 'kyc',
@@ -351,6 +365,9 @@ export const SEED_TASKS: SeedTask[] = [
   },
   {
     title: 'متن پیامک کمپین',
+    type: 'content',
+    status: 'awaiting_approval',
+    fields: { channels: ['sms'] },
     by: 'elham.akbari',
     assignee: 'shiva.kazemi',
     project: 'autumn',
@@ -379,6 +396,8 @@ export const SEED_TASKS: SeedTask[] = [
   },
   {
     title: 'مقاله «طلای آب‌شده یا سکه؟» برای بلاگ',
+    type: 'content',
+    fields: { channels: ['website', 'telegram'] },
     by: 'shiva.kazemi',
     assignee: 'shiva.kazemi',
     status: 'in_progress',

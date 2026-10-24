@@ -7,12 +7,13 @@ import { GoalTag } from '@/components/goals/goal-tag';
 import { useTaskLook } from '@/hooks/module-config';
 
 /**
- * Labels on a task card (plan phase-3-step-19a): the work type when its department has several,
+ * Labels on a task card (plan phase-3-step-19a): the work type when it is not the department's
+ * default one,
  * the status while the work is under way (lists group only open and done), and the goal served.
  */
 export function TaskTags({ task, status = true }: { task: Task; status?: boolean }) {
   const look = useTaskLook()(task);
-  const showType = look.type && look.manyTypes;
+  const showType = look.type && look.manyTypes && !look.isDefaultType;
   const showStatus = status && look.status && task.statusCategory === 'in_progress';
   if (!showType && !showStatus && !task.keyResult) return null;
   return (

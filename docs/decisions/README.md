@@ -36,3 +36,4 @@ Template: Status · Date · Context · Decision · Alternatives considered · Co
 | 0028 | Requests and approvals (leave, expense, general) | Accepted |
 | 0029 | XP, levels and streaks | Accepted |
 | 0030 | Kudos and badges | Accepted |
+| 0031 | Department configs: work types, statuses and custom fields | Accepted |

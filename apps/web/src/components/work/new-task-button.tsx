@@ -36,6 +36,8 @@ export interface NewTaskButtonProps {
   projectId?: string;
   /** The department the task goes to (a project's or the filtered one); else the member picks. */
   departmentId?: string | null;
+  /** The department's own word, e.g. «تیکت تازه» (plan phase-3-step-19a). */
+  label?: string;
 }
 
 /** Floating «new task» button on mobile, a regular button from md up; opens the full form. */
@@ -44,6 +46,7 @@ export function NewTaskButton({
   addToToday = true,
   projectId,
   departmentId: fixedDepartment,
+  label,
 }: NewTaskButtonProps) {
   const [open, setOpen] = useState(false);
   const { data: me } = useMe();
@@ -106,14 +109,14 @@ export function NewTaskButton({
     <Modal
       open={open}
       onOpenChange={setOpen}
-      title={t('today.newTaskTitle')}
+      title={label ?? t('today.newTaskTitle')}
       trigger={
         <Button
-          aria-label={t('today.newTask')}
+          aria-label={label ?? t('today.newTask')}
           icon={<Plus aria-hidden />}
           className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] end-4 z-30 size-14 gap-0 rounded-full p-0 shadow-lg md:static md:size-auto md:gap-2 md:rounded-lg md:px-4 md:shadow-none"
         >
-          <span className="hidden md:inline">{t('today.newTask')}</span>
+          <span className="hidden md:inline">{label ?? t('today.newTask')}</span>
         </Button>
       }
     >

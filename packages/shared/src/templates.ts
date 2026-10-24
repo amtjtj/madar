@@ -12,7 +12,8 @@ import {
  * `templates.*`; `instantiateTemplate` resolves them once, when a department is made from a
  * template, and from then on the text is company data. Every template keeps the four core status
  * keys (`todo`, `in_progress`, `done`, `canceled`) so applying one to a department never needs a
- * mapping for work made under the general config.
+ * mapping for work made under the general config. The first type is the default; «کار» (weight 1)
+ * comes first wherever a heavier type exists, so plain work never pays more than before.
  */
 
 export const TEMPLATE_KEYS = [
@@ -82,9 +83,9 @@ const SPECS: Record<TemplateKey, TemplateSpec> = {
       ['points', 'number'],
     ],
     types: [
+      ['task', 'task', []],
       ['story', 'story', ['points'], 2],
       ['bug', 'bug', ['severity', 'environment'], 2],
-      ['task', 'task', []],
       ['roadmap_item', 'roadmap', [], 3],
     ],
   },
@@ -104,8 +105,8 @@ const SPECS: Record<TemplateKey, TemplateSpec> = {
       ['link', 'url'],
     ],
     types: [
-      ['content', 'content', ['channels', 'publish_on', 'link'], 2],
       ['task', 'task', []],
+      ['content', 'content', ['channels', 'publish_on', 'link'], 2],
     ],
   },
   support: {

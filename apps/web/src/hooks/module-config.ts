@@ -43,6 +43,8 @@ export interface TaskLook {
   type: WorkItemTypeDef | null;
   /** The department has more than one work type (then the type is worth showing). */
   manyTypes: boolean;
+  /** The department's first type (most of its work; not worth a label). */
+  isDefaultType: boolean;
 }
 
 /** Status and type of any task as its department names and colours them. */
@@ -53,11 +55,12 @@ export function useTaskLook(): (
   return useCallback(
     (task) => {
       const config = data?.find((c) => c.departmentId === task.department.id)?.config;
-      if (!config) return { status: null, type: null, manyTypes: false };
+      if (!config) return { status: null, type: null, manyTypes: false, isDefaultType: true };
       return {
         status: allStatuses(config).find((s) => s.key === task.statusKey) ?? null,
         type: typeOf(config, task.typeKey) ?? null,
         manyTypes: config.workItemTypes.length > 1,
+        isDefaultType: config.workItemTypes[0]?.key === task.typeKey,
       };
     },
     [data],

@@ -42,7 +42,13 @@ export function BoardColumn({
       )}
     >
       <header className="flex items-center gap-2 px-2 py-2">
-        <span aria-hidden className={cn('size-2.5 rounded-full', color ? statusColorDot[color] : statusDot[category])} />
+        <span
+          aria-hidden
+          className={cn(
+            'size-2.5 rounded-full',
+            color ? statusColorDot[color] : statusDot[category],
+          )}
+        />
         <h3 className="font-bold text-ink">{title}</h3>
         <span className="rounded-full bg-surface px-2 text-xs font-semibold text-ink-muted">
           {formatNumber(count)}

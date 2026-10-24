@@ -260,7 +260,7 @@ describe.skipIf(!hasDatabase)('department templates and configs (plan phase-3-st
 
   it('changing a task’s type keeps a status its workflow has and checks the new fields', async () => {
     const task = (await agent.c.post('/api/tasks', { title: 'کار', departmentId: legacyId })).body;
-    expect(task.typeKey).toBe('story');
+    expect(task.typeKey).toBe('task');
     const bug = await agent.c.patch(`/api/tasks/${task.id}`, {
       version: task.version,
       typeKey: 'bug',

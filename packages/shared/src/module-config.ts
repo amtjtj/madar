@@ -268,13 +268,12 @@ function validValue(field: FieldDef, value: unknown): FieldValue | undefined {
     case 'member':
       return typeof value === 'string' && uuid.safeParse(value).success ? value : undefined;
     case 'url': {
-      if (typeof value !== 'string' || value.length > CONFIG_LIMITS.urlLength) return undefined;
-      try {
-        const url = new URL(value.trim());
-        return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : undefined;
-      } catch {
-        return undefined;
-      }
+      // http(s) only (never `javascript:`), no spaces; checked as text so it runs everywhere.
+      if (typeof value !== 'string') return undefined;
+      const url = value.trim();
+      return url.length <= CONFIG_LIMITS.urlLength && /^https?:\/\/[^\s/$.?#][^\s]*$/i.test(url)
+        ? url
+        : undefined;
     }
     case 'boolean':
       return typeof value === 'boolean' ? value : undefined;

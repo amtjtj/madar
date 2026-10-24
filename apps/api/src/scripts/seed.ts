@@ -238,6 +238,7 @@ async function main(): Promise<void> {
         priority: item.priority,
         weight: item.weight,
         statusKey: item.status,
+        ...(item.type && { typeKey: item.type, customFields: item.fields ?? {} }),
       });
       taskCount++;
       for (const [i, title] of (item.subtasks ?? []).entries()) {

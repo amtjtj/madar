@@ -460,6 +460,8 @@ export const fa = {
     saving: 'در حال ذخیره…',
   },
   tasks: {
+    departmentTitle: '{department}: {plural}',
+    newOf: '{task} تازه',
     /** Filter by where tasks came from (ADR 0017). */
     sourceFilter: {
       label: 'منبع کار',
@@ -1959,7 +1961,13 @@ export const fa = {
       campaignPlural: 'کمپین‌ها',
     },
     statuses: {
-      general: { todo: 'باز', in_progress: 'در جریان', done: 'انجام‌شده', canceled: 'لغوشده' },
+      // The same words the app used before departments had their own (work.status.*).
+      general: {
+        todo: 'انجام‌نشده',
+        in_progress: 'در حال انجام',
+        done: 'انجام‌شده',
+        canceled: 'لغوشده',
+      },
       executive: { todo: 'باز', in_progress: 'در اجرا', done: 'انجام‌شده', canceled: 'لغوشده' },
       engineering: {
         backlog: 'بک‌لاگ',
@@ -1985,7 +1993,12 @@ export const fa = {
         done: 'حل‌شده',
         canceled: 'بسته بی‌نتیجه',
       },
-      hr: { todo: 'باز', in_progress: 'در جریان', done: 'انجام‌شده', canceled: 'لغوشده' },
+      hr: {
+        todo: 'انجام‌نشده',
+        in_progress: 'در حال انجام',
+        done: 'انجام‌شده',
+        canceled: 'لغوشده',
+      },
     },
     types: {
       task: 'کار',
@@ -2044,7 +2057,8 @@ export const fa = {
   departmentConfig: {
     open: 'تنظیمات کار',
     title: 'تنظیمات کار {name}',
-    subtitle: 'وضعیت‌ها، نوع‌های کار و فیلدهای این دپارتمان را بدون کد بساز. تغییرها با «ذخیره» یک‌جا اعمال می‌شوند.',
+    subtitle:
+      'وضعیت‌ها، نوع‌های کار و فیلدهای این دپارتمان را بدون کد بساز. تغییرها با «ذخیره» یک‌جا اعمال می‌شوند.',
     back: 'دپارتمان‌ها',
     readOnly: 'فقط ادمین شرکت این تنظیمات را تغییر می‌دهد.',
     template: 'قالب',
@@ -2052,14 +2066,16 @@ export const fa = {
     templateNone: 'هنوز قالبی انتخاب نشده (عمومی).',
     applyTemplate: 'اعمال قالب دیگر',
     applyTitle: 'اعمال یک قالب آماده',
-    applyBody: 'وضعیت‌ها، نوع‌ها و فیلدهای فعلی با قالب جایگزین می‌شوند. کارهای موجود سر جایشان می‌مانند؛ اگر وضعیت یا نوعی حذف شود، می‌پرسیم کارهایش کجا بروند.',
+    applyBody:
+      'وضعیت‌ها، نوع‌ها و فیلدهای فعلی با قالب جایگزین می‌شوند. کارهای موجود سر جایشان می‌مانند؛ اگر وضعیت یا نوعی حذف شود، می‌پرسیم کارهایش کجا بروند.',
     applyConfirm: 'اعمال قالب',
     applied: 'قالب اعمال شد',
     save: 'ذخیره تغییرها',
     saved: 'تنظیمات ذخیره شد',
     discard: 'برگرداندن تغییرها',
     unsaved: 'تغییرهای ذخیره‌نشده داری.',
-    invalid: 'برای ذخیره، همه برچسب‌ها را پر کن و دست‌کم یک وضعیت «باز» و یک «انجام‌شده» داشته باش.',
+    invalid:
+      'برای ذخیره، همه برچسب‌ها را پر کن و دست‌کم یک وضعیت «باز» و یک «انجام‌شده» داشته باش.',
     vocabulary: {
       title: 'واژگان',
       hint: 'این دپارتمان کارهایش را چه می‌نامد؟',

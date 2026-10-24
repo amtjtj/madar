@@ -675,7 +675,7 @@ describe('department fields (step 19a)', () => {
     expect(screen.getByText('چت')).toBeTruthy();
   });
 
-  it('toggles multiselect options and clears when none is left', () => {
+  it('toggles multiselect options and clears when none remain', () => {
     const onChange = vi.fn();
     render(<FieldInput field={kind} value={['phone']} onChange={onChange} today="2026-10-24" />);
     fireEvent.click(screen.getByRole('button', { name: 'چت' }));

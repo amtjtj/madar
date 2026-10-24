@@ -61,7 +61,10 @@ function TasksScreen() {
       <PageHeader
         title={
           vocabulary && departmentName
-            ? `${vocabulary.taskPlural} ${departmentName}`
+            ? t('tasks.departmentTitle', {
+                department: departmentName,
+                plural: vocabulary.taskPlural,
+              })
             : t('tasks.title')
         }
         subtitle={t('tasks.subtitle')}
@@ -70,7 +73,12 @@ function TasksScreen() {
             <AssistantGate>
               <BreakdownDialog today={today} />
             </AssistantGate>
-            <NewTaskButton today={today} addToToday={false} departmentId={departmentId} />
+            <NewTaskButton
+              today={today}
+              addToToday={false}
+              departmentId={departmentId}
+              label={vocabulary ? t('tasks.newOf', { task: vocabulary.task }) : undefined}
+            />
           </div>
         }
       />
