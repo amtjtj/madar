@@ -77,3 +77,10 @@ The brief's target (under 2 s) holds on 4G and on repeat visits. A first visit o
 - **Building images in CI and pulling them:** GitHub's registry may be unreachable from Iranian servers. Building on the server with domestic mirrors avoids that; `docker save` is the fallback.
 - **WAL archiving / point-in-time recovery:** better recovery points, but more to operate. Nightly dumps with a verified restore are enough for the pilot. Revisit before real customer data grows.
 - **Hosted monitoring** (Sentry, Grafana Cloud): foreign SaaS. A self-hosted stack such as Uptime Kuma or Grafana can come later behind the same Caddy.
+
+## Update (production readiness pass, 2026-10-24)
+- `docker/caddy` and `docker/backup` are mounted as folders, not single files: `git pull` replaces files, and a single-file bind mount keeps showing the old file until the container is recreated. `deploy.sh` now reloads Caddy (graceful) and restarts the backup loop after every deployment, so a changed `Caddyfile` or `backup.sh` takes effect.
+- The Content-Security-Policy is enforced (it was report-only); the web app runs Zod `jitless` so no `unsafe-eval` is needed.
+- `docker/postgres.Dockerfile` trusts `MADAR_BUILD_CA` for `apk` too (only for that build step; the image keeps the stock bundle).
+- `.env.production.example` documents every production variable; `init-env.sh` still writes the real `.env`.
+- Verified end to end on a fresh clone: install, build, deploy, signup with 2FA, files, update with a pre-deploy backup, backup and restore, crash and Docker-restart recovery, rollback.
