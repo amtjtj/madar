@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { schema as s, type OutboxEvent, type Tx } from '@madar/db';
-import { GOAL_CHECKIN_XP, calendarDateIn, taskXp, weekStartOf } from '@madar/shared';
+import { GOAL_CHECKIN_XP, KUDOS_XP, calendarDateIn, taskXp, weekStartOf } from '@madar/shared';
 import { eq } from 'drizzle-orm';
 
 import type { EventConsumer } from '../events/consumer.js';
 import { loadWorkCalendar } from '../notifications/calendar.js';
+import { refreshCounters } from './counters.js';
 import { grant, reverseTask } from './ledger.js';
 import { loadGamificationSettings } from './settings.js';
 import { excuseLeaveDays } from './streaks.js';
@@ -15,9 +16,13 @@ const HANDLED = [
   'task.deleted',
   'key_result.checked_in',
   'request.decided',
+  'kudos.given',
 ];
 
-/** XP from finished work and goal check-ins, and late leave corrections (ADR 0029). */
+/**
+ * XP from finished work, goal check-ins and a colleague's thanks, the badge counters behind them,
+ * and late leave corrections (ADRs 0029 and 0030).
+ */
 @Injectable()
 export class GamificationConsumer implements EventConsumer {
   readonly name = 'gamification';
@@ -32,7 +37,19 @@ export class GamificationConsumer implements EventConsumer {
     const today = calendarDateIn(event.occurredAt, timeZone);
     if (event.type === 'task.reopened' || event.type === 'task.deleted') {
       // Taking back is never switched off: XP once given follows its work.
-      await reverseTask(tx, String(p.taskId), event.id, today, event.type === 'task.deleted');
+      const members = await reverseTask(
+        tx,
+        String(p.taskId),
+        event.id,
+        today,
+        event.type === 'task.deleted',
+      );
+      for (const memberId of new Set([
+        ...members,
+        ...(p.assigneeId ? [String(p.assigneeId)] : []),
+      ])) {
+        await refreshCounters(tx, memberId, timeZone);
+      }
       return;
     }
     if (event.type === 'request.decided') {
@@ -69,6 +86,31 @@ export class GamificationConsumer implements EventConsumer {
           settings.dailyXpCap,
         );
       }
+      if (xp.helped) {
+        await grant(
+          tx,
+          { ...base, reason: 'helped', amount: xp.helped, sourceKey: key },
+          settings.dailyXpCap,
+        );
+      }
+      await refreshCounters(tx, base.memberId, timeZone);
+      return;
+    }
+    if (event.type === 'kudos.given') {
+      const to = String(p.toMemberId);
+      await grant(
+        tx,
+        {
+          memberId: to,
+          reason: 'kudos_received',
+          amount: KUDOS_XP,
+          sourceKey: `kudos:${String(p.kudosId)}`,
+          day: today,
+        },
+        settings.dailyXpCap,
+      );
+      await refreshCounters(tx, to, timeZone);
+      await refreshCounters(tx, String(p.fromMemberId), timeZone);
       return;
     }
     // A goal owner's first check-in of a key result in a week.
@@ -88,5 +130,6 @@ export class GamificationConsumer implements EventConsumer {
       },
       settings.dailyXpCap,
     );
+    await refreshCounters(tx, goal.ownerId, timeZone);
   }
 }

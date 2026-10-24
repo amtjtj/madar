@@ -60,6 +60,10 @@ export type ErrorCode =
   | 'meeting_link_invalid'
   | 'minutes_version_conflict'
   | 'decision_has_task'
+  | 'kudos_self'
+  | 'kudos_limit'
+  | 'kudos_same_person'
+  | 'gamification_off'
   | 'conflict';
 
 export class ApiError extends HttpException {

@@ -91,7 +91,7 @@ export async function grant(tx: Tx, input: Grant, dailyCap: number): Promise<num
 /**
  * Takes back whatever a task (and, when it is deleted, its subtasks, which go with it) still holds
  * for each member, as one negative row per member keyed by the event, so a repeated event takes
- * nothing twice.
+ * nothing twice. Returns the members it took from.
  */
 export async function reverseTask(
   tx: Tx,
@@ -99,7 +99,7 @@ export async function reverseTask(
   eventId: string,
   day: string,
   withSubtasks = false,
-): Promise<void> {
+): Promise<string[]> {
   const held = await tx
     .select({
       memberId: s.xpLedger.memberId,
@@ -129,4 +129,5 @@ export async function reverseTask(
       .returning({ id: s.xpLedger.id });
     if (inserted.length) await addToTotal(tx, memberId, -net);
   }
+  return held.filter((h) => h.net > 0).map((h) => h.memberId);
 }

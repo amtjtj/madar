@@ -13,6 +13,7 @@ import { visibleConversations } from '../chat/access.js';
 import { visibleGoals } from '../goals/access.js';
 import { visibleLetters } from '../letters/access.js';
 import { visibleMeetings } from '../meetings/access.js';
+import { visibleKudos } from '../gamification/access.js';
 import { visibleRequests } from '../requests/access.js';
 import { readsReport, visibleProjects, visibleTasks } from '../work/access.js';
 import { loadWorkCalendar } from './calendar.js';
@@ -130,6 +131,13 @@ export class Notifier {
       return Boolean(row);
     }
     if (subjectType === 'progress') return subjectId === actor.memberId;
+    if (subjectType === 'kudos') {
+      const [row] = await tx
+        .select({ id: s.kudos.id })
+        .from(s.kudos)
+        .where(and(eq(s.kudos.id, subjectId), visibleKudos(actor.memberId)));
+      return Boolean(row);
+    }
     if (subjectType === 'request') {
       const [row] = await tx
         .select({ id: s.approvalRequests.id })

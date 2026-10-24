@@ -11,6 +11,7 @@ import {
 import { and, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
 
 import { loadWorkCalendar } from '../notifications/calendar.js';
+import { refreshCounters } from './counters.js';
 import { loadGamificationSettings } from './settings.js';
 
 /**
@@ -158,6 +159,8 @@ export async function closeDays(tx: Tx, tenantId: string, now: Date): Promise<nu
             updatedAt: new Date(),
           },
         });
+      // A longer best streak may reach a badge.
+      if (next.longest > (stats?.longest ?? 0)) await refreshCounters(tx, memberId, timeZone);
     }
   }
   return written;

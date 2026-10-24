@@ -27,6 +27,8 @@ const HANDLED = [
   'request.advanced',
   'request.decided',
   'member.level_up',
+  'member.badge_earned',
+  'kudos.given',
 ];
 
 /** Turns domain events into in-app notifications. */
@@ -97,6 +99,33 @@ export class NotificationsConsumer implements EventConsumer {
           subjectType: 'progress',
           subjectId: memberId,
           payload: { title: '', data: { level: Number(p.level) } },
+          dedupeKey: `event:${event.id}`,
+        });
+        return;
+      }
+      case 'member.badge_earned': {
+        const memberId = String(p.memberId);
+        await this.notifier.notify(tx, {
+          ...base,
+          actorId: null,
+          recipientId: memberId,
+          kind: 'badge_earned',
+          subjectType: 'progress',
+          subjectId: memberId,
+          payload: { title: '', data: { badge: String(p.badge) } },
+          dedupeKey: `event:${event.id}`,
+        });
+        return;
+      }
+      case 'kudos.given': {
+        // The message stays out of the notification (and so out of push).
+        await this.notifier.notify(tx, {
+          ...base,
+          recipientId: String(p.toMemberId),
+          kind: 'kudos_received',
+          subjectType: 'kudos',
+          subjectId: String(p.kudosId),
+          payload: { title: '' },
           dedupeKey: `event:${event.id}`,
         });
         return;

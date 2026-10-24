@@ -1,6 +1,6 @@
 import nest from '@madar/config/eslint/nest';
 
-const GAMIFICATION_TABLES = /^(xpLedger|streakDays|memberStats)$/;
+const GAMIFICATION_TABLES = /^(xpLedger|streakDays|memberStats|memberCounters)$/;
 
 export default [
   ...nest,
