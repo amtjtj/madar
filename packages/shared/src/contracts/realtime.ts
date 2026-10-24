@@ -20,4 +20,6 @@ export const REALTIME_EVENTS = {
   meetingsChanged: 'meetings.changed',
   /** A request the member made or decides on was made, decided or canceled (ADR 0028). */
   requestsChanged: 'requests.changed',
+  /** My XP, level or streak changed (only to me, ADR 0029). */
+  progressChanged: 'progress.changed',
 } as const;

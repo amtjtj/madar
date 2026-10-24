@@ -11,6 +11,8 @@ export const NOTIFICATION_SUBJECTS = [
   'conversation',
   'meeting',
   'request',
+  /** My own progress (gamification, ADR 0029): the subject is the member themselves. */
+  'progress',
 ] as const;
 export type NotificationSubject = (typeof NOTIFICATION_SUBJECTS)[number];
 
@@ -36,6 +38,7 @@ export const NOTIFICATION_KINDS = [
   'weekly_report_ready',
   'request_waiting',
   'request_decided',
+  'level_up',
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 

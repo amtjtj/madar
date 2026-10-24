@@ -303,6 +303,36 @@ export async function createTenantFixture(handle: DbHandle, label = 't'): Promis
       amountRial: 10_000_000,
       snapshot: { approvers: [member.id] },
     });
+    // Gamification: one XP row, a reversal, a missed and a completed day, and the cache.
+    await tx.insert(s.xpLedger).values([
+      {
+        memberId: member.id,
+        amount: 30,
+        reason: 'task_completed',
+        sourceKey: `task:${task.id}:1`,
+        taskId: task.id,
+        day: '2026-10-25',
+      },
+      {
+        memberId: member.id,
+        amount: -30,
+        reason: 'reversal',
+        sourceKey: `task:${task.id}:1:task_completed`,
+        taskId: task.id,
+        day: '2026-10-25',
+      },
+    ]);
+    await tx.insert(s.streakDays).values([
+      { memberId: member.id, day: '2026-10-25', status: 'missed' },
+      { memberId: member.id, day: '2026-10-26', status: 'completed', planned: 2, done: 2 },
+    ]);
+    await tx.insert(s.memberStats).values({
+      memberId: member.id,
+      xpTotal: 0,
+      currentStreak: 1,
+      longestStreak: 1,
+      streakThrough: '2026-10-26',
+    });
     await tx.insert(s.pushSubscriptions).values({
       memberId: member.id,
       endpoint: `https://fcm.googleapis.com/fcm/send/${suffix}`,

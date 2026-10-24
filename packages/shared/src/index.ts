@@ -11,6 +11,8 @@ export * from './contracts/meetings.js';
 export * from './contracts/ai.js';
 export * from './contracts/requests.js';
 export * from './contracts/calendar.js';
+export * from './contracts/gamification.js';
+export * from './gamification.js';
 export * from './calendar.js';
 export * from './meetings.js';
 export * from './chat-text.js';

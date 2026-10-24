@@ -1346,6 +1346,7 @@ export const fa = {
       request_decided: 'درخواستت بررسی شد',
       request_decided_approved: '{actor} درخواستت را تایید کرد',
       request_decided_rejected: '{actor} درخواستت را رد کرد؛ دلیلش را ببین',
+      level_up: 'به سطح {level} رسیدی!',
     },
   },
   notificationSettings: {
@@ -1374,6 +1375,7 @@ export const fa = {
       weekly_report_ready: 'گزارش هفتگی آماده شد (صبح شنبه)',
       request_waiting: 'درخواستی منتظر تایید من است',
       request_decided: 'درخواستم تایید یا رد شد',
+      level_up: 'به سطح تازه رسیدم',
     },
     offHours: 'خارج از ساعت کاری هم خبرم کن',
     offHoursHint:
@@ -1442,6 +1444,7 @@ export const fa = {
         weekly_report_ready: 'گزارش هفته گذشته آماده است',
         request_waiting: 'درخواستی منتظر تایید توست',
         request_decided: 'درخواستت بررسی شد',
+        level_up: 'به سطح تازه رسیدی!',
       },
     },
   },

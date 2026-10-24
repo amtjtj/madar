@@ -72,6 +72,9 @@ const DATA_PLANE = [
   'approval_requests',
   'approval_steps',
   'leaves',
+  'xp_ledger',
+  'streak_days',
+  'member_stats',
 ] as const;
 
 /** Tables the app may only append to (no UPDATE/DELETE grant). */
@@ -84,6 +87,7 @@ const APPEND_ONLY = [
   'report_summaries',
   'approval_steps',
   'leaves',
+  'xp_ledger',
 ];
 /** Tables the app may update but never delete from. */
 const NO_DELETE = [
@@ -105,6 +109,8 @@ const NO_DELETE = [
   'meeting_minutes',
   'meeting_series',
   'approval_requests',
+  'streak_days',
+  'member_stats',
 ];
 
 describe.skipIf(!hasDatabase)('tenant isolation (RLS)', () => {
@@ -517,6 +523,61 @@ describe.skipIf(!hasDatabase)('tenant isolation (RLS)', () => {
           inner.insert(s.leaves).values({ ...leave, id: uuidv7(), memberId: b.memberId }),
         ),
       ).rejects.toThrow();
+    });
+  });
+
+  it("XP is never rewritten; a closed day only turns from missed to leave; no other company's people", async () => {
+    await withTenant(app.db, { tenantId: a.tenantId }, async (tx) => {
+      await expect(
+        tx.transaction((inner) => inner.execute(sql`update xp_ledger set amount = amount + 1`)),
+      ).rejects.toThrow();
+      // A reversal is negative and only a reversal is.
+      await expect(
+        tx.transaction((inner) =>
+          inner.insert(s.xpLedger).values({
+            memberId: a.memberId,
+            amount: -5,
+            reason: 'task_completed',
+            sourceKey: 'negative',
+            day: '2026-10-25',
+          }),
+        ),
+      ).rejects.toThrow();
+      await expect(
+        tx.transaction((inner) =>
+          inner.insert(s.xpLedger).values({
+            memberId: b.memberId,
+            amount: 5,
+            reason: 'goal_checkin',
+            sourceKey: 'theirs',
+            day: '2026-10-25',
+          }),
+        ),
+      ).rejects.toThrow();
+      // The same source pays once.
+      const [row] = await tx
+        .select()
+        .from(s.xpLedger)
+        .where(sql`reason = 'task_completed'`);
+      if (!row) throw new Error('fixture xp missing');
+      await expect(
+        tx.transaction((inner) =>
+          inner.insert(s.xpLedger).values({ ...row, id: uuidv7(), amount: 30 }),
+        ),
+      ).rejects.toThrow();
+      const completedToMissed = await tx.execute(
+        sql`update streak_days set status = 'missed' where status = 'completed'`,
+      );
+      expect(completedToMissed.rowCount).toBe(0);
+      await expect(
+        tx.transaction((inner) =>
+          inner.execute(sql`update streak_days set status = 'completed' where status = 'missed'`),
+        ),
+      ).rejects.toThrow();
+      const excused = await tx.execute(
+        sql`update streak_days set status = 'excused_leave' where status = 'missed'`,
+      );
+      expect(excused.rowCount).toBe(1);
     });
   });
 
