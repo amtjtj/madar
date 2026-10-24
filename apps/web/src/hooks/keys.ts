@@ -97,6 +97,15 @@ export const meetingKeys = {
   meeting: (id: string) => ['meetings', 'detail', id] as const,
 };
 
+/** My XP, level and streak (ADR 0029): only ever my own. */
+export const progressKeys = {
+  all: ['progress'] as const,
+  mine: ['progress', 'mine'] as const,
+  xp: ['progress', 'xp'] as const,
+  streak: (from: string, to: string) => ['progress', 'streak', from, to] as const,
+  settings: ['settings', 'gamification'] as const,
+};
+
 /** Requests and approvals (ADR 0028). */
 export const requestKeys = {
   all: ['requests'] as const,

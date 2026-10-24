@@ -27,12 +27,14 @@ import { TaskFields } from '@/components/work/task-fields';
 import { TaskProgress } from '@/components/work/task-progress';
 import { TitleEditor, DescriptionEditor } from '@/components/work/task-text';
 import { useDeleteTask, useTask, useToggleDone } from '@/hooks/work';
+import { useXpFor } from '@/hooks/progress';
 import { errorMessage } from '@/lib/errors';
 
 export default function TaskPage() {
   const { id } = useParams<{ id: string }>();
   const { data: task, isPending, isError } = useTask(id);
   const toggle = useToggleDone();
+  const xpFor = useXpFor();
   const { toast } = useToast();
   const onError = (error: unknown) => toast({ tone: 'error', title: errorMessage(error) });
 
@@ -75,6 +77,7 @@ export default function TaskPage() {
           className="mt-1"
           label={task.title}
           checked={task.statusCategory === 'done'}
+          xp={xpFor(task)}
           disabled={!task.can.edit}
           onCheckedChange={(done) => void toggle.toggle(task, done).catch(onError)}
         />

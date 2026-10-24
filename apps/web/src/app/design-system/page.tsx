@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 
 import { t } from '@madar/i18n';
 import {
+  addDays,
   calendarDateIn,
   formatJalaliDate,
   formatNumber,
@@ -44,6 +45,11 @@ import {
   cn,
   AmountText,
   ApprovalTimeline,
+  LevelBar,
+  LevelUpMark,
+  StreakFlame,
+  StreakMap,
+  XpRow,
   DecisionItem,
   MeetingRow,
   RequestKindBadge,
@@ -524,6 +530,12 @@ export default function DesignSystemPage() {
           </Panel>
         </Section>
 
+        <Section id="gamification" title={t('designSystem.sections.gamification')}>
+          <Panel>
+            <GamificationDemo />
+          </Panel>
+        </Section>
+
         <Section id="meetings" title={t('designSystem.sections.meetings')}>
           <Panel>
             <div className="flex max-w-xl flex-col gap-4">
@@ -811,6 +823,53 @@ export default function DesignSystemPage() {
           </div>
         </Section>
       </main>
+    </div>
+  );
+}
+
+function GamificationDemo() {
+  const to = '2026-10-23';
+  const from = addDays(to, -27);
+  const statuses = [
+    'completed',
+    'completed',
+    'missed',
+    'completed',
+    'excused_leave',
+    'off_day',
+    'completed',
+  ] as const;
+  const days = Array.from({ length: 28 }, (_, i) => ({
+    day: addDays(from, i),
+    status: statuses[i % statuses.length] ?? 'completed',
+  }));
+  return (
+    <div className="flex max-w-xl flex-col gap-4">
+      <div className="flex items-center gap-6">
+        <StreakFlame count={6} />
+        <StreakFlame count={0} />
+        <StreakFlame count={12} size="lg" />
+      </div>
+      <LevelBar level={4} into={420} span={400 + 400} />
+      <StreakMap days={days} from={from} to={to} />
+      <div className="divide-y divide-line rounded-2xl border border-line bg-surface px-3">
+        <XpRow
+          amount={30}
+          reason="task_completed"
+          title={t('designSystem.gamification.task')}
+          weight={3}
+          when={t('designSystem.gamification.when')}
+        />
+        <XpRow
+          amount={15}
+          reason="on_time"
+          title={t('designSystem.gamification.task')}
+          weight={3}
+          when={t('designSystem.gamification.when')}
+        />
+        <XpRow amount={-45} reason="reversal" when={t('designSystem.gamification.when')} />
+      </div>
+      <LevelUpMark />
     </div>
   );
 }

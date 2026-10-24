@@ -35,12 +35,14 @@ import { CompanyView } from '@/components/home/company-view';
 import { MyGoalsCard } from '@/components/home/my-goals-card';
 import { TodayMeetings } from '@/components/meetings/today-meetings';
 import { WaitingRequestsCard } from '@/components/requests/waiting-card';
+import { ProgressCard } from '@/components/home/progress-card';
 import { TeamView } from '@/components/home/team-view';
 import { InstallCard } from '@/components/pwa/install';
 import { NewTaskButton } from '@/components/work/new-task-button';
 import { Segmented } from '@/components/work/task-views';
 import { QuickAdd } from '@/components/work/quick-add';
 import { useCan, useDepartments, useMembers } from '@/hooks/queries';
+import { useXpFor } from '@/hooks/progress';
 import { useMe } from '@/hooks/use-me';
 import {
   isDraft,
@@ -186,6 +188,7 @@ function TodayTab() {
   return (
     <>
       <WaitingRequestsCard />
+      <ProgressCard />
       <TodayMeetings />
       {isPending || !today ? <TodaySkeleton /> : <TodayPlan today={today} />}
       <CalendarPreview />
@@ -209,6 +212,7 @@ function TodaySkeleton() {
 function TodayPlan({ today }: { today: Today }) {
   const router = useRouter();
   const toggle = useToggleDone();
+  const xpFor = useXpFor();
   const add = useAddToToday();
   const remove = useRemoveFromToday();
   const reorder = useReorderToday();
@@ -278,6 +282,7 @@ function TodayPlan({ today }: { today: Today }) {
                   title={task.title}
                   done={task.statusCategory === 'done'}
                   onDoneChange={task.can.edit ? onToggle(task) : undefined}
+                  xp={isDraft(task) ? undefined : xpFor(task)}
                   onOpen={isDraft(task) ? undefined : () => router.push(`/tasks/${task.id}`)}
                   priority={task.priority}
                   dueOn={task.dueOn}

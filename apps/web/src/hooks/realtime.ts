@@ -15,6 +15,7 @@ import {
   meetingKeys,
   requestKeys,
   notificationKeys,
+  progressKeys,
   workKeys,
 } from './keys';
 
@@ -41,7 +42,8 @@ export function useRealtime(enabled: boolean, tenantId?: string): boolean {
         | 'chat'
         | 'chatLists'
         | 'meetings'
-        | 'requests',
+        | 'requests'
+        | 'progress',
     ) => {
       pending.add(what);
       clearTimeout(timer);
@@ -61,6 +63,10 @@ export function useRealtime(enabled: boolean, tenantId?: string): boolean {
           void client.invalidateQueries({ queryKey: notificationKeys.all });
         }
         if (pending.has('letters')) void client.invalidateQueries({ queryKey: letterKeys.all });
+        // The day's ring follows the plan and finished work; XP follows the worker's hint.
+        if (pending.has('progress') || pending.has('today') || pending.has('work')) {
+          void client.invalidateQueries({ queryKey: progressKeys.all });
+        }
         if (pending.has('requests')) {
           void client.invalidateQueries({ queryKey: requestKeys.all });
           void client.invalidateQueries({ queryKey: calendarKeys.all });
@@ -92,6 +98,7 @@ export function useRealtime(enabled: boolean, tenantId?: string): boolean {
         refresh('letters');
         refresh('meetings');
         refresh('requests');
+        refresh('progress');
         refresh('chat');
         // Open conversations may have missed messages: reload them.
         void client.invalidateQueries({ queryKey: ['chat', 'messages'] });
@@ -107,6 +114,7 @@ export function useRealtime(enabled: boolean, tenantId?: string): boolean {
     socket.on(REALTIME_EVENTS.lettersChanged, () => refresh('letters'));
     socket.on(REALTIME_EVENTS.meetingsChanged, () => refresh('meetings'));
     socket.on(REALTIME_EVENTS.requestsChanged, () => refresh('requests'));
+    socket.on(REALTIME_EVENTS.progressChanged, () => refresh('progress'));
     socket.on(REALTIME_EVENTS.chatChanged, () => refresh('chat'));
     // The one event with data (ADR 0022): straight into the open conversation's cache.
     socket.on(CHAT_SOCKET.message, (message: Message) => {

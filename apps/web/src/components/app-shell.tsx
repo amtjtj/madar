@@ -13,6 +13,7 @@ import {
   Clock,
   FolderKanban,
   House,
+  Flame,
   Inbox,
   FileText,
   ListTodo,
@@ -161,6 +162,12 @@ export function useOrgNavItems(): NavItem[] {
             label: t('requests.settings.short'),
             href: '/org/approvals',
             icon: <Inbox aria-hidden />,
+          },
+          {
+            key: '/org/gamification',
+            label: t('progress.settings.short'),
+            href: '/org/gamification',
+            icon: <Flame aria-hidden />,
           },
           {
             key: '/org/assistant',
@@ -322,6 +329,12 @@ export function AppShell({ children }: { children: ReactNode }) {
         </button>
       }
       items={[
+        {
+          key: 'progress',
+          label: t('progress.nav'),
+          icon: <Flame aria-hidden />,
+          onSelect: () => router.push('/progress'),
+        },
         {
           key: 'notification-settings',
           label: t('notifications.settings'),

@@ -184,3 +184,14 @@ export {
   type ApprovalStepView,
   type RequestRowProps,
 } from './components/request.js';
+export {
+  LevelBar,
+  StreakFlame,
+  StreakMap,
+  XpRow,
+  type LevelBarProps,
+  type StreakFlameProps,
+  type StreakMapProps,
+  type XpRowProps,
+} from './components/gamification.js';
+export { LevelUpMark } from './components/level-up.js';

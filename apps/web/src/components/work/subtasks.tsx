@@ -11,6 +11,7 @@ import { ProgressBar, TaskCard, TextField, useToast } from '@madar/ui';
 
 import { workKeys } from '@/hooks/keys';
 import { useCreateTask, useTasks, useTodayDate, useToggleDone } from '@/hooks/work';
+import { useXpFor } from '@/hooks/progress';
 import { errorMessage } from '@/lib/errors';
 
 export function Subtasks({ task }: { task: Task }) {
@@ -21,6 +22,7 @@ export function Subtasks({ task }: { task: Task }) {
   const { data: subtasks } = useTasks({ view: 'visible', parentId: task.id, status: 'all' });
   const create = useCreateTask();
   const toggle = useToggleDone();
+  const xpFor = useXpFor();
   const [title, setTitle] = useState('');
   const onError = (error: unknown) => toast({ tone: 'error', title: errorMessage(error) });
 
@@ -86,6 +88,7 @@ export function Subtasks({ task }: { task: Task }) {
                   : undefined
               }
               onOpen={() => router.push(`/tasks/${sub.id}`)}
+              xp={xpFor(sub)}
               today={today}
               dueOn={sub.dueOn}
               progress={sub.progress}

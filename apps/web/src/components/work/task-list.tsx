@@ -8,6 +8,7 @@ import { SortableList, TaskCard, useToast } from '@madar/ui';
 
 import { GoalTag } from '@/components/goals/goal-tag';
 import { useToggleDone } from '@/hooks/work';
+import { useXpFor } from '@/hooks/progress';
 import { errorMessage } from '@/lib/errors';
 
 export interface TaskListProps {
@@ -28,6 +29,7 @@ export interface TaskListProps {
 export function TaskList({ tasks, today, showAssignee, hideProject, onReorder }: TaskListProps) {
   const router = useRouter();
   const toggle = useToggleDone();
+  const xpFor = useXpFor();
   const { toast } = useToast();
   const finished = (task: Task) =>
     task.statusCategory === 'done' || task.statusCategory === 'canceled';
@@ -47,6 +49,7 @@ export function TaskList({ tasks, today, showAssignee, hideProject, onReorder }:
           : undefined
       }
       onOpen={() => router.push(`/tasks/${task.id}`)}
+      xp={xpFor(task)}
       priority={task.priority}
       dueOn={task.dueOn}
       today={today}

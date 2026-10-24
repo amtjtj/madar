@@ -55,6 +55,9 @@ export function notificationText(n: Notification, timeZone?: string): string {
       time: formatTime(startsAt, timeZone),
     });
   }
+  if (n.kind === 'level_up') {
+    return t('notifications.kinds.level_up', { level: formatNumber(Number(n.data.level ?? 0)) });
+  }
   if (
     n.kind === 'request_decided' &&
     (n.data.status === 'approved' || n.data.status === 'rejected')
@@ -70,6 +73,7 @@ export function notificationHref(n: Notification): string {
   if (n.subjectType === 'conversation') return `/chat/${n.subjectId}`;
   if (n.subjectType === 'goal') return `/goals/${n.subjectId}`;
   if (n.subjectType === 'request') return `/requests/${n.subjectId}`;
+  if (n.subjectType === 'progress') return '/progress';
   if (n.subjectType === 'report') {
     const params = new URLSearchParams({ scope: String(n.data.scope ?? 'company') });
     if (typeof n.data.departmentId === 'string') params.set('departmentId', n.data.departmentId);
