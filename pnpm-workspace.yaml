@@ -8,3 +8,10 @@ onlyBuiltDependencies:
   - sharp
   - '@nestjs/core'
   - unrs-resolver
+
+# Security patches for transitive dependencies (production readiness audit, 2026-10-24):
+# NestJS's Express 5 still allows the vulnerable ranges.
+overrides:
+  body-parser@>=2.0.0 <2.4.0: 2.4.0
+  multer@>=2.0.0 <2.5.0: 2.5.0
+  happy-dom@>=17.0.0 <21.0.4: 21.0.4
