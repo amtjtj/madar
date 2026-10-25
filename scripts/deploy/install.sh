@@ -59,19 +59,25 @@ $SUDO ufw --force enable >/dev/null
 # only a real pull proves a registry works. Every image Madar uses comes from BASE_REGISTRY
 # (Dockerfiles and compose), so a mirror is used by name there; Docker's own settings stay as
 # they are.
+# The test pulls an image Madar really uses (the backup service runs it): Docker Hub serves small
+# images such as hello-world from another CDN, so they can download while real ones get 403.
 pull_ok() {
   # timeout runs programs, not shell functions, so docker_cmd is spelled out here.
   local docker=(docker)
   docker info >/dev/null 2>&1 || docker=($SUDO docker)
-  timeout 180 "${docker[@]}" pull -q "$1/hello-world" >/dev/null 2>&1 || return 1
-  docker_cmd rmi "$1/hello-world" >/dev/null 2>&1 || true
+  timeout 900 "${docker[@]}" pull -q "$1/postgres:18-alpine" >/dev/null 2>&1
 }
+say "Checking that Docker images can be downloaded (a minute or two)"
 base_registry=""
+saved=""
+[ -f "$ENV_FILE" ] && saved=$(env_value BASE_REGISTRY)
 if [ -n "${MADAR_DOCKER_MIRROR:-}" ]; then
   candidate="${MADAR_DOCKER_MIRROR#https://}"
   candidate="${candidate%/}/library"
   pull_ok "$candidate" || fail "cannot pull images through $MADAR_DOCKER_MIRROR; try another mirror"
   base_registry=$candidate
+elif [ -n "$saved" ] && [ "$saved" != docker.io/library ] && pull_ok "$saved"; then
+  base_registry=$saved
 elif pull_ok docker.io/library; then
   base_registry=docker.io/library
 else
