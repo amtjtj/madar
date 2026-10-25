@@ -94,9 +94,19 @@ fi
 say "Images come from $base_registry"
 
 # --- 5. npm, or a domestic mirror --------------------------------------------------------------
-npm_ok() { curl -sf -m 10 -o /dev/null "${1%/}/pnpm"; }
+# The build fetches pnpm the way corepack does: its version's metadata, then the tarball it names.
+# A registry that only answers the package page is not enough, so both are checked.
+pnpm_version=$(sed -n 's/.*"packageManager": *"pnpm@\([0-9.]*\).*/\1/p' package.json)
+npm_ok() {
+  local meta tarball
+  meta=$(curl -sf -m 20 "${1%/}/pnpm/$pnpm_version") || return 1
+  tarball=$(printf '%s' "$meta" | grep -o '"tarball": *"[^"]*"' | head -n 1 | sed 's/.*"\(http[^"]*\)"/\1/')
+  [ -n "$tarball" ] && curl -sf -m 60 -o /dev/null "$tarball"
+}
 npm=${MADAR_NPM_REGISTRY:-}
-if [ -z "$npm" ]; then
+if [ -n "$npm" ]; then
+  npm_ok "$npm" || fail "cannot download pnpm $pnpm_version from $npm; try another npm mirror"
+else
   if npm_ok https://registry.npmjs.org; then
     npm=https://registry.npmjs.org/
   else
