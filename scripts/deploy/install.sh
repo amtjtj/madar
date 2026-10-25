@@ -126,8 +126,9 @@ if ls "$HOME"/abar/AbarLow-*.woff2 >/dev/null 2>&1; then
 fi
 
 # --- 7. Deploy ---------------------------------------------------------------------------------
-server_ip=$(curl -s -m 10 https://api.ipify.org || hostname -I | awk '{print $1}')
-dns_ip=$(getent hosts "$domain" | awk '{print $1}' | head -n 1)
+server_ip=$(curl -s -m 10 https://api.ipify.org || hostname -I | awk '{print $1}' || true)
+# getent fails while the DNS record does not exist yet; that is a warning, not a stop.
+dns_ip=$(getent hosts "$domain" 2>/dev/null | awk '{print $1}' | head -n 1 || true)
 if [ -n "$server_ip" ] && [ "$dns_ip" != "$server_ip" ]; then
   printf '\033[33mWarning: %s points to %s, not to this server (%s). HTTPS will work once the DNS A record is right.\033[0m\n' \
     "$domain" "${dns_ip:-nothing}" "$server_ip"
