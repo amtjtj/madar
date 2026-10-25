@@ -70,7 +70,10 @@ use_mirror() {
     fail "/etc/docker/daemon.json already has settings; add \"registry-mirrors\": [\"$1\"] to it by hand and run again"
   fi
   echo "{ \"registry-mirrors\": [\"$1\"] }" | $SUDO tee /etc/docker/daemon.json >/dev/null
-  $SUDO systemctl restart docker
+  # Trying several mirrors restarts Docker quickly in a row; systemd refuses a fourth restart in
+  # a minute unless its failure counter is reset.
+  $SUDO systemctl reset-failed docker 2>/dev/null || true
+  $SUDO systemctl restart docker || { sleep 5; $SUDO systemctl reset-failed docker; $SUDO systemctl restart docker; }
 }
 if [ -n "${MADAR_DOCKER_MIRROR:-}" ]; then
   if ! grep -q "$MADAR_DOCKER_MIRROR" /etc/docker/daemon.json 2>/dev/null; then
