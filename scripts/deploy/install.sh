@@ -60,7 +60,10 @@ $SUDO ufw --force enable >/dev/null
 # (Dockerfiles and compose), so a mirror is used by name there; Docker's own settings stay as
 # they are.
 pull_ok() {
-  timeout 180 docker_cmd pull -q "$1/hello-world" >/dev/null 2>&1 || return 1
+  # timeout runs programs, not shell functions, so docker_cmd is spelled out here.
+  local docker=(docker)
+  docker info >/dev/null 2>&1 || docker=($SUDO docker)
+  timeout 180 "${docker[@]}" pull -q "$1/hello-world" >/dev/null 2>&1 || return 1
   docker_cmd rmi "$1/hello-world" >/dev/null 2>&1 || true
 }
 base_registry=""
