@@ -5,6 +5,7 @@
 #   scripts/deploy/install.sh app.example.ir you@example.com           # a real company, no sample data
 # Safe to run again: every step checks whether it is already done.
 # Overrides: MADAR_DOCKER_MIRROR=https://… MADAR_NPM_REGISTRY=https://… (skip the mirror search).
+# A Docker mirror is written to BASE_REGISTRY in .env (<mirror>/library); /etc/docker is not changed.
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 cd "$ROOT"
@@ -55,48 +56,33 @@ $SUDO ufw --force enable >/dev/null
 
 # --- 4. Docker Hub, or a domestic mirror -------------------------------------------------------
 # Docker Hub's /v2/ can answer 401 from Iran while the image layers (on its CDN) answer 403, so
-# only a real pull proves it works. Mirrors are tried one by one until a pull succeeds.
-registry_ok() {
-  local code
-  code=$(curl -s -o /dev/null -m 10 -w '%{http_code}' "$1/v2/" || true)
-  [ "$code" = 200 ] || [ "$code" = 401 ]
-}
+# only a real pull proves a registry works. Every image Madar uses comes from BASE_REGISTRY
+# (Dockerfiles and compose), so a mirror is used by name there; Docker's own settings stay as
+# they are.
 pull_ok() {
-  timeout 120 docker_cmd pull -q hello-world >/dev/null 2>&1 || return 1
-  docker_cmd rmi hello-world >/dev/null 2>&1 || true
+  timeout 180 docker_cmd pull -q "$1/hello-world" >/dev/null 2>&1 || return 1
+  docker_cmd rmi "$1/hello-world" >/dev/null 2>&1 || true
 }
-use_mirror() {
-  if [ -s /etc/docker/daemon.json ] && ! grep -q '"registry-mirrors"' /etc/docker/daemon.json; then
-    fail "/etc/docker/daemon.json already has settings; add \"registry-mirrors\": [\"$1\"] to it by hand and run again"
-  fi
-  echo "{ \"registry-mirrors\": [\"$1\"] }" | $SUDO tee /etc/docker/daemon.json >/dev/null
-  # Trying several mirrors restarts Docker quickly in a row; systemd refuses a fourth restart in
-  # a minute unless its failure counter is reset.
-  $SUDO systemctl reset-failed docker 2>/dev/null || true
-  $SUDO systemctl restart docker || { sleep 5; $SUDO systemctl reset-failed docker; $SUDO systemctl restart docker; }
-}
+base_registry=""
 if [ -n "${MADAR_DOCKER_MIRROR:-}" ]; then
-  if ! grep -q "$MADAR_DOCKER_MIRROR" /etc/docker/daemon.json 2>/dev/null; then
-    say "Using the Docker mirror $MADAR_DOCKER_MIRROR"
-    use_mirror "$MADAR_DOCKER_MIRROR"
-  fi
-  pull_ok || fail "cannot pull images through $MADAR_DOCKER_MIRROR; try another mirror"
-elif ! pull_ok; then
+  candidate="${MADAR_DOCKER_MIRROR#https://}"
+  candidate="${candidate%/}/library"
+  pull_ok "$candidate" || fail "cannot pull images through $MADAR_DOCKER_MIRROR; try another mirror"
+  base_registry=$candidate
+elif pull_ok docker.io/library; then
+  base_registry=docker.io/library
+else
   say "Docker Hub images cannot be downloaded; looking for a domestic mirror"
-  found=""
-  for candidate in https://docker.arvancloud.ir https://mirror-docker.runflare.com \
-    https://docker.iranserver.com https://registry.docker.ir; do
-    registry_ok "$candidate" || continue
+  for candidate in docker.arvancloud.ir mirror-docker.runflare.com docker.iranserver.com registry.docker.ir; do
     say "Trying $candidate"
-    use_mirror "$candidate"
-    if pull_ok; then
-      found=$candidate
+    if pull_ok "$candidate/library"; then
+      base_registry=$candidate/library
       break
     fi
   done
-  [ -n "$found" ] || fail "no Docker mirror worked. Ask your provider for one and run again with MADAR_DOCKER_MIRROR=https://…"
-  say "Using the Docker mirror $found"
+  [ -n "$base_registry" ] || fail "no Docker mirror worked. Ask your provider for one and run again with MADAR_DOCKER_MIRROR=https://…"
 fi
+say "Images come from $base_registry"
 
 # --- 5. npm, or a domestic mirror --------------------------------------------------------------
 npm_ok() { curl -sf -m 10 -o /dev/null "${1%/}/pnpm"; }
@@ -127,6 +113,7 @@ else
   say "Keeping the existing $ENV_FILE"
 fi
 sed -i "s|^NPM_REGISTRY=.*|NPM_REGISTRY=$npm|" "$ENV_FILE"
+sed -i "s|^BASE_REGISTRY=.*|BASE_REGISTRY=$base_registry|" "$ENV_FILE"
 
 # Licensed fonts, if they were copied to ~/abar (optional; Vazirmatn otherwise).
 if ls "$HOME"/abar/AbarLow-*.woff2 >/dev/null 2>&1; then
