@@ -54,33 +54,45 @@ $SUDO ufw allow 443/udp >/dev/null
 $SUDO ufw --force enable >/dev/null
 
 # --- 4. Docker Hub, or a domestic mirror -------------------------------------------------------
-# A reachable registry answers /v2/ with 200 or 401; a sanctioned one with 403 or nothing.
+# Docker Hub's /v2/ can answer 401 from Iran while the image layers (on its CDN) answer 403, so
+# only a real pull proves it works. Mirrors are tried one by one until a pull succeeds.
 registry_ok() {
   local code
   code=$(curl -s -o /dev/null -m 10 -w '%{http_code}' "$1/v2/" || true)
   [ "$code" = 200 ] || [ "$code" = 401 ]
 }
-mirror=${MADAR_DOCKER_MIRROR:-}
-if [ -z "$mirror" ] && ! registry_ok https://registry-1.docker.io; then
-  say "Docker Hub is not reachable; looking for a domestic mirror"
+pull_ok() {
+  timeout 120 docker_cmd pull -q hello-world >/dev/null 2>&1 || return 1
+  docker_cmd rmi hello-world >/dev/null 2>&1 || true
+}
+use_mirror() {
+  if [ -s /etc/docker/daemon.json ] && ! grep -q '"registry-mirrors"' /etc/docker/daemon.json; then
+    fail "/etc/docker/daemon.json already has settings; add \"registry-mirrors\": [\"$1\"] to it by hand and run again"
+  fi
+  echo "{ \"registry-mirrors\": [\"$1\"] }" | $SUDO tee /etc/docker/daemon.json >/dev/null
+  $SUDO systemctl restart docker
+}
+if [ -n "${MADAR_DOCKER_MIRROR:-}" ]; then
+  if ! grep -q "$MADAR_DOCKER_MIRROR" /etc/docker/daemon.json 2>/dev/null; then
+    say "Using the Docker mirror $MADAR_DOCKER_MIRROR"
+    use_mirror "$MADAR_DOCKER_MIRROR"
+  fi
+  pull_ok || fail "cannot pull images through $MADAR_DOCKER_MIRROR; try another mirror"
+elif ! pull_ok; then
+  say "Docker Hub images cannot be downloaded; looking for a domestic mirror"
+  found=""
   for candidate in https://docker.arvancloud.ir https://mirror-docker.runflare.com \
     https://docker.iranserver.com https://registry.docker.ir; do
-    if registry_ok "$candidate"; then
-      mirror=$candidate
+    registry_ok "$candidate" || continue
+    say "Trying $candidate"
+    use_mirror "$candidate"
+    if pull_ok; then
+      found=$candidate
       break
     fi
   done
-  [ -n "$mirror" ] || fail "no Docker mirror answered. Ask your provider for one and run again with MADAR_DOCKER_MIRROR=https://…"
-fi
-if [ -n "$mirror" ]; then
-  if [ -s /etc/docker/daemon.json ] && ! grep -q "$mirror" /etc/docker/daemon.json; then
-    fail "/etc/docker/daemon.json already has settings; add \"registry-mirrors\": [\"$mirror\"] to it by hand and run again"
-  fi
-  if ! grep -q "$mirror" /etc/docker/daemon.json 2>/dev/null; then
-    say "Using the Docker mirror $mirror"
-    echo "{ \"registry-mirrors\": [\"$mirror\"] }" | $SUDO tee /etc/docker/daemon.json >/dev/null
-    $SUDO systemctl restart docker
-  fi
+  [ -n "$found" ] || fail "no Docker mirror worked. Ask your provider for one and run again with MADAR_DOCKER_MIRROR=https://…"
+  say "Using the Docker mirror $found"
 fi
 
 # --- 5. npm, or a domestic mirror --------------------------------------------------------------
