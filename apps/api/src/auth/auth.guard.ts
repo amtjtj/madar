@@ -6,7 +6,7 @@ import {
   type ExecutionContext,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { can, requiresTwoFactor, type Permission } from '@madar/shared';
+import { can, type Permission } from '@madar/shared';
 import { fromNodeHeaders } from 'better-auth/node';
 
 import {
@@ -109,7 +109,10 @@ export class AuthGuard implements CanActivate {
         'Change your password first',
       );
     }
-    if (requiresTwoFactor(member.actor.roles) && !session.user.twoFactorEnabled) {
+    if (
+      this.tenants.twoFactorRequired(member.actor.roles, tenant.slug) &&
+      !session.user.twoFactorEnabled
+    ) {
       throw new ApiError(
         HttpStatus.FORBIDDEN,
         'two_factor_setup_required',

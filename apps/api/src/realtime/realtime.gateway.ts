@@ -1,7 +1,7 @@
 import { Inject, Logger } from '@nestjs/common';
 import { WebSocketGateway, WebSocketServer, type OnGatewayConnection } from '@nestjs/websockets';
 import { schema as s, withTenant, type DbHandle } from '@madar/db';
-import { REALTIME_PATH, requiresTwoFactor, scopeFor } from '@madar/shared';
+import { REALTIME_PATH, scopeFor } from '@madar/shared';
 import { fromNodeHeaders } from 'better-auth/node';
 import { eq, or } from 'drizzle-orm';
 import type { Server, Socket } from 'socket.io';
@@ -77,7 +77,11 @@ export class RealtimeGateway implements OnGatewayConnection {
 
     const member = await this.tenants.loadMember(tenantId, user.id);
     if (!member || member.status !== 'active') return null;
-    if (requiresTwoFactor(member.actor.roles) && !user.twoFactorEnabled) return null;
+    if (
+      this.tenants.twoFactorRequired(member.actor.roles, membership.tenantSlug) &&
+      !user.twoFactorEnabled
+    )
+      return null;
 
     const projects = await withTenant(this.handle.db, { tenantId }, (tx) =>
       tx

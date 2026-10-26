@@ -11,10 +11,8 @@ import {
 } from '@madar/shared';
 
 import { api } from '@/lib/api';
-import { xpForFinishing } from '@/lib/progress';
 
 import { progressKeys } from './keys';
-import { useMe } from './use-me';
 
 /** My level, XP, streak and today's ring (ADR 0029). */
 export function useMyProgress() {
@@ -63,8 +61,6 @@ export function useSaveGamificationSettings() {
 
 /** The «+XP» to show on a task's check (undefined when none would be earned). */
 export function useXpFor() {
-  const { data: me } = useMe();
-  const { data: progress } = useMyProgress();
-  return (task: Pick<Task, 'weight' | 'dueOn' | 'source' | 'assignee'>) =>
-    xpForFinishing(task, me?.member?.id, progress);
+  // Gamification is hidden for now (owner's feedback 2026-10-26): no XP hints on tasks.
+  return (_task: Pick<Task, 'weight' | 'dueOn' | 'source' | 'assignee'>): undefined => undefined;
 }

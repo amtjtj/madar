@@ -33,6 +33,19 @@ const envSchema = z.object({
   AUTH_SECRET: z.string().min(32),
   /** Public origin the browser uses (the web app, which proxies /api). */
   AUTH_BASE_URL: z.string().url().default('http://localhost:3000'),
+  /**
+   * Companies (slugs, comma-separated) whose admins may sign in without two-factor: only a
+   * presentation company such as the seeded «زرین‌مدار». Empty everywhere else.
+   */
+  TWO_FACTOR_OPTIONAL_TENANTS: z
+    .string()
+    .default('')
+    .transform((value) =>
+      value
+        .split(',')
+        .map((slug) => slug.trim())
+        .filter(Boolean),
+    ),
   /** Extra origins allowed to call auth endpoints (comma-separated). */
   AUTH_TRUSTED_ORIGINS: z
     .string()

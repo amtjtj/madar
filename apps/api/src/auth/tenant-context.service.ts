@@ -9,6 +9,7 @@ import {
 } from '@madar/db';
 import {
   OVERSIGHT_RESOURCES,
+  requiresTwoFactor,
   type Actor,
   type DeptRole,
   type Grant,
@@ -16,6 +17,8 @@ import {
 } from '@madar/shared';
 import { and, eq, inArray, isNull, type SQL } from 'drizzle-orm';
 
+import { ENV } from '../config/config.module.js';
+import type { Env } from '../config/env.js';
 import { DB_HANDLE } from '../database/tokens.js';
 
 export interface LoadedMember {
@@ -28,7 +31,16 @@ export interface LoadedMember {
 
 @Injectable()
 export class TenantContextService {
-  constructor(@Inject(DB_HANDLE) private readonly handle: DbHandle) {}
+  constructor(
+    @Inject(DB_HANDLE) private readonly handle: DbHandle,
+    @Inject(ENV) private readonly env: Env,
+  ) {}
+
+  /** Admins need two-factor, except in a company listed in TWO_FACTOR_OPTIONAL_TENANTS. */
+  twoFactorRequired(roles: readonly string[], tenantSlug: string | undefined): boolean {
+    if (tenantSlug && this.env.TWO_FACTOR_OPTIONAL_TENANTS.includes(tenantSlug)) return false;
+    return requiresTwoFactor(roles);
+  }
 
   memberships(userId: string): Promise<Membership[]> {
     return listMemberships(this.handle.db, userId);

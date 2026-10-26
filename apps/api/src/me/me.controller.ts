@@ -6,7 +6,7 @@ import {
   type MeResponse,
   type SetActiveTenantRequest,
 } from '@madar/shared';
-import { requiresTwoFactor, scopeFor, PERMISSIONS } from '@madar/shared';
+import { scopeFor, PERMISSIONS } from '@madar/shared';
 import { APIError } from 'better-auth/api';
 import { fromNodeHeaders } from 'better-auth/node';
 import type { Request, Response } from 'express';
@@ -43,7 +43,7 @@ export class MeController {
     const tenant = tenantId ? await this.tenants.tenantStatus(tenantId) : null;
     const member = tenant ? await this.tenants.loadMember(tenant.id, session.user.id) : null;
     const roles = member?.actor.roles ?? [];
-    const twoFactorRequired = requiresTwoFactor(roles);
+    const twoFactorRequired = this.tenants.twoFactorRequired(roles, tenant?.slug);
 
     return {
       user: {

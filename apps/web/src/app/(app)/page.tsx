@@ -3,7 +3,7 @@
 import { ArrowLeft, Check, Plus, Sparkles, Wand2, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useState } from 'react';
+import { Suspense, useState, type ReactNode } from 'react';
 
 import { t } from '@madar/i18n';
 import {
@@ -32,11 +32,8 @@ import { AskLink } from '@/components/assistant/ask-link';
 import { TaskTags } from '@/components/work/task-tags';
 import { CalendarPreview } from '@/components/home/calendar-preview';
 import { CompanyView } from '@/components/home/company-view';
-import { MyGoalsCard } from '@/components/home/my-goals-card';
 import { TodayMeetings } from '@/components/meetings/today-meetings';
 import { WaitingRequestsCard } from '@/components/requests/waiting-card';
-import { ProgressCard } from '@/components/home/progress-card';
-import { RecentKudosCard } from '@/components/home/kudos-card';
 import { TeamView } from '@/components/home/team-view';
 import { InstallCard } from '@/components/pwa/install';
 import { NewTaskButton } from '@/components/work/new-task-button';
@@ -161,23 +158,19 @@ function Home() {
         {!member ? (
           <TodaySkeleton />
         ) : tab === 'company' ? (
-          <>
+          <WithCalendar>
             <WaitingRequestsCard />
             <CompanyView />
-            <CalendarPreview />
-            <RecentKudosCard />
-          </>
+          </WithCalendar>
         ) : tab === 'team' ? (
-          <>
+          <WithCalendar>
             <WaitingRequestsCard />
             <TeamView
               departments={teamDepartments}
               departmentId={departmentId}
               onDepartmentChange={(id) => go('team', id)}
             />
-            <CalendarPreview />
-            <RecentKudosCard />
-          </>
+          </WithCalendar>
         ) : (
           <TodayTab />
         )}
@@ -189,15 +182,26 @@ function Home() {
 function TodayTab() {
   const { data: today, isPending } = useToday();
   return (
-    <>
+    <WithCalendar>
       <WaitingRequestsCard />
-      <ProgressCard />
       <TodayMeetings />
       {isPending || !today ? <TodaySkeleton /> : <TodayPlan today={today} />}
-      <CalendarPreview />
-      <RecentKudosCard />
-      <MyGoalsCard />
-    </>
+    </WithCalendar>
+  );
+}
+
+/**
+ * The week's calendar at the top: beside the content on wide screens (the second grid column,
+ * which is the left side in RTL, in a roughly square box) and first on phones.
+ */
+function WithCalendar({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-6 md:grid md:grid-cols-[minmax(0,1fr)_22rem] md:items-start">
+      <div className="md:col-start-2 md:row-start-1">
+        <CalendarPreview />
+      </div>
+      <div className="flex min-w-0 flex-col gap-6 md:col-start-1 md:row-start-1">{children}</div>
+    </div>
   );
 }
 

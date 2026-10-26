@@ -9,11 +9,9 @@ import {
   Download,
   MessagesSquare,
   Building2,
-  ChartNetwork,
   Clock,
   FolderKanban,
   House,
-  Flame,
   Inbox,
   FileText,
   ListTodo,
@@ -25,7 +23,6 @@ import {
   Network,
   ScrollText,
   Sparkles,
-  Target,
   Users,
   WifiOff,
 } from 'lucide-react';
@@ -107,16 +104,6 @@ export function useOrgNavItems(): NavItem[] {
           },
         ]
       : []),
-    ...(can('org_chart.read')
-      ? [
-          {
-            key: '/org-chart',
-            label: t('shell.orgChart'),
-            href: '/org-chart',
-            icon: <ChartNetwork aria-hidden />,
-          },
-        ]
-      : []),
     ...(can('audit.read')
       ? [
           {
@@ -164,12 +151,6 @@ export function useOrgNavItems(): NavItem[] {
             icon: <Inbox aria-hidden />,
           },
           {
-            key: '/org/gamification',
-            label: t('progress.settings.short'),
-            href: '/org/gamification',
-            icon: <Flame aria-hidden />,
-          },
-          {
             key: '/org/assistant',
             label: t('assistant.settingsShort'),
             href: '/org/assistant',
@@ -189,7 +170,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   const workItems: NavItem[] = [
     { key: '/', label: t('nav.today'), href: '/', icon: <House aria-hidden /> },
     { key: '/tasks', label: t('shell.tasks'), href: '/tasks', icon: <ListTodo aria-hidden /> },
-    { key: '/goals', label: t('shell.goals'), href: '/goals', icon: <Target aria-hidden /> },
     {
       key: '/projects',
       label: t('shell.projects'),
@@ -329,12 +309,6 @@ export function AppShell({ children }: { children: ReactNode }) {
         </button>
       }
       items={[
-        {
-          key: 'progress',
-          label: t('progress.nav'),
-          icon: <Flame aria-hidden />,
-          onSelect: () => router.push('/progress'),
-        },
         {
           key: 'notification-settings',
           label: t('notifications.settings'),
